@@ -14,3 +14,6 @@ image:
 	make -C src diskboot
 	cp src/diskboot pix.img
 	printf '\125\252' | dd of=./pix.img bs=1 seek=510 conv=notrunc
+
+test:
+	exit 0
