@@ -594,13 +594,14 @@ lba2chs:
 
 /* Messages */
 msg_bootopt:
-	.ascii	"Welcome to Academic Operating System!\r\n\n"
+	.ascii	"Welcome to Packet-based Information Chaining Service"
+	.ascii	" (PIX)!\r\n\n"
 	.ascii	"Select one:\r\n"
 	.ascii	"    1: Boot (64 bit mode)\r\n"
 	.ascii	"    2: Power off\r\n"
 	.asciz	"Press key:[ ]\x08\x08"
 msg_countdown:
-	.ascii	"AOS will boot in "
+	.ascii	"PIX will boot in "
 msg_count:
 	.asciz	"00 sec."
 
