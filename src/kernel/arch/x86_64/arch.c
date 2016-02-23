@@ -354,9 +354,6 @@ ap_init(void)
 
     /* Initialize the local APIC */
     lapic_init();
-
-    /* Run experiment */
-    //run_experiment(lapic_id());
 }
 
 /*
@@ -382,6 +379,16 @@ arch_exec(struct arch_task *t, void (*entry)(void), size_t size, int policy,
     int argc;
     char *const *tmp;
     size_t len;
+    void *ustack;
+    u8 *arg;
+    char **narg;
+    u8 *saved;
+    u64 cs;
+    u64 ss;
+    u64 flags;
+
+    /* Set the user stack address */
+    ustack = t->ustack;
 
     /* Count the number of arguments */
     tmp = argv;
@@ -393,25 +400,15 @@ arch_exec(struct arch_task *t, void (*entry)(void), size_t size, int policy,
         tmp++;
     }
 
-    /* Prepare arguments */
-    u8 *arg;
+    /* Prepare arguments from stack */
     len += argc + (argc + 1) * sizeof(void *);
-    if ( len < PAGESIZE ) {
-        /* FIXME: Replace kmalloc with vmalloc */
-        arg = kmalloc(PAGESIZE);
-    } else {
-        arg = kmalloc(len);
-    }
-    if ( NULL == arg ) {
-        return -1;
-    }
-    char **narg;
-    u8 *saved;
+    arg = ustack;
+
     tmp = argv;
     narg = (char **)arg;
     saved = arg + sizeof(void *) * (argc + 1);
     while ( NULL != *tmp ) {
-        *narg = (char *)(saved - arg + 0x7fc00000ULL);
+        *narg = (char *)(saved);
         kmemcpy(saved, *tmp, kstrlen(*tmp));
         saved[kstrlen(*tmp)] = '\0';
         saved += kstrlen(*tmp) + 1;
@@ -420,11 +417,6 @@ arch_exec(struct arch_task *t, void (*entry)(void), size_t size, int policy,
     }
     *narg = NULL;
 
-
-
-    u64 cs;
-    u64 ss;
-    u64 flags;
     /* Configure the ring protection by the policy */
     switch ( policy ) {
     case KTASK_POLICY_KERNEL:
@@ -442,7 +434,30 @@ arch_exec(struct arch_task *t, void (*entry)(void), size_t size, int policy,
         break;
     }
 
-    kmemcpy((void *)CODE_INIT, entry, PAGESIZE);
+    /* For exec */
+    void *paddr;
+    paddr = pmem_alloc_pages(PMEM_ZONE_LOWMEM,
+                             bitwidth(DIV_CEIL(size, PAGESIZE)));
+    if ( NULL == paddr ) {
+        return -1;
+    }
+    ssize_t i;
+    int ret;
+    for ( i = 0; i < (ssize_t)DIV_CEIL(size, PAGESIZE); i++ ) {
+        ret = arch_vmem_map(t->ktask->proc->vmem,
+                            (void *)(CODE_INIT + PAGESIZE * i),
+                            paddr + PAGESIZE * i, VMEM_USABLE | VMEM_USED);
+        if ( ret < 0 ) {
+            /* FIXME: Handle this error */
+            return -1;
+        }
+    }
+
+    /* Release the original one */
+    pmem_free_pages(t->ktask->proc->code_paddr);
+    t->ktask->proc->code_paddr = paddr;
+
+    kmemcpy((void *)CODE_INIT, entry, size);
     kmemset(t->rp, 0, sizeof(struct stackframe64));
     /* Replace the current process with the new process */
     t->sp0 = (u64)t->kstack + KSTACK_SIZE - 16;
@@ -454,9 +469,11 @@ arch_exec(struct arch_task *t, void (*entry)(void), size_t size, int policy,
     t->rp->ip = CODE_INIT;
     t->rp->flags = flags;
 
-    /* FIXME */
-    t->rp->di = 0;//argc;
-    t->rp->si = 0x7fc00000ULL;
+    t->rp->di = argc;
+    t->rp->si = USTACK_INIT;
+
+    /* Specify the code size */
+    t->ktask->proc->code_size = size;
 
     /* Restart the task */
     task_replace(t);
@@ -568,8 +585,20 @@ isr_page_fault(void *rip, void *addr, u64 error)
     char buf[128];
     u64 x = (u64)rip;
     u64 y = (u64)addr;
+    struct ktask *t;
 
-    ksnprintf(buf, sizeof(buf), "Page Fault (%d): %016x @%016x", error, y, x);
+    /* Get the current process */
+    t = this_ktask();
+    if ( NULL == t || NULL == t->proc ) {
+        panic("FIXME: Invalid task calls sys_exit()");
+        return;
+    }
+
+    ksnprintf(buf, sizeof(buf), "Page Fault (%c%c%c%c[%d]): %016x @%016x %d",
+              (error & 0x10) ? 'I' : 'D', (error & 0x4) ? 'U' : 'S',
+              (error & 0x2) ? 'W' : 'R', (error & 0x1) ? 'P' : '*',
+              error, y, x,
+              (NULL != t && NULL != t->proc) ? t->proc->id : -1);
     panic(buf);
 }
 

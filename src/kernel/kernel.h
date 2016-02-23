@@ -83,7 +83,7 @@
 #define USTACK_INIT             0xbfe00000ULL
 #define CODE_INIT               0x40000000ULL
 #define KSTACK_SIZE             4096
-#define USTACK_SIZE             (4096 * 16)
+#define USTACK_SIZE             (4096 * 512)
 
 /* Process table size */
 #define PROC_NR                 65536
@@ -405,6 +405,14 @@ struct proc {
 
     /* File descriptors */
     struct fildes *fds[FD_MAX];
+
+
+    /* Code */
+    void *code_paddr;
+    size_t code_size;
+
+    /* Exit status */
+    int exit_status;
 };
 
 /*
