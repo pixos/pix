@@ -41,16 +41,21 @@ void
 sys_exit(int status)
 {
     struct ktask *t;
+    struct proc *proc;
 
-    /* Get the task */
+    /* Get the current process */
     t = this_ktask();
-    if ( NULL == t ) {
+    if ( NULL == t || NULL == t->proc ) {
+        panic("FIXME: Invalid task calls sys_exit()");
         return;
     }
-    panic("FIXME: exit");
+    proc = t->proc;
+    proc->exit_status = status;
 
     /* Call atexit */
-    while ( 1 ) {}
+    while ( 1 ) {
+        halt();
+    }
 }
 
 /*
@@ -153,6 +158,7 @@ sys_read(int fildes, void *buf, size_t nbyte)
     u16 *video;
     int i;
     char *s;
+
     s = "read";
 
     video = (u16 *)0xb8000;
@@ -248,7 +254,7 @@ sys_write(int fildes, const void *buf, size_t nbyte)
 int
 sys_open(const char *path, int oflag, ...)
 {
-    u64 *initramfs = (u64 *)0x20000ULL;
+    u64 *initramfs = (u64 *)INITRAMFS_BASE;
     u64 offset = 0;
     u64 size;
     struct ktask *t;
@@ -266,6 +272,7 @@ sys_open(const char *path, int oflag, ...)
         /* Could not find the file */
         return -1;
     }
+    (void)size;
 
     /* Get the task */
     t = this_ktask();
@@ -681,6 +688,8 @@ sys_lseek(int fildes, off_t offset, int whence)
 /*
  * Architecture specific system call
  */
+u32 inl(u16);
+void outl(u16, u32);
 int
 sys_sysarch(int number, void *args)
 {
