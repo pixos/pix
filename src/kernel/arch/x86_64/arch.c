@@ -258,6 +258,13 @@ bsp_init(void)
         return;
     }
 
+#if 0
+    if ( vmx_enable() < 0 ) {
+        panic("Failed to initialize VMX");
+        return;
+    }
+#endif
+
     /* Enable MP */
     mp_enabled = 1;
 
@@ -590,7 +597,10 @@ isr_page_fault(void *rip, void *addr, u64 error)
     /* Get the current process */
     t = this_ktask();
     if ( NULL == t || NULL == t->proc ) {
-        panic("FIXME: Invalid task calls sys_exit()");
+        ksnprintf(buf, sizeof(buf),
+                  "FIXME: Invalid task calls sys_exit() %016llx @%016llx", y,
+                  x);
+        panic(buf);
         return;
     }
 
