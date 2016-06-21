@@ -33,7 +33,9 @@
 #define IA32_VMX_CR0_FIXED1 0x487
 #define IA32_VMX_CR4_FIXED0 0x488
 #define IA32_VMX_CR4_FIXED1 0x489
+#define IA32_FEATURE_CONTROL 0x03a
 
+extern struct kmem *g_kmem;
 
 #if 0
 /* Code example */
@@ -75,7 +77,14 @@ vmx_enable(void)
         return -1;
     }
 
-    /* Get */
+    /* Read VMX basic information
+     * [30:0]  : Revision
+     * [44:32] : Size of VMXON/VMCS region
+     * [48]    : The width of the physical addresses in VMX
+     * [49]    : Support of dual-monitor treatment of system-management
+     *           interrupts and system-management mode
+     * [53:50] : Memory type; 0: Uncacheable, 6: Write Back
+     */
     vmx = rdmsr(IA32_VMX_BASIC);
 
     /* Set up CR0 */
@@ -92,9 +101,17 @@ vmx_enable(void)
 
     vmcs = kmalloc(4096);
     kmemset(vmcs, 0, 4096);
-    vmcs[0] = vmx;
+    vmcs[0] = vmx & 0x7fffffff;
 
-    ret = vmxon(&vmcs);
+    void *a = arch_vmem_addr_v2p(g_kmem->space, vmcs);
+    u64 f = rdmsr(IA32_FEATURE_CONTROL);
+    // 0: Lock, 1: Enable VMX in SMX operation, 2: Enable VMX outside SMX operation
+    if ( !(f & 1) ) {
+        /* Not locked, then enable VMX */
+        wrmsr(IA32_FEATURE_CONTROL, f | 5);
+    }
+    f = rdmsr(IA32_FEATURE_CONTROL);
+    ret = vmxon(&a);
     if ( ret ) {
         return -1;
     }
