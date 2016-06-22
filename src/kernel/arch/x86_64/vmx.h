@@ -163,12 +163,12 @@ u64 vmx_guest_sysenter_eip;
 struct vmx_vmcs vmx_vmcs [] = {
     /* Control fields */
     /* 64-bit */
-    /*{ 0x2000, &vmx_control_io_bitmap_a_full },*/
-    /*{ 0x2001, &vmx_control_io_bitmap_a_high },*/
-    /*{ 0x2002, &vmx_control_io_bitmap_b_full },*/
-    /*{ 0x2003, &vmx_control_io_bitmap_b_high },*/
-    /*{ 0x2004, &vmx_control_msr_bitmaps_full },*/
-    /*{ 0x2005, &vmx_control_msr_bitmaps_high },*/
+    { 0x2000, &vmx_control_io_bitmap_a_full },
+    { 0x2001, &vmx_control_io_bitmap_a_high },
+    { 0x2002, &vmx_control_io_bitmap_b_full },
+    { 0x2003, &vmx_control_io_bitmap_b_high },
+    { 0x2004, &vmx_control_msr_bitmaps_full },
+    { 0x2005, &vmx_control_msr_bitmaps_high },
     /*{ 0x2006, &vmx_control_vm_exit_msr_store_full },*/
     /*{ 0x2007, &vmx_control_vm_exit_msr_store_high },*/
     /*{ 0x2008, &vmx_control_vm_exit_msr_load_full },*/
@@ -177,17 +177,17 @@ struct vmx_vmcs vmx_vmcs [] = {
     /*{ 0x200b, &vmx_control_vm_entry_msr_load_high },*/
     /*{ 0x200c, &vmx_control_exective_vmcs_pointer_full },*/
     /*{ 0x200d, &vmx_control_exective_vmcs_pointer_high },*/
-    /*{ 0x2010, &vmx_control_tsc_offset_full },*/
-    /*{ 0x2011, &vmx_control_tsc_offset_high },*/
+    { 0x2010, &vmx_control_tsc_offset_full },
+    { 0x2011, &vmx_control_tsc_offset_high },
     { 0x201a, &vmx_control_ept_pointer_full },
-    /*{ 0x201b, &vmx_control_ept_pointer_high },*/
+    { 0x201b, &vmx_control_ept_pointer_high },
     /* 32-bit */
     { 0x4000, &vmx_control_pin_based },
     { 0x4002, &vmx_control_primary_processor_based },
     /*{ 0x4004, &vmx_control_exception_bitmap },*/
     /*{ 0x4006, &vmx_control_page_fault_error_code_mask },*/
     /*{ 0x4008, &vmx_control_page_fault_error_code_match },*/
-    /*{ 0x400a, &vmx_control_cr3_target_count },*/
+    { 0x400a, &vmx_control_cr3_target_count },
     { 0x400c, &vmx_control_vm_exit_controls },
     /*{ 0x400e, &vmx_control_vm_exit_msr_store_count },*/
     /*{ 0x4010, &vmx_control_vm_exit_msr_load_count },*/
@@ -222,18 +222,18 @@ struct vmx_vmcs vmx_vmcs [] = {
     /* 64-bit */
     { 0x2c02, &vmx_host_efer_full },
     /* 32-bit */
-    /*{ 0x4c00, &vmx_host_sysenter_cs },*/
+    { 0x4c00, &vmx_host_sysenter_cs },
     /* Natural */
     { 0x6c00, &vmx_host_cr0 },
     { 0x6c02, &vmx_host_cr3 },
     { 0x6c04, &vmx_host_cr4 },
-    /*{ 0x6c06, &vmx_host_fs_base },*/
-    /*{ 0x6c08, &vmx_host_gs_base },*/
-    /*{ 0x6c0a, &vmx_host_tr_base },*/
+    { 0x6c06, &vmx_host_fs_base },
+    { 0x6c08, &vmx_host_gs_base },
+    { 0x6c0a, &vmx_host_tr_base },
     { 0x6c0c, &vmx_host_gdtr_base },
     { 0x6c0e, &vmx_host_idtr_base },
-    /*{ 0x6c10, &vmx_host_sysenter_esp },*/
-    /*{ 0x6c12, &vmx_host_sysenter_eip },*/
+    { 0x6c10, &vmx_host_sysenter_esp },
+    { 0x6c12, &vmx_host_sysenter_eip },
     { 0x6c14, &vmx_host_rsp },
     { 0x6c16, &vmx_host_rip },
 
