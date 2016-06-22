@@ -216,8 +216,8 @@ vmx_initialize_vmcs(void)
         return -1;
     }
     /* Program */
-    mem[0x7c00] = 0xf4; // hlt
-    //mem[0x7c00] = 0x90; // nop
+    //mem[0x7c00] = 0xf4; // hlt
+    mem[0x7c00] = 0x90; // nop
     mem[0x7c01] = 0xeb; // jmp
     mem[0x7c02] = 0xfd; // back
     ept = kmalloc(4096 * 3);
@@ -381,13 +381,13 @@ vmx_initialize_vmcs(void)
     //vmx_host_rsp = (u64)arch_vmem_addr_v2p(g_kmem->space, kmalloc(4096));
     //vmx_host_rsp = 0x9000;
     //vmx_host_rsp = 0x01f00000;
-    vmx_host_rsp = (u64)kmalloc(4096) + 4096;
+    vmx_host_rsp = (u64)kmalloc(4096);
     //kmemset(vmx_host_rsp, 0, 4096 * 4);
-    if ( NULL == vmx_host_rsp ) {
+    if ( 0 == vmx_host_rsp ) {
         return -1;
     }
+    vmx_host_rsp += 4096;
     vmx_host_rip = (u64)vmx_vm_exit_handler;
-    //vmx_host_rip = (u64)intr_crash;
 
     vmx_host_sysenter_cs = 0;
     vmx_host_fs_base = 0;

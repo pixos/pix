@@ -259,19 +259,15 @@ bsp_init(void)
     }
 
     if ( vmx_enable() < 0 ) {
-        panic("Failed to initialize VMX");
+        panic("Failed to initialize VMX.");
         return;
     }
     if ( vmx_initialize_vmcs() ) {
-        panic("Failed on VMCX initialization");
+        panic("Failed on VMCX initialization.");
         return;
     }
-    char e[512];
-    ksnprintf(e, 512, "Failed on vmlaunch: %d %llx", vmread(0x4400), get_cr4());
-    //panic(e);
     if ( vmlaunch() ) {
-        ksnprintf(e, 512, "Failed on vmlaunch: %d", vmread(0x4400));
-        panic(e);
+        panic("Failed on VMLAUNCH.");
         return;
     }
     panic("xxx");
