@@ -77,6 +77,8 @@ panic(const char *s)
     int i;
     u16 *video;
     u16 val;
+    int col;
+    int ln;
 
     /* Disable interrupt */
     cli();
@@ -89,20 +91,46 @@ panic(const char *s)
 
     /* Print out the message string directly */
     video = (u16 *)VIDEO_COLOR;
-    for ( i = 0; *s; i++, s++  ) {
-        *video = 0x2f00 | *s;
-        video++;
+
+    /* Fill out with green */
+    for ( i = 0; i < 80 * 25; i++ ) {
+        video[i] = 0x2f00;
     }
+
+    col = 0;
+    ln = 0;
+    for ( i = 0; *s; s++  ) {
+        switch ( *s ) {
+        case '\r':
+            video -= col;
+            i -= col;
+            col = 0;
+            break;
+        case '\n':
+            video += 80;
+            i += 80;
+            ln++;
+            break;
+        default:
+            *video = 0x2f00 | *s;
+            video++;
+            i++;
+            col++;
+        }
+    }
+
     /* Move the cursor */
     val = ((i & 0xff) << 8) | 0x0f;
     outw(0x3d4, val);   /* Low */
     val = (((i >> 8) & 0xff) << 8) | 0x0e;
     outw(0x3d4, val);   /* High */
+#if 0
     /* Fill out */
     for ( ; i < 80 * 25; i++ ) {
         *video = 0x2f00;
         video++;
     }
+#endif
 
     /* Stop forever */
     while ( 1 ) {

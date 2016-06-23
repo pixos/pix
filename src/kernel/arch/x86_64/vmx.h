@@ -114,6 +114,8 @@ u64 vmx_guest_vmcs_link_pointer_full;
 u64 vmx_guest_vmcs_link_pointer_high;
 u64 vmx_guest_debugctl_full;
 u64 vmx_guest_debugctl_high;
+u64 vmx_guest_pat_full;
+u64 vmx_guest_efer_full;
 
 u64 vmx_guest_es_limit;
 u64 vmx_guest_cs_limit;
@@ -137,7 +139,7 @@ u64 vmx_guest_interruptibility_state;
 u64 vmx_guest_activity_state;
 u64 vmx_guest_smbase;
 u64 vmx_guest_sysenter_cs;
-/*u64 vmx_preemption_timer_value;*/
+u64 vmx_preemption_timer_value;
 
 u64 vmx_guest_cr0;
 u64 vmx_guest_cr3;
@@ -173,14 +175,14 @@ struct vmx_vmcs vmx_vmcs [] = {
     /*{ 0x2007, &vmx_control_vm_exit_msr_store_high },*/
     /*{ 0x2008, &vmx_control_vm_exit_msr_load_full },*/
     /*{ 0x2009, &vmx_control_vm_exit_msr_load_high },*/
-    /*{ 0x200a, &vmx_control_vm_entry_msr_load_full },*/
+    { 0x200a, &vmx_control_vm_entry_msr_load_full },
     /*{ 0x200b, &vmx_control_vm_entry_msr_load_high },*/
     /*{ 0x200c, &vmx_control_exective_vmcs_pointer_full },*/
     /*{ 0x200d, &vmx_control_exective_vmcs_pointer_high },*/
     { 0x2010, &vmx_control_tsc_offset_full },
     { 0x2011, &vmx_control_tsc_offset_high },
     { 0x201a, &vmx_control_ept_pointer_full },
-    { 0x201b, &vmx_control_ept_pointer_high },
+    /*{ 0x201b, &vmx_control_ept_pointer_high },*/
     /* 32-bit */
     { 0x4000, &vmx_control_pin_based },
     { 0x4002, &vmx_control_primary_processor_based },
@@ -251,8 +253,10 @@ struct vmx_vmcs vmx_vmcs [] = {
     /* 64-bit */
     { 0x2800, &vmx_guest_vmcs_link_pointer_full },
     /*{ 0x2801, &vmx_guest_vmcs_link_pointer_high },*/
-    /*{ 0x2802, &vmx_guest_debugctl_full },*/
+    { 0x2802, &vmx_guest_debugctl_full },
     /*{ 0x2803, &vmx_guest_debugctl_high },*/
+    { 0x2804, &vmx_guest_pat_full },
+    { 0x2806, &vmx_guest_efer_full },
     /* 32-bit */
     { 0x4800, &vmx_guest_es_limit },
     { 0x4802, &vmx_guest_cs_limit },
@@ -272,10 +276,10 @@ struct vmx_vmcs vmx_vmcs [] = {
     { 0x481e, &vmx_guest_gs_access_rights },
     { 0x4820, &vmx_guest_ldtr_access_rights },
     { 0x4822, &vmx_guest_tr_access_rights },
-    /*{ 0x4824, &vmx_guest_interruptibility_state },*/
-    /*{ 0x4826, &vmx_guest_activity_state },*/
+    { 0x4824, &vmx_guest_interruptibility_state },
+    { 0x4826, &vmx_guest_activity_state },
     /*{ 0x4828, &vmx_guest_smbase },*/
-    /*{ 0x482a, &vmx_guest_sysenter_cs },*/
+    { 0x482a, &vmx_guest_sysenter_cs },
     /*{ 0x482e, &vmx_preemption_timer_value },*/
     /* Natural */
     { 0x6800, &vmx_guest_cr0 },
