@@ -166,11 +166,11 @@ struct vmx_vmcs vmx_vmcs [] = {
     /* Control fields */
     /* 64-bit */
     { 0x2000, &vmx_control_io_bitmap_a_full },
-    { 0x2001, &vmx_control_io_bitmap_a_high },
+    //{ 0x2001, &vmx_control_io_bitmap_a_high },
     { 0x2002, &vmx_control_io_bitmap_b_full },
-    { 0x2003, &vmx_control_io_bitmap_b_high },
+    //{ 0x2003, &vmx_control_io_bitmap_b_high },
     { 0x2004, &vmx_control_msr_bitmaps_full },
-    { 0x2005, &vmx_control_msr_bitmaps_high },
+    //{ 0x2005, &vmx_control_msr_bitmaps_high },
     /*{ 0x2006, &vmx_control_vm_exit_msr_store_full },*/
     /*{ 0x2007, &vmx_control_vm_exit_msr_store_high },*/
     /*{ 0x2008, &vmx_control_vm_exit_msr_load_full },*/
@@ -180,7 +180,7 @@ struct vmx_vmcs vmx_vmcs [] = {
     /*{ 0x200c, &vmx_control_exective_vmcs_pointer_full },*/
     /*{ 0x200d, &vmx_control_exective_vmcs_pointer_high },*/
     { 0x2010, &vmx_control_tsc_offset_full },
-    { 0x2011, &vmx_control_tsc_offset_high },
+    //{ 0x2011, &vmx_control_tsc_offset_high },
     { 0x201a, &vmx_control_ept_pointer_full },
     /*{ 0x201b, &vmx_control_ept_pointer_high },*/
     /* 32-bit */
@@ -203,10 +203,10 @@ struct vmx_vmcs vmx_vmcs [] = {
     /*{ 0x4020, &vmx_control_ple_gap },*/
     /*{ 0x4022, &vmx_control_ple_window },*/
     /* Natural */
-    /*{ 0x6000, &vmx_control_cr0_mask },*/
-    /*{ 0x6002, &vmx_control_cr4_mask },*/
-    /*{ 0x6004, &vmx_control_cr0_read_shadow },*/
-    /*{ 0x6006, &vmx_control_cr4_read_shadow },*/
+    { 0x6000, &vmx_control_cr0_mask },
+    { 0x6002, &vmx_control_cr4_mask },
+    { 0x6004, &vmx_control_cr0_read_shadow },
+    { 0x6006, &vmx_control_cr4_read_shadow },
     /*{ 0x6008, &vmx_control_cr3_target_value0 },*/
     /*{ 0x600a, &vmx_control_cr3_target_value1 },*/
     /*{ 0x600c, &vmx_control_cr3_target_value2 },*/
@@ -280,7 +280,7 @@ struct vmx_vmcs vmx_vmcs [] = {
     { 0x4826, &vmx_guest_activity_state },
     /*{ 0x4828, &vmx_guest_smbase },*/
     { 0x482a, &vmx_guest_sysenter_cs },
-    /*{ 0x482e, &vmx_preemption_timer_value },*/
+    { 0x482e, &vmx_preemption_timer_value },
     /* Natural */
     { 0x6800, &vmx_guest_cr0 },
     { 0x6802, &vmx_guest_cr3 },

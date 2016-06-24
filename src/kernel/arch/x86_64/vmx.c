@@ -50,6 +50,8 @@
 #define IA32_VMX_TRUE_ENTRY_CTLS 0x490
 #define IA32_PAT 0x277
 #define IA32_SMBASE 0x9e
+#define IA32_DEBUGCTL 0x1d9
+#define IA32_EFER 0x0c0000080
 
 extern struct kmem *g_kmem;
 
@@ -213,7 +215,7 @@ vmx_vm_exit_handler(void)
 #else
         ksnprintf(e, 2048,
                   "VM Exit (Exit reason=%d)\r\n"
-                  "  VM-exec %llx VM-exec2 %llx\r\n"
+                  "  VM-exec %llx VM-exec2 %llx VM-entry-ctrl %llx\r\n"
                   "  cr0 %.8lx cr3 %.8lx cr4 %.8lx\r\n"
                   "  cs=%lx base=%.8lx limit=%.8lx acc=%.8lx\r\n"
                   "  es=%lx base=%.8lx limit=%.8lx acc=%.8lx\r\n"
@@ -231,10 +233,11 @@ vmx_vm_exit_handler(void)
                   "  dr7=%.8lx, rsp=%.8lx, rip=%.8lx, rflags=%.8lx\r\n"
                   "  pending debug exception=%llx\r\n"
                   "  CR0 guest/host mask=%llx, CR4 xx=%llx\r\n"
+                  "  CR0 read shadow=%llx, CR4 xx=%llx\r\n"
                   "  EFER=%llx, PAT=%llx\r\n"
-                  "  %llx",
+                  "  %llx %llx",
                   rd,
-                  vmread(0x4002), vmread(0x401e),
+                  vmread(0x4002), vmread(0x401e), vmread(0x4012),
                   vmread(0x6800), vmread(0x6802), vmread(0x6804),
                   vmread(0x802), vmread(0x6808), vmread(0x4802), vmread(0x4816),
                   vmread(0x800), vmread(0x6806), vmread(0x4800), vmread(0x4814),
@@ -252,8 +255,9 @@ vmx_vm_exit_handler(void)
                   vmread(0x681a), vmread(0x681c), vmread(0x681e), vmread(0x6820),
                   vmread(0x6822),
                   vmread(0x6000), vmread(0x6002),
+                  vmread(0x6004), vmread(0x6006),
                   vmread(0x2806), vmread(0x2804),
-                  rdmsr(IA32_VMX_MISC)
+                  rdmsr(IA32_VMX_MISC), vmread(0x4018)
             );
 #endif
 
@@ -356,16 +360,16 @@ vmx_initialize_vmcs(void)
     /* EPTP */
     phyaddr = arch_vmem_addr_v2p(g_kmem->space, ept);
     vmx_control_ept_pointer_full = 0x18 | (u64)phyaddr;
-    vmx_control_ept_pointer_high = 0;
 
 #if 0
-    char e[512];
-    ksnprintf(e, 512, "%x %x %llx %llx %x %x %llx",
+    //char e[512];
+    ksnprintf(e, 512, "%x %x %llx %llx %x %x %llx %llx %llx",
               vmx >> 55, get_cr3(),
               vmx_vm_exit_handler,
               arch_vmem_addr_v2p(g_kmem->space, vmx_vm_exit_handler),
               rdmsr(IA32_VMX_ENTRY_CTLS),
-              rdmsr(IA32_VMX_TRUE_ENTRY_CTLS), rdmsr(IA32_VMX_MISC));
+              rdmsr(IA32_VMX_TRUE_ENTRY_CTLS), rdmsr(IA32_VMX_MISC),
+              rdmsr(IA32_DEBUGCTL), rdmsr(IA32_EFER));
     panic(e);
 #endif
 
@@ -379,10 +383,12 @@ vmx_initialize_vmcs(void)
     //vmx_control_pin_based = 0x0000001f;
     if ( (vmx >> 55) & 1 ) {
         vmx_control_pin_based
-            = (rdmsr(IA32_VMX_TRUE_PINBASED_CTLS) & 0xffffffff) | 0x00000009;
+            = ((rdmsr(IA32_VMX_TRUE_PINBASED_CTLS) & 0xffffff) | 0x00000049)
+            & (rdmsr(IA32_VMX_TRUE_PINBASED_CTLS) >> 32);
     } else {
         vmx_control_pin_based
-            = (rdmsr(IA32_VMX_PINBASED_CTLS) & 0xffffffff) | 0x00000009;
+            = ((rdmsr(IA32_VMX_PINBASED_CTLS)) | 0x00000049)
+            & (rdmsr(IA32_VMX_PINBASED_CTLS) >> 32);
     }
     /* Processor-Based VM-Execution Controls
        2: Interrupt-window exiting
@@ -410,10 +416,12 @@ vmx_initialize_vmcs(void)
     //vmx_control_primary_processor_based = 0x8401e9f2;
     if ( (vmx >> 55) & 1 ) {
         vmx_control_primary_processor_based
-            = (rdmsr(IA32_VMX_TRUE_PROCBASED_CTLS) & 0xffffffff) | 0x80018880;
+            = ((rdmsr(IA32_VMX_TRUE_PROCBASED_CTLS) & 0xffffffff) | 0x80018880)
+            & (rdmsr(IA32_VMX_TRUE_PROCBASED_CTLS) >> 32);
     } else {
         vmx_control_primary_processor_based
-            = (rdmsr(IA32_VMX_PROCBASED_CTLS) & 0xffffffff) | 0x80018880;
+            = ((rdmsr(IA32_VMX_PROCBASED_CTLS) & 0xffffffff) | 0x80018880)
+            & (rdmsr(IA32_VMX_PROCBASED_CTLS) >> 32);
     }
     /* VM-Exit Controls
        2: Save debug controls
@@ -429,10 +437,12 @@ vmx_initialize_vmcs(void)
     //vmx_control_vm_exit_controls = 0x00036fff;
     if ( (vmx >> 55) & 1 ) {
         vmx_control_vm_exit_controls
-            = (rdmsr(IA32_VMX_TRUE_EXIT_CTLS) & 0xffffffff) | 0x00300204;
+            = ((rdmsr(IA32_VMX_TRUE_EXIT_CTLS) & 0xffffffff) | 0x007c0204)
+            & (rdmsr(IA32_VMX_TRUE_EXIT_CTLS) >> 32);
     } else {
         vmx_control_vm_exit_controls
-            = (rdmsr(IA32_VMX_EXIT_CTLS) & 0xffffffff) | 0x000300204;
+            = ((rdmsr(IA32_VMX_EXIT_CTLS) & 0xffffffff) | 0x0003c0204)
+            & (rdmsr(IA32_VMX_EXIT_CTLS) >> 32);
     }
     /* VM-Entry Controls
        2: Load debug control
@@ -446,10 +456,12 @@ vmx_initialize_vmcs(void)
     //vmx_control_vm_entry_controls = 0x000011ff;
     if ( (vmx >> 55) & 1 ) {
         vmx_control_vm_entry_controls
-            = (rdmsr(IA32_VMX_TRUE_ENTRY_CTLS) & 0xffffffff) | 0xc004;
+            = ((rdmsr(IA32_VMX_TRUE_ENTRY_CTLS) & 0xffffffff) | 0xc004)
+            & (rdmsr(IA32_VMX_TRUE_ENTRY_CTLS) >> 32);
     } else {
         vmx_control_vm_entry_controls
-            = (rdmsr(IA32_VMX_ENTRY_CTLS) & 0xffffffff) | 0x8004;
+            = ((rdmsr(IA32_VMX_ENTRY_CTLS) & 0xffffffff) | 0xc004)
+            & (rdmsr(IA32_VMX_ENTRY_CTLS) >> 32);
     }
     /* Secondary Processor-Based VM-Execution Controls
        0: Virtualized APIC access
@@ -472,20 +484,16 @@ vmx_initialize_vmcs(void)
     //vmx_control_secondary_processor_based
     //    = rdmsr(IA32_VMX_PROCBASED_CTLS2) | 0x00000082;
     vmx_control_secondary_processor_based
-        = (rdmsr(IA32_VMX_PROCBASED_CTLS2) & 0xffffffff) | 0x00000082;
+        = ((rdmsr(IA32_VMX_PROCBASED_CTLS2) & 0xffffffff) | 0x00000082)
+        & (rdmsr(IA32_VMX_PROCBASED_CTLS2) >> 32);
 
     //vmx_control_cr3_target_count = (rdmsr(IA32_VMX_MISC) >> 16) & 0x1ff;
     vmx_control_cr3_target_count = 0;
     vmx_control_io_bitmap_a_full = 0;
-    vmx_control_io_bitmap_a_high = 0;
     vmx_control_io_bitmap_b_full = 0;
-    vmx_control_io_bitmap_b_high = 0;
     vmx_control_msr_bitmaps_full = 0;
-    vmx_control_msr_bitmaps_high = 0;
     vmx_control_tsc_offset_full = 0;
-    vmx_control_tsc_offset_high = 0;
     vmx_control_vm_entry_msr_load_full = 0;
-    vmx_control_vm_entry_msr_load_high = 0;
 
     __asm__ __volatile__ ( "movq %%es,%%rax" : "=a"(vmx_host_es_selector) );
     __asm__ __volatile__ ( "movq %%cs,%%rax" : "=a"(vmx_host_cs_selector) );
@@ -557,8 +565,10 @@ vmx_initialize_vmcs(void)
     vmx_guest_tr_access_rights = 0x0000008b;
     //vmx_guest_tr_access_rights = 0x00000083;
 
-    vmx_guest_cr0 = 0;//0x60000030;
-    vmx_guest_cr3 = 0;
+    //vmx_guest_cr0 = 0x10;//0x60000030;
+    vmx_guest_cr0 = 0x00000000;
+    //vmx_guest_cr3 = 0;
+    vmx_guest_cr3 = 0x79000;
     vmx_guest_cr4 = 0;//1 << 13;
     vmx_guest_es_base = 0;
     vmx_guest_cs_base = 0;
@@ -573,8 +583,8 @@ vmx_initialize_vmcs(void)
     vmx_guest_dr7 = 0x00000400;
     vmx_guest_rsp = 0x7c00;
     vmx_guest_rip = 0x7c00;
-    vmx_guest_rflags = 0x0202;
-    //vmx_guest_rflags = 0x0002;
+    //vmx_guest_rflags = 0x0202;
+    vmx_guest_rflags = 0x0002;
     vmx_guest_pending_debug_exceptions = 0x00000000;
     vmx_guest_sysenter_esp = 0x00000000;
     vmx_guest_sysenter_eip = 0x00000000;
@@ -584,15 +594,23 @@ vmx_initialize_vmcs(void)
     /* Activity state; 0: active, 1: HLT, 2: Shutdown, 3: Wait-for-SIPI */
     vmx_guest_activity_state = 0;
 
-    //vmx_guest_efer_full = 0;
+    vmx_control_cr0_mask = 0x80000021;
+    vmx_control_cr0_mask = 0;
+    vmx_control_cr0_read_shadow = 0x80000021;
+    vmx_control_cr0_read_shadow = 0;
+    vmx_control_cr4_mask = 0x00002000;
+    vmx_control_cr4_mask = 0;
+    vmx_control_cr4_read_shadow = 0x00002000;
+    vmx_control_cr4_read_shadow = 0;
+
+    vmx_guest_efer_full = 0;
     vmx_guest_interruptibility_state = 0;
 
     vmx_guest_vmcs_link_pointer_full = 0xffffffffffffffffULL;
-    vmx_guest_vmcs_link_pointer_high = 0;
 
-    vmx_guest_pat_full = rdmsr(IA32_PAT);//0x0007040600070406ULL;
+    vmx_guest_pat_full = rdmsr(IA32_PAT);
 
-    //vmx_guest_debugctl_full = 0;
+    vmx_guest_debugctl_full = 0;
     //vmx_guest_smbase = 0;
 
     for ( i = 0; i < sizeof(vmx_vmcs) / sizeof(struct vmx_vmcs); i++ ) {
@@ -601,6 +619,7 @@ vmx_initialize_vmcs(void)
             return -1;
         }
     }
+    //wrmsr(0x0c0000080, 0);
 
     return 0;
 }
