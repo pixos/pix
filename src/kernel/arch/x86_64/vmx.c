@@ -250,7 +250,7 @@ vmx_vm_exit_handler_c(u64 *stack)
                   get_cr0(), get_cr4());
 #else
         ksnprintf(e, 2048,
-                  "VM Exit (Exit reason=%d)\r\n"
+                  "VM Exit (Exit reason=%d) BASIC=%llx\r\n"
                   "  VM-exec %llx VM-exec2 %llx VM-entry %llx VM-exit %llx\r\n"
                   "  EPT=%llx (high=%llx)\r\n"
                   "  cr0 %.8lx cr3 %.8lx cr4 %.8lx\r\n"
@@ -273,7 +273,7 @@ vmx_vm_exit_handler_c(u64 *stack)
                   "  CR0 read shadow=%llx, CR4 xx=%llx\r\n"
                   "  EFER=%llx, PAT=%llx %llx %llx EFER=%llx VPID=%llx %llx %llx GPADDR=%llx %llx\r\n"
                   "  dr6=%.8lx dr5=%.8lx dr4=%.8lx dr3=%.8lx dr2=%.8lx dr1=%.8lx dr0=%.8lx %.8lx %.8lx %.8lx %.8lx %.8lx\r\n",
-                  rd,
+                  rd, rdmsr(IA32_VMX_BASIC),
                   vmread(0x4002), vmread(0x401e), vmread(0x4012), vmread(0x400c),
                   vmread(0x201a), vmread(0x201b),
                   vmread(0x6800), vmread(0x6802), vmread(0x6804),
@@ -384,7 +384,7 @@ vmx_initialize_vmcs(void)
     kmemset(mem, 0, 1024 * 1024 * 256);
     kmemcpy(mem, NULL, 1024 * 1024 * 2);
     kmemset(mem + 0xfe898, 0, 0x48),
-    //mem[0x7c00] = 0xf4; // hlt
+    mem[0x7c00] = 0xf4; // hlt
     mem[0x7c00] = 0x90; // nop
     mem[0x7c01] = 0xeb; // jmp
     mem[0x7c02] = 0xfd; // back
@@ -612,11 +612,11 @@ vmx_initialize_vmcs(void)
     vmx_guest_tr_access_rights = 0x0000008b;
     //vmx_guest_tr_access_rights = 0x00000083;
 
-    //vmx_guest_cr0 = 0x10;//0x60000030;
-    vmx_guest_cr0 = 0x00000010;
+    vmx_guest_cr0 = 0x00000030;
+    //vmx_guest_cr0 = 0x00000010;
     vmx_guest_cr3 = 0;
     //vmx_guest_cr3 = 0x79000;
-    vmx_guest_cr4 = 0;//1 << 13;
+    vmx_guest_cr4 = 1 << 13;
     vmx_guest_es_base = 0;
     vmx_guest_cs_base = 0;
     vmx_guest_ss_base = 0;
@@ -636,18 +636,18 @@ vmx_initialize_vmcs(void)
     vmx_guest_sysenter_esp = 0x00000000;
     vmx_guest_sysenter_eip = 0x00000000;
     vmx_guest_sysenter_cs = 0;
-    vmx_preemption_timer_value = 10000;
+    vmx_preemption_timer_value = 1000;
 
     /* Activity state; 0: active, 1: HLT, 2: Shutdown, 3: Wait-for-SIPI */
     vmx_guest_activity_state = 0;
 
-    vmx_control_cr0_mask = 0;//0x80000021;
+    //vmx_control_cr0_mask = 0x80000021;
     vmx_control_cr0_mask = 0;
-    vmx_control_cr0_read_shadow = 0;//0x80000021;
+    //vmx_control_cr0_read_shadow = 0x80000021;
     vmx_control_cr0_read_shadow = 0;
-    vmx_control_cr4_mask = 0;//0x00002000;
+    //vmx_control_cr4_mask = 0x00002000;
     vmx_control_cr4_mask = 0;
-    vmx_control_cr4_read_shadow = 0;//0x00002000;
+    //vmx_control_cr4_read_shadow = 0x00002000;
     vmx_control_cr4_read_shadow = 0;
 
     vmx_guest_efer_full = 0;
