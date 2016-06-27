@@ -159,6 +159,7 @@ vmx_enable(void)
     cr = get_cr4();
     set_cr4((cr | fixed0) & fixed1);
     //set_cr4(get_cr4() | (1 << 13));
+    /* todo: MCE on */
 
     vmcs = kmalloc(4096);
     kmemset(vmcs, 0, 4096);
@@ -179,9 +180,31 @@ vmx_enable(void)
     return 0;
 }
 
+void vmx_vm_exit_handler(void);
+__asm__ ("_vmx_vm_exit_handler:"
+         "push %rax;"
+         "push %rbx;"
+         "push %rcx;"
+         "push %rdx;"
+         "push %rdi;"
+         "movq %dr0,%rax;push %rax;"
+         "movq %dr1,%rax;push %rax;"
+         "movq %dr2,%rax;push %rax;"
+         "movq %dr3,%rax;push %rax;"
+         "movq %dr4,%rax;push %rax;"
+         "movq %dr5,%rax;push %rax;"
+         "movq %dr6,%rax;push %rax;"
+         "movq %rsp,%rdi;"
+         "call _vmx_vm_exit_handler_c;"
+         "pop %rdi;"
+         "pop %rdx;"
+         "pop %rcx;"
+         "pop %rbx;"
+         "pop %rax;"
+         "vmresume");
 
 void
-vmx_vm_exit_handler(void)
+vmx_vm_exit_handler_c(u64 *stack)
 {
     u64 rd;
 
@@ -216,6 +239,7 @@ vmx_vm_exit_handler(void)
         ksnprintf(e, 2048,
                   "VM Exit (Exit reason=%d)\r\n"
                   "  VM-exec %llx VM-exec2 %llx VM-entry-ctrl %llx\r\n"
+                  "  EPT=%llx (high=%llx)\r\n"
                   "  cr0 %.8lx cr3 %.8lx cr4 %.8lx\r\n"
                   "  cs=%lx base=%.8lx limit=%.8lx acc=%.8lx\r\n"
                   "  es=%lx base=%.8lx limit=%.8lx acc=%.8lx\r\n"
@@ -225,8 +249,8 @@ vmx_vm_exit_handler(void)
                   "  gs=%lx base=%.8lx limit=%.8lx acc=%.8lx\r\n"
                   "  ldtr=%lx base=%.8lx limit=%.8lx acc=%.8lx\r\n"
                   "  tr=%lx base=%.8lx limit=%.8lx acc=%.8lx\r\n"
-                  "  gdtr=%lx base=%.8lx limit=%.8lx\r\n"
-                  "  idtr=%lx base=%.8lx limit=%.8lx\r\n"
+                  "  gdtr base=%.8lx limit=%.8lx\r\n"
+                  "  idtr base=%.8lx limit=%.8lx\r\n"
                   "  Interruptibility=%llx, Activity state=%llx, smbase=%llx\r\n"
                   "  VMX-preemption timer value=%llx\r\n"
                   "  Sysenter cs=%lx esp=%llx eip=%llx\r\n"
@@ -234,10 +258,11 @@ vmx_vm_exit_handler(void)
                   "  pending debug exception=%llx\r\n"
                   "  CR0 guest/host mask=%llx, CR4 xx=%llx\r\n"
                   "  CR0 read shadow=%llx, CR4 xx=%llx\r\n"
-                  "  EFER=%llx, PAT=%llx\r\n"
-                  "  %llx %llx",
+                  "  EFER=%llx, PAT=%llx %llx %llx VPID=%llx %llx %llx\r\n"
+                  "  dr6=%.8lx dr5=%.8lx dr4=%.8lx dr3=%.8lx dr2=%.8lx dr1=%.8lx dr0=%.8lx %.8lx %.8lx %.8lx %.8lx %.8lx\r\n",
                   rd,
                   vmread(0x4002), vmread(0x401e), vmread(0x4012),
+                  vmread(0x201a), vmread(0x201b),
                   vmread(0x6800), vmread(0x6802), vmread(0x6804),
                   vmread(0x802), vmread(0x6808), vmread(0x4802), vmread(0x4816),
                   vmread(0x800), vmread(0x6806), vmread(0x4800), vmread(0x4814),
@@ -247,8 +272,8 @@ vmx_vm_exit_handler(void)
                   vmread(0x80a), vmread(0x6810), vmread(0x480a), vmread(0x481e),
                   vmread(0x80c), vmread(0x6812), vmread(0x480c), vmread(0x4820),
                   vmread(0x80e), vmread(0x6814), vmread(0x480e), vmread(0x4822),
-                  vmread(0x810), vmread(0x6816), vmread(0x4810),
-                  vmread(0x812), vmread(0x6818), vmread(0x4812),
+                  vmread(0x6816), vmread(0x4810),
+                  vmread(0x6818), vmread(0x4812),
                   vmread(0x4824), vmread(0x4826), vmread(0x4828),
                   vmread(0x482e),
                   vmread(0x482a), vmread(0x6824), vmread(0x6826),
@@ -257,7 +282,10 @@ vmx_vm_exit_handler(void)
                   vmread(0x6000), vmread(0x6002),
                   vmread(0x6004), vmread(0x6006),
                   vmread(0x2806), vmread(0x2804),
-                  rdmsr(IA32_VMX_MISC), vmread(0x4018)
+                  rdmsr(IA32_VMX_MISC), vmread(0x4018),
+                  rdmsr(IA32_VMX_EPT_VPID_CAP), get_cr0(), get_cr4(),
+                  stack[0], stack[1], stack[2], stack[3], stack[4], stack[5] , stack[6],
+                  stack[7], stack[8], stack[9], stack[10], stack[11]
             );
 #endif
 
@@ -340,6 +368,9 @@ vmx_initialize_vmcs(void)
         return -1;
     }
     /* Program */
+    kmemset(mem, 0, 1024 * 1024 * 256);
+    kmemcpy(mem, NULL, 1024 * 1024 * 2);
+    kmemset(mem + 0xfe898, 0, 0x48),
     //mem[0x7c00] = 0xf4; // hlt
     mem[0x7c00] = 0x90; // nop
     mem[0x7c01] = 0xeb; // jmp
@@ -354,22 +385,23 @@ vmx_initialize_vmcs(void)
     ept[512] = 0x07 | (u64)arch_vmem_addr_v2p(g_kmem->space, &ept[1024]);
     for ( i = 0; i < 128; i++ ) {
         phyaddr = arch_vmem_addr_v2p(g_kmem->space, mem);
-        ept[1024 + i] = 0x87 | ((u64)phyaddr + i * 1024 * 1024 * 2);
+        ept[1024 + i] = 0xb7 | ((u64)phyaddr + i * 1024 * 1024 * 2);
     }
 
     /* EPTP */
     phyaddr = arch_vmem_addr_v2p(g_kmem->space, ept);
-    vmx_control_ept_pointer_full = 0x18 | (u64)phyaddr;
+    vmx_control_ept_pointer_full = 0x1e | (u64)phyaddr;
 
 #if 0
     //char e[512];
-    ksnprintf(e, 512, "%x %x %llx %llx %x %x %llx %llx %llx",
+    ksnprintf(e, 512, "%x %x %llx %llx %x %x %llx %llx %llx %llx %llx",
               vmx >> 55, get_cr3(),
               vmx_vm_exit_handler,
               arch_vmem_addr_v2p(g_kmem->space, vmx_vm_exit_handler),
               rdmsr(IA32_VMX_ENTRY_CTLS),
               rdmsr(IA32_VMX_TRUE_ENTRY_CTLS), rdmsr(IA32_VMX_MISC),
-              rdmsr(IA32_DEBUGCTL), rdmsr(IA32_EFER));
+              rdmsr(IA32_DEBUGCTL), rdmsr(IA32_EFER),
+              ept, arch_vmem_addr_v2p(g_kmem->space, ept));
     panic(e);
 #endif
 
@@ -441,7 +473,7 @@ vmx_initialize_vmcs(void)
             & (rdmsr(IA32_VMX_TRUE_EXIT_CTLS) >> 32);
     } else {
         vmx_control_vm_exit_controls
-            = ((rdmsr(IA32_VMX_EXIT_CTLS) & 0xffffffff) | 0x0003c0204)
+            = ((rdmsr(IA32_VMX_EXIT_CTLS) & 0xffffffff) | 0x0007c0204)
             & (rdmsr(IA32_VMX_EXIT_CTLS) >> 32);
     }
     /* VM-Entry Controls
@@ -503,7 +535,8 @@ vmx_initialize_vmcs(void)
     __asm__ __volatile__ ( "movq %%gs,%%rax" : "=a"(vmx_host_gs_selector) );
     __asm__ __volatile__ ( "xorq %%rax,%%rax; str %%ax"
                            : "=a"(vmx_host_tr_selector) );
-    vmx_host_efer_full = rdmsr(0x0c0000080); /* EFER MSR */
+    vmx_host_efer_full = rdmsr(IA32_EFER); /* EFER MSR */
+    vmx_host_pat_full = rdmsr(IA32_PAT); /* PAT MSR */
     vmx_host_cr0 = get_cr0();
     vmx_host_cr3 = (u64)get_cr3();
     vmx_host_cr4 = get_cr4();
@@ -547,7 +580,8 @@ vmx_initialize_vmcs(void)
     vmx_guest_ds_limit = 0x0000ffff;
     vmx_guest_fs_limit = 0x0000ffff;
     vmx_guest_gs_limit = 0x0000ffff;
-    vmx_guest_tr_limit = 0x0000ffff;
+    //vmx_guest_tr_limit = 0x0000ffff;
+    vmx_guest_tr_limit = 0x000000ff;
     //vmx_guest_ldtr_limit = 0xffffffff;
     vmx_guest_ldtr_limit = 0x0000ffff;
     //vmx_guest_gdtr_limit = 0x0000ffff;
@@ -566,9 +600,9 @@ vmx_initialize_vmcs(void)
     //vmx_guest_tr_access_rights = 0x00000083;
 
     //vmx_guest_cr0 = 0x10;//0x60000030;
-    vmx_guest_cr0 = 0x00000000;
-    //vmx_guest_cr3 = 0;
-    vmx_guest_cr3 = 0x79000;
+    vmx_guest_cr0 = 0x00000010;
+    vmx_guest_cr3 = 0;
+    //vmx_guest_cr3 = 0x79000;
     vmx_guest_cr4 = 0;//1 << 13;
     vmx_guest_es_base = 0;
     vmx_guest_cs_base = 0;
@@ -620,6 +654,8 @@ vmx_initialize_vmcs(void)
         }
     }
     //wrmsr(0x0c0000080, 0);
+    //ksnprintf(e, 512, "Failed on vmlaunch: %d %llx", vmread(0x4400), get_cr4());
+    //panic(e);
 
     return 0;
 }

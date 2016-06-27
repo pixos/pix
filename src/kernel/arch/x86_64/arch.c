@@ -294,6 +294,7 @@ bsp_init(void)
         panic("Failed on VMCX initialization.");
         return;
     }
+    //__asm__ ("xorq %rdx,%rdx;mov %rdx,%dr4;mov %rdx,%dr5");
     if ( vmlaunch() ) {
         panic("Failed on VMLAUNCH.");
         return;

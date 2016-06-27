@@ -85,6 +85,7 @@ u64 vmx_host_ds_selector;
 u64 vmx_host_fs_selector;
 u64 vmx_host_gs_selector;
 u64 vmx_host_tr_selector;
+u64 vmx_host_pat_full;
 u64 vmx_host_efer_full;
 u64 vmx_host_sysenter_cs;
 u64 vmx_host_cr0;
@@ -222,6 +223,7 @@ struct vmx_vmcs vmx_vmcs [] = {
     { 0x0c0a, &vmx_host_gs_selector },
     { 0x0c0c, &vmx_host_tr_selector },
     /* 64-bit */
+    { 0x2c00, &vmx_host_pat_full },
     { 0x2c02, &vmx_host_efer_full },
     /* 32-bit */
     { 0x4c00, &vmx_host_sysenter_cs },
