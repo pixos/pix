@@ -53,6 +53,16 @@
 #define IA32_DEBUGCTL 0x1d9
 #define IA32_EFER 0x0c0000080
 
+struct vmx_stackframe {
+    u64 rbp;
+    u64 rsi;
+    u64 rdi;
+    u64 rdx;
+    u64 rcx;
+    u64 rbx;
+    u64 rax;
+} __attribute__ ((packed));
+
 extern struct kmem *g_kmem;
 
 #if 0
@@ -112,6 +122,8 @@ const char *vm_exit_reasons[] = {
     }
 }
 #endif
+
+void *vmxon_vmcs;
 
 /*
  * Enable VMX
@@ -176,6 +188,7 @@ vmx_enable(void)
     if ( ret ) {
         return -1;
     }
+    vmxon_vmcs = vmcs;
 
     return 0;
 }
@@ -238,7 +251,7 @@ vmx_vm_exit_handler_c(u64 *stack)
 #else
         ksnprintf(e, 2048,
                   "VM Exit (Exit reason=%d)\r\n"
-                  "  VM-exec %llx VM-exec2 %llx VM-entry-ctrl %llx\r\n"
+                  "  VM-exec %llx VM-exec2 %llx VM-entry %llx VM-exit %llx\r\n"
                   "  EPT=%llx (high=%llx)\r\n"
                   "  cr0 %.8lx cr3 %.8lx cr4 %.8lx\r\n"
                   "  cs=%lx base=%.8lx limit=%.8lx acc=%.8lx\r\n"
@@ -255,13 +268,13 @@ vmx_vm_exit_handler_c(u64 *stack)
                   "  VMX-preemption timer value=%llx\r\n"
                   "  Sysenter cs=%lx esp=%llx eip=%llx\r\n"
                   "  dr7=%.8lx, rsp=%.8lx, rip=%.8lx, rflags=%.8lx\r\n"
-                  "  pending debug exception=%llx\r\n"
+                  "  pending debug exception=%llx, intr=%llx\r\n"
                   "  CR0 guest/host mask=%llx, CR4 xx=%llx\r\n"
                   "  CR0 read shadow=%llx, CR4 xx=%llx\r\n"
-                  "  EFER=%llx, PAT=%llx %llx %llx VPID=%llx %llx %llx\r\n"
+                  "  EFER=%llx, PAT=%llx %llx %llx EFER=%llx VPID=%llx %llx %llx GPADDR=%llx %llx\r\n"
                   "  dr6=%.8lx dr5=%.8lx dr4=%.8lx dr3=%.8lx dr2=%.8lx dr1=%.8lx dr0=%.8lx %.8lx %.8lx %.8lx %.8lx %.8lx\r\n",
                   rd,
-                  vmread(0x4002), vmread(0x401e), vmread(0x4012),
+                  vmread(0x4002), vmread(0x401e), vmread(0x4012), vmread(0x400c),
                   vmread(0x201a), vmread(0x201b),
                   vmread(0x6800), vmread(0x6802), vmread(0x6804),
                   vmread(0x802), vmread(0x6808), vmread(0x4802), vmread(0x4816),
@@ -278,12 +291,12 @@ vmx_vm_exit_handler_c(u64 *stack)
                   vmread(0x482e),
                   vmread(0x482a), vmread(0x6824), vmread(0x6826),
                   vmread(0x681a), vmread(0x681c), vmread(0x681e), vmread(0x6820),
-                  vmread(0x6822),
+                  vmread(0x6822), vmread(0x4016),
                   vmread(0x6000), vmread(0x6002),
                   vmread(0x6004), vmread(0x6006),
                   vmread(0x2806), vmread(0x2804),
-                  rdmsr(IA32_VMX_MISC), vmread(0x4018),
-                  rdmsr(IA32_VMX_EPT_VPID_CAP), get_cr0(), get_cr4(),
+                  rdmsr(IA32_VMX_MISC), vmread(0x4018), rdmsr(IA32_EFER),
+                  rdmsr(IA32_VMX_EPT_VPID_CAP), get_cr0(), get_cr4(), vmread(0x2400), vmread(0x200c),
                   stack[0], stack[1], stack[2], stack[3], stack[4], stack[5] , stack[6],
                   stack[7], stack[8], stack[9], stack[10], stack[11]
             );
@@ -623,18 +636,18 @@ vmx_initialize_vmcs(void)
     vmx_guest_sysenter_esp = 0x00000000;
     vmx_guest_sysenter_eip = 0x00000000;
     vmx_guest_sysenter_cs = 0;
-    vmx_preemption_timer_value = 1000;
+    vmx_preemption_timer_value = 10000;
 
     /* Activity state; 0: active, 1: HLT, 2: Shutdown, 3: Wait-for-SIPI */
     vmx_guest_activity_state = 0;
 
-    vmx_control_cr0_mask = 0x80000021;
+    vmx_control_cr0_mask = 0;//0x80000021;
     vmx_control_cr0_mask = 0;
-    vmx_control_cr0_read_shadow = 0x80000021;
+    vmx_control_cr0_read_shadow = 0;//0x80000021;
     vmx_control_cr0_read_shadow = 0;
-    vmx_control_cr4_mask = 0x00002000;
+    vmx_control_cr4_mask = 0;//0x00002000;
     vmx_control_cr4_mask = 0;
-    vmx_control_cr4_read_shadow = 0x00002000;
+    vmx_control_cr4_read_shadow = 0;//0x00002000;
     vmx_control_cr4_read_shadow = 0;
 
     vmx_guest_efer_full = 0;
@@ -647,15 +660,34 @@ vmx_initialize_vmcs(void)
     vmx_guest_debugctl_full = 0;
     //vmx_guest_smbase = 0;
 
+#if 0
+    vmx_control_executive_vmcs_pointer_full
+        = arch_vmem_addr_v2p(g_kmem->space, vmxon_vmcs);
+    vmx_control_executive_vmcs_pointer_full = 0;
+#endif
+
     for ( i = 0; i < sizeof(vmx_vmcs) / sizeof(struct vmx_vmcs); i++ ) {
         ret = vmwrite(vmx_vmcs[i].index, *(vmx_vmcs[i].ptr));
         if ( ret ) {
+            panic("xxx");
             return -1;
         }
     }
     //wrmsr(0x0c0000080, 0);
     //ksnprintf(e, 512, "Failed on vmlaunch: %d %llx", vmread(0x4400), get_cr4());
     //panic(e);
+
+#if 0
+    phyaddr = arch_vmem_addr_v2p(g_kmem->space, vmcs);
+    /* Clear */
+    if ( vmclear(&phyaddr) ) {
+        return -1;
+    }
+    /* Bring the VMCS active and current */
+    if ( vmptrld(&phyaddr) ) {
+        return -1;
+    }
+#endif
 
     return 0;
 }

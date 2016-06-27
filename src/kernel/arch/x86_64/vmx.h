@@ -44,8 +44,8 @@ u64 vmx_control_vm_exit_msr_load_full;
 u64 vmx_control_vm_exit_msr_load_high;
 u64 vmx_control_vm_entry_msr_load_full;
 u64 vmx_control_vm_entry_msr_load_high;
-u64 vmx_control_exective_vmcs_pointer_full;
-u64 vmx_control_exective_vmcs_pointer_high;
+u64 vmx_control_executive_vmcs_pointer_full;
+u64 vmx_control_executive_vmcs_pointer_high;
 u64 vmx_control_tsc_offset_full;
 u64 vmx_control_tsc_offset_high;
 u64 vmx_control_ept_pointer_full;
@@ -178,10 +178,18 @@ struct vmx_vmcs vmx_vmcs [] = {
     /*{ 0x2009, &vmx_control_vm_exit_msr_load_high },*/
     { 0x200a, &vmx_control_vm_entry_msr_load_full },
     /*{ 0x200b, &vmx_control_vm_entry_msr_load_high },*/
-    /*{ 0x200c, &vmx_control_exective_vmcs_pointer_full },*/
-    /*{ 0x200d, &vmx_control_exective_vmcs_pointer_high },*/
+    /*{ 0x200c, &vmx_control_executive_vmcs_pointer_full },*/
+    /*{ 0x200d, &vmx_control_executive_vmcs_pointer_high },*/
     { 0x2010, &vmx_control_tsc_offset_full },
     //{ 0x2011, &vmx_control_tsc_offset_high },
+    /*{ 0x2012, &vmx_control_virtual_apic_full },*/
+    /*{ 0x2013, &vmx_control_virtual_apic_high },*/
+    /*{ 0x2014, &vmx_control_apic_access_full },*/
+    /*{ 0x2015, &vmx_control_apic_access_high },*/
+    /*{ 0x2016, &vmx_control_posted_interrupt_desc_full },*/
+    /*{ 0x2017, &vmx_control_posted_interrupt_desc_high },*/
+    /*{ 0x2018, &vmx_control_vm_function_controls_full },*/
+    /*{ 0x2019, &vmx_control_vm_function_controls_high },*/
     { 0x201a, &vmx_control_ept_pointer_full },
     /*{ 0x201b, &vmx_control_ept_pointer_high },*/
     /* 32-bit */
