@@ -190,6 +190,10 @@ bsp_init(void)
     idt_setup_intr_gate(IV_LOC_TMR, intr_apic_loc_tmr);
     idt_setup_intr_gate(IV_CRASH, intr_crash);
 
+    idt_setup_intr_gate(2, intr_debug); /* MC */
+    idt_setup_intr_gate(18, intr_debug); /* MC */
+    idt_setup_intr_gate(20, intr_debug); /* VE */
+
     /* ToDo: Prepare the virtual pages for ACPI etc. */
 
     /* Initialize I/O APIC */
@@ -595,6 +599,7 @@ arch_idle(void)
 void
 isr_debug(void)
 {
+    panic("xxx");
     char *buf = this_ktask()->proc->name;
     panic(buf);
 }

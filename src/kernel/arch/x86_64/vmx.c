@@ -172,6 +172,7 @@ vmx_enable(void)
     set_cr4((cr | fixed0) & fixed1);
     //set_cr4(get_cr4() | (1 << 13));
     /* todo: MCE on */
+    set_cr4(get_cr4() | (1 << 7));
 
     vmcs = kmalloc(4096);
     kmemset(vmcs, 0, 4096);
@@ -236,9 +237,9 @@ vmx_vm_exit_handler_c(u64 *stack)
         sti();
         halt();
         vmresume();
-    } else if ( 52 == rd ) {
+        //} else if ( 52 == rd ) {
         /* VMX-preemption timer expired */
-        panic("VM exit (preemption expired)");
+        //panic("VM exit (preemption expired)");
     } else {
         char e[2048];
 #if 0
@@ -383,11 +384,12 @@ vmx_initialize_vmcs(void)
     /* Program */
     kmemset(mem, 0, 1024 * 1024 * 256);
     kmemcpy(mem, NULL, 1024 * 1024 * 2);
-    kmemset(mem + 0xfe898, 0, 0x48),
-    mem[0x7c00] = 0xf4; // hlt
+    //kmemset(mem + 0xfe898, 0, 0x48);
+    //mem[0x7c00] = 0xf4; // hlt
     mem[0x7c00] = 0x90; // nop
-    mem[0x7c01] = 0xeb; // jmp
-    mem[0x7c02] = 0xfd; // back
+    mem[0x7c01] = 0x90; // nop
+    mem[0x7c02] = 0xeb; // jmp
+    mem[0x7c03] = 0xfd; // back
     ept = kmalloc(4096 * 4);
     if ( NULL == ept ) {
         kfree(mem);
@@ -628,7 +630,7 @@ vmx_initialize_vmcs(void)
     vmx_guest_gdtr_base = 0xfe898;//0;
     vmx_guest_idtr_base = 0;
     vmx_guest_dr7 = 0x00000400;
-    vmx_guest_rsp = 0x7c00;
+    vmx_guest_rsp = 0x1000;
     vmx_guest_rip = 0x7c00;
     //vmx_guest_rflags = 0x0202;
     vmx_guest_rflags = 0x0002;
@@ -636,7 +638,7 @@ vmx_initialize_vmcs(void)
     vmx_guest_sysenter_esp = 0x00000000;
     vmx_guest_sysenter_eip = 0x00000000;
     vmx_guest_sysenter_cs = 0;
-    vmx_preemption_timer_value = 1000;
+    vmx_preemption_timer_value = 1500;
 
     /* Activity state; 0: active, 1: HLT, 2: Shutdown, 3: Wait-for-SIPI */
     vmx_guest_activity_state = 0;
