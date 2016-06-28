@@ -228,7 +228,7 @@ vmx_vm_exit_handler_c(u64 *stack)
     rd = rd & 0xff;
     if ( 1 == rd ) {
         /* External interrupt */
-        panic("ExtIntr");
+        //panic("ExtIntr");
         sti();
         vmresume();
     } else if ( 12 == rd ) {
@@ -383,23 +383,29 @@ vmx_initialize_vmcs(void)
     }
     /* Program */
     kmemset(mem, 0, 1024 * 1024 * 256);
-    kmemcpy(mem, NULL, 1024 * 1024 * 2);
+    //kmemcpy(mem, NULL, 1024 * 1024 * 2);
     //kmemset(mem + 0xfe898, 0, 0x48);
     //mem[0x7c00] = 0xf4; // hlt
     mem[0x7c00] = 0x90; // nop
     mem[0x7c01] = 0x90; // nop
     mem[0x7c02] = 0xeb; // jmp
     mem[0x7c03] = 0xfd; // back
-    ept = kmalloc(4096 * 4);
+    *(u8*)0x1207c00 = 0xf4;
+    *(u8*)0x1207c01 = 0xeb;
+    *(u8*)0x1207c02 = 0xfd;
+    ept = 0x1300000;//kmalloc(4096 * 4);
     if ( NULL == ept ) {
         kfree(mem);
         return -1;
     }
     kmemset(ept, 0, 4096 * 4);
-    ept[0] = 0x07 | (u64)arch_vmem_addr_v2p(g_kmem->space, &ept[512]);
-    ept[512] = 0x07 | (u64)arch_vmem_addr_v2p(g_kmem->space, &ept[1024]);
+    //ept[0] = 0x07 | (u64)arch_vmem_addr_v2p(g_kmem->space, &ept[512]);
+    //ept[512] = 0x07 | (u64)arch_vmem_addr_v2p(g_kmem->space, &ept[1024]);
+    ept[0] = 0x07 | 0x1301000;
+    ept[512] = 0x07 | 0x1302000;
     for ( i = 0; i < 128; i++ ) {
         phyaddr = arch_vmem_addr_v2p(g_kmem->space, mem);
+        //ept[1024 + i] = 0xb7 | 0x1200000;//((u64)phyaddr + i * 1024 * 1024 * 2);
         ept[1024 + i] = 0xb7 | ((u64)phyaddr + i * 1024 * 1024 * 2);
     }
 
@@ -409,14 +415,15 @@ vmx_initialize_vmcs(void)
 
 #if 0
     //char e[512];
-    ksnprintf(e, 512, "%x %x %llx %llx %x %x %llx %llx %llx %llx %llx",
+    ksnprintf(e, 512, "%x %x %llx %llx %x %x %llx %llx %llx %llx %llx %llx %llx",
               vmx >> 55, get_cr3(),
               vmx_vm_exit_handler,
               arch_vmem_addr_v2p(g_kmem->space, vmx_vm_exit_handler),
               rdmsr(IA32_VMX_ENTRY_CTLS),
               rdmsr(IA32_VMX_TRUE_ENTRY_CTLS), rdmsr(IA32_VMX_MISC),
               rdmsr(IA32_DEBUGCTL), rdmsr(IA32_EFER),
-              ept, arch_vmem_addr_v2p(g_kmem->space, ept));
+              ept, arch_vmem_addr_v2p(g_kmem->space, ept),
+              mem, arch_vmem_addr_v2p(g_kmem->space, mem));
     panic(e);
 #endif
 
@@ -632,13 +639,14 @@ vmx_initialize_vmcs(void)
     vmx_guest_dr7 = 0x00000400;
     vmx_guest_rsp = 0x1000;
     vmx_guest_rip = 0x7c00;
-    //vmx_guest_rflags = 0x0202;
-    vmx_guest_rflags = 0x0002;
+    vmx_guest_rflags = 0x0202;
+    //vmx_guest_rflags = 0x0002;
     vmx_guest_pending_debug_exceptions = 0x00000000;
     vmx_guest_sysenter_esp = 0x00000000;
     vmx_guest_sysenter_eip = 0x00000000;
     vmx_guest_sysenter_cs = 0;
-    vmx_preemption_timer_value = 1500;
+    //vmx_preemption_timer_value = 1500;
+    vmx_preemption_timer_value = 5000;
 
     /* Activity state; 0: active, 1: HLT, 2: Shutdown, 3: Wait-for-SIPI */
     vmx_guest_activity_state = 0;

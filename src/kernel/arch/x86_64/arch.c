@@ -181,7 +181,6 @@ bsp_init(void)
     idt_setup_intr_gate(0, intr_dze);
     idt_setup_intr_gate(1, intr_debug);
     //idt_setup_intr_gate(2, intr_nmi);
-
     idt_setup_intr_gate(6, intr_iof);
     idt_setup_intr_gate(13, intr_gpf);
     idt_setup_intr_gate(14, intr_pf);
@@ -190,9 +189,6 @@ bsp_init(void)
     idt_setup_intr_gate(IV_LOC_TMR, intr_apic_loc_tmr);
     idt_setup_intr_gate(IV_CRASH, intr_crash);
 
-    idt_setup_intr_gate(2, intr_debug); /* MC */
-    idt_setup_intr_gate(18, intr_debug); /* MC */
-    idt_setup_intr_gate(20, intr_debug); /* VE */
 
     /* ToDo: Prepare the virtual pages for ACPI etc. */
 
@@ -298,6 +294,7 @@ bsp_init(void)
         panic("Failed on VMCX initialization.");
         return;
     }
+#if 0
     __asm__ __volatile__ (
         "xorq %rdx,%rdx;mov %rdx,%dr4;mov %rdx,%dr5;"
         "mov %rdx,%rax;"
@@ -306,6 +303,7 @@ bsp_init(void)
         "mov %rdx,%rdi;"
         "mov %rdx,%rsi;"
         );
+#endif
     if ( vmlaunch() ) {
         panic("Failed on VMLAUNCH.");
         return;
@@ -599,7 +597,6 @@ arch_idle(void)
 void
 isr_debug(void)
 {
-    panic("xxx");
     char *buf = this_ktask()->proc->name;
     panic(buf);
 }
