@@ -286,7 +286,7 @@ bsp_init(void)
         return;
     }
 
-#if 1
+#if 0
     if ( vmx_enable() < 0 ) {
         panic("Failed to initialize VMX.");
         return;
