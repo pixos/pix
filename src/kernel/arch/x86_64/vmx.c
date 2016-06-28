@@ -56,45 +56,68 @@
 
 extern struct kmem *g_kmem;
 
-#if 0
-const char *vm_exit_reasons[] = {
-    "",
-    "",
-    "",
-    "",
-    "",
-    "",
-    "",
-    "",
-    "",
-    "",
-    "",
-    "",
-    "",
-    "",
-    "",
-    "",
-    "",
-    "",
-    "",
-    "",
-    "",
-    "",
-    "",
-    "",
-    "",
-    "",
-    "",
-    "",
-    "",
-    "",
-    "",
-    "",
-    "",
-    "VM-entry failure due to invalid guest state.",
-    "",
+/*
+ * VMX Basic Exit Reasons
+ */
+static char *vm_exit_reasons[] = {
+    "Exception or non-maskable interrupt (NMI)",
+    "External interrupt",
+    "Triple fault",
+    "INIT signal.",
+    "Start-up IPI (SIPI)",
+    "I/O system-management interrupt (SMI)",
+    "Other SMI",
+    "Interrupt window",
+    "NMI window",
+    "Task switch",
+    "CPUID",
+    "GETSEC",
+    "HLT",
+    "INVD",
+    "INVLPG",
+    "RDPMC",
+    "RDTSC",
+    "RSM",
+    "VMCALL",
+    "VMCLEAR",
+    "VMLAUNCH",
+    "VMPTRLD",
+    "VMPTRST",
+    "VMREAD",
+    "VMRESUME",
+    "VMWRITE",
+    "VMXOFF",
+    "VMXON",
+    "Control-register accesses",
+    "MOV DR",
+    "I/O instruction",
+    "RDMSR",
+    "WRMSR",
+    "VM-entry failure due to invalid guest state",
+    "VM-entry failure due to MSR loading",
+    "MWAIT",
+    "Monitor trap flag",
+    "MONITOR",
+    "PAUSE",
+    "VM-entry failure due to machine-check event",
+    "TPR below threshold",
+    "APIC access",
+    "Virtualized EOI",
+    "Access to GDTR or IDTR",
+    "Access to LDTR or TR",
+    "EPT violation",
+    "EPT misconfiguration",
+    "INVEPT",
+    "RDTSCP",
+    "VMX-preemption timer expired",
+    "INVVPID",
+    "WBINVD",
+    "XSETBV",
+    "APIC write",
+    "RDRAND",
+    "INVPCID",
+    "VMFUNC",
 };
-#endif
 
 #if 0
 /* Code example */
@@ -260,7 +283,7 @@ vmx_vm_exit_handler_c(u64 *stack)
         sti();
         halt();
         vmx_vm_exit_handler_resume();
-    } else if ( 28 == rd ) {
+    } else if ( 28 == rd && 0 ) {
         vmx_vm_exit_handler_resume();
         /* Control register */
         char e[2048];
@@ -281,7 +304,7 @@ vmx_vm_exit_handler_c(u64 *stack)
                   get_cr0(), get_cr4());
 #else
         ksnprintf(e, 2048,
-                  "VM Exit (Exit reason=%d) BASIC=%llx\r\n"
+                  "VM Exit (Exit reason=%d: %s) BASIC=%llx\r\n"
                   "  VM-exec %llx VM-exec2 %llx VM-entry %llx VM-exit %llx\r\n"
                   "  EPT=%llx (high=%llx)\r\n"
                   "  cr0 %.8lx cr3 %.8lx cr4 %.8lx\r\n"
@@ -304,7 +327,7 @@ vmx_vm_exit_handler_c(u64 *stack)
                   "  CR0 read shadow=%llx, CR4 xx=%llx\r\n"
                   "  EFER=%llx, PAT=%llx %llx %llx EFER=%llx VPID=%llx %llx %llx GPADDR=%llx %llx\r\n"
                   "  dr6=%.8lx dr5=%.8lx dr4=%.8lx dr3=%.8lx dr2=%.8lx dr1=%.8lx dr0=%.8lx %.8lx %.8lx %.8lx %.8lx %.8lx\r\n",
-                  rd, rdmsr(IA32_VMX_BASIC),
+                  rd, vm_exit_reasons[rd], rdmsr(IA32_VMX_BASIC),
                   vmread(0x4002), vmread(0x401e), vmread(0x4012), vmread(0x400c),
                   vmread(0x201a), vmread(0x201b),
                   vmread(0x6800), vmread(0x6802), vmread(0x6804),
