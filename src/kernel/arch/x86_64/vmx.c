@@ -385,7 +385,7 @@ vmx_initialize_vmcs(void)
     }
     /* Program */
     kmemset(mem, 0, 1024 * 1024 * 256);
-    kmemcpy(mem, NULL, 1024 * 1024 * 32);
+    //kmemcpy(mem, NULL, 1024 * 1024 * 2);
     //kmemset(mem + 0xfe898, 0, 0x48);
     //mem[0x7c00] = 0xf4; // hlt
     // 0f 20 e0
@@ -395,9 +395,6 @@ vmx_initialize_vmcs(void)
     mem[0x7c03] = 0x90; // nop
     mem[0x7c04] = 0xeb; // jmp
     mem[0x7c05] = 0xfd; // back
-    *(u8 *)0x7c00 = 0x90; // nop
-    *(u8 *)0x7c01 = 0xeb; // jmp
-    *(u8 *)0x7c02 = 0xfd; // back
     ept = kmalloc(4096 * 4);
     if ( NULL == ept ) {
         kfree(mem);
@@ -493,7 +490,7 @@ vmx_initialize_vmcs(void)
     //vmx_control_vm_exit_controls = 0x00036fff;
     if ( (vmx >> 55) & 1 ) {
         vmx_control_vm_exit_controls
-            = ((rdmsr(IA32_VMX_TRUE_EXIT_CTLS) & 0xffffffff) | 0x003c0204)
+            = ((rdmsr(IA32_VMX_TRUE_EXIT_CTLS) & 0xffffffff) | 0x007c0204)
             & (rdmsr(IA32_VMX_TRUE_EXIT_CTLS) >> 32);
     } else {
         vmx_control_vm_exit_controls
@@ -512,7 +509,7 @@ vmx_initialize_vmcs(void)
     //vmx_control_vm_entry_controls = 0x000011ff;
     if ( (vmx >> 55) & 1 ) {
         vmx_control_vm_entry_controls
-            = ((rdmsr(IA32_VMX_TRUE_ENTRY_CTLS) & 0xffffffff) | 0x0204)
+            = ((rdmsr(IA32_VMX_TRUE_ENTRY_CTLS) & 0xffffffff) | 0xc004)
             & (rdmsr(IA32_VMX_TRUE_ENTRY_CTLS) >> 32);
     } else {
         vmx_control_vm_entry_controls
@@ -540,7 +537,7 @@ vmx_initialize_vmcs(void)
     //vmx_control_secondary_processor_based
     //    = rdmsr(IA32_VMX_PROCBASED_CTLS2) | 0x00000082;
     vmx_control_secondary_processor_based
-        = ((rdmsr(IA32_VMX_PROCBASED_CTLS2) & 0xffffffff) | 0x00000002)
+        = ((rdmsr(IA32_VMX_PROCBASED_CTLS2) & 0xffffffff) | 0x00000082)
         & (rdmsr(IA32_VMX_PROCBASED_CTLS2) >> 32);
 
     //vmx_control_cr3_target_count = (rdmsr(IA32_VMX_MISC) >> 16) & 0x1ff;
@@ -586,46 +583,48 @@ vmx_initialize_vmcs(void)
     vmx_host_sysenter_cs = 0;
     vmx_host_fs_base = 0;
     vmx_host_gs_base = 0;
-    vmx_host_tr_base = 0x01000820;
+    vmx_host_tr_base = 0;
     vmx_host_sysenter_esp = 0;
     vmx_host_sysenter_eip = 0;
 
-    vmx_guest_es_selector = vmx_host_es_selector;
-    vmx_guest_cs_selector = vmx_host_cs_selector;
-    vmx_guest_ss_selector = vmx_host_ss_selector;
-    vmx_guest_ds_selector = vmx_host_ds_selector;
-    vmx_guest_fs_selector = vmx_host_fs_selector;
-    vmx_guest_gs_selector = vmx_host_gs_selector;
+    vmx_guest_es_selector = 0x0;
+    vmx_guest_cs_selector = 0x0;
+    vmx_guest_ss_selector = 0x0;
+    vmx_guest_ds_selector = 0x0;
+    vmx_guest_fs_selector = 0x0;
+    vmx_guest_gs_selector = 0x0;
     vmx_guest_ldtr_selector = 0x0;
-    vmx_guest_tr_selector = vmx_host_tr_selector;
-    vmx_guest_es_limit = 0xffffffff;
-    vmx_guest_cs_limit = 0xffffffff;
-    vmx_guest_ss_limit = 0xffffffff;
-    vmx_guest_ds_limit = 0xffffffff;
-    vmx_guest_fs_limit = 0xffffffff;
-    vmx_guest_gs_limit = 0xffffffff;
-    vmx_guest_tr_limit = 0x00000067;
-    vmx_guest_ldtr_limit = 0xffffffff;
-    vmx_guest_gdtr_limit = 0x00001047;
-    vmx_guest_idtr_limit = 0x00000fff;
-    vmx_guest_es_access_rights = 0x0000a093;
-    vmx_guest_cs_access_rights = 0x0000a09b;
+    vmx_guest_tr_selector = 0x0;
+    vmx_guest_es_limit = 0x0000ffff;
+    vmx_guest_cs_limit = 0x0000ffff;
+    vmx_guest_ss_limit = 0x0000ffff;
+    vmx_guest_ds_limit = 0x0000ffff;
+    vmx_guest_fs_limit = 0x0000ffff;
+    vmx_guest_gs_limit = 0x0000ffff;
+    //vmx_guest_tr_limit = 0x0000ffff;
+    vmx_guest_tr_limit = 0x000000ff;
+    //vmx_guest_ldtr_limit = 0xffffffff;
+    vmx_guest_ldtr_limit = 0x0000ffff;
+    //vmx_guest_gdtr_limit = 0x0000ffff;
+    vmx_guest_gdtr_limit = 0x00000047;
+    vmx_guest_idtr_limit = 0x0000ffff;
+    vmx_guest_es_access_rights = 0x00000093;
+    vmx_guest_cs_access_rights = 0x0000009b;
     //vmx_guest_cs_access_rights = 0x0000009f;
-    vmx_guest_ss_access_rights = 0x0000a093;
-    vmx_guest_ds_access_rights = 0x0000a093;
-    vmx_guest_fs_access_rights = 0x0001c000;
-    vmx_guest_gs_access_rights = 0x0001c000;
+    vmx_guest_ss_access_rights = 0x00000093;
+    vmx_guest_ds_access_rights = 0x00000093;
+    vmx_guest_fs_access_rights = 0x00000093;
+    vmx_guest_gs_access_rights = 0x00000093;
     //vmx_guest_ldtr_access_rights = 0x00010000;
-    vmx_guest_ldtr_access_rights = 0x0001c000;
+    vmx_guest_ldtr_access_rights = 0x00000082;
     vmx_guest_tr_access_rights = 0x0000008b;
     //vmx_guest_tr_access_rights = 0x00000083;
 
     vmx_guest_cr0 = 0x00000030;
-    vmx_guest_cr0 = 0x80000031;
     //vmx_guest_cr0 = 0x00000000;
     vmx_guest_cr3 = 0;
-    vmx_guest_cr3 = 0x79000;
-    vmx_guest_cr4 = 0x22a0;//1 << 13;
+    //vmx_guest_cr3 = 0x79000;
+    vmx_guest_cr4 = 1 << 13;
     vmx_guest_es_base = 0;
     vmx_guest_cs_base = 0;
     vmx_guest_ss_base = 0;
@@ -633,9 +632,9 @@ vmx_initialize_vmcs(void)
     vmx_guest_fs_base = 0;
     vmx_guest_gs_base = 0;
     vmx_guest_ldtr_base = 0;
-    vmx_guest_tr_base = 0x01000820;
-    vmx_guest_gdtr_base = vmx_host_gdtr_base;//0;
-    vmx_guest_idtr_base = vmx_host_idtr_base;
+    vmx_guest_tr_base = 0;
+    vmx_guest_gdtr_base = 0xfe898;//0;
+    vmx_guest_idtr_base = 0;
     vmx_guest_dr7 = 0x00000400;
     vmx_guest_rsp = 0x1000;
     vmx_guest_rip = 0x7c00;
