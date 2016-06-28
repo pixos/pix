@@ -237,9 +237,13 @@ vmx_vm_exit_handler_c(u64 *stack)
         sti();
         halt();
         vmresume();
-        //} else if ( 52 == rd ) {
+#if 0
+    } else if ( 52 == rd ) {
         /* VMX-preemption timer expired */
         //panic("VM exit (preemption expired)");
+        vmwrite(0x482e, 1500);
+        vmresume();
+#endif
     } else {
         char e[2048];
 #if 0
@@ -386,26 +390,23 @@ vmx_initialize_vmcs(void)
     //kmemcpy(mem, NULL, 1024 * 1024 * 2);
     //kmemset(mem + 0xfe898, 0, 0x48);
     //mem[0x7c00] = 0xf4; // hlt
-    mem[0x7c00] = 0x90; // nop
-    mem[0x7c01] = 0x90; // nop
-    mem[0x7c02] = 0xeb; // jmp
-    mem[0x7c03] = 0xfd; // back
-    *(u8*)0x1207c00 = 0xf4;
-    *(u8*)0x1207c01 = 0xeb;
-    *(u8*)0x1207c02 = 0xfd;
-    ept = 0x1300000;//kmalloc(4096 * 4);
+    // 0f 20 e0
+    mem[0x7c00] = 0x0f; // mov %cr4, %rax
+    mem[0x7c01] = 0x20;
+    mem[0x7c02] = 0xe0;
+    mem[0x7c03] = 0x90; // nop
+    mem[0x7c04] = 0xeb; // jmp
+    mem[0x7c05] = 0xfd; // back
+    ept = kmalloc(4096 * 4);
     if ( NULL == ept ) {
         kfree(mem);
         return -1;
     }
     kmemset(ept, 0, 4096 * 4);
-    //ept[0] = 0x07 | (u64)arch_vmem_addr_v2p(g_kmem->space, &ept[512]);
-    //ept[512] = 0x07 | (u64)arch_vmem_addr_v2p(g_kmem->space, &ept[1024]);
-    ept[0] = 0x07 | 0x1301000;
-    ept[512] = 0x07 | 0x1302000;
+    ept[0] = 0x07 | (u64)arch_vmem_addr_v2p(g_kmem->space, &ept[512]);
+    ept[512] = 0x07 | (u64)arch_vmem_addr_v2p(g_kmem->space, &ept[1024]);
     for ( i = 0; i < 128; i++ ) {
         phyaddr = arch_vmem_addr_v2p(g_kmem->space, mem);
-        //ept[1024 + i] = 0xb7 | 0x1200000;//((u64)phyaddr + i * 1024 * 1024 * 2);
         ept[1024 + i] = 0xb7 | ((u64)phyaddr + i * 1024 * 1024 * 2);
     }
 
@@ -655,8 +656,8 @@ vmx_initialize_vmcs(void)
     vmx_control_cr0_mask = 0;
     //vmx_control_cr0_read_shadow = 0x80000021;
     vmx_control_cr0_read_shadow = 0;
-    //vmx_control_cr4_mask = 0x00002000;
-    vmx_control_cr4_mask = 0;
+    vmx_control_cr4_mask = 0x00002000;
+    //vmx_control_cr4_mask = 0;
     //vmx_control_cr4_read_shadow = 0x00002000;
     vmx_control_cr4_read_shadow = 0;
 
