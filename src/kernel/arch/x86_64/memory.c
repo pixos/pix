@@ -1459,7 +1459,7 @@ arch_vmem_addr_v2p(struct vmem_space *space, void *vaddr)
         /* 2-MiB paging */
         /* Get the offset */
         off = ((reg_t)vaddr) & 0x1fffffULL;
-        return (void *)(VMEM_PDPG(avmem->vls[idxpd][idxp]) + off);
+        return (void *)(VMEM_PDPG(VMEM_PD(avmem->array, idxpd)[idxp]) + off);
     } else {
         /* 4-KiB paging */
         pt = VMEM_PT(avmem->vls[idxpd][idxp]);
