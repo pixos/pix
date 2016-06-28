@@ -286,6 +286,7 @@ bsp_init(void)
         return;
     }
 
+#if 0
     if ( vmx_enable() < 0 ) {
         panic("Failed to initialize VMX.");
         return;
@@ -294,21 +295,11 @@ bsp_init(void)
         panic("Failed on VMCX initialization.");
         return;
     }
-#if 0
-    __asm__ __volatile__ (
-        "xorq %rdx,%rdx;mov %rdx,%dr4;mov %rdx,%dr5;"
-        "mov %rdx,%rax;"
-        "mov %rdx,%rbx;"
-        "mov %rdx,%rcx;"
-        "mov %rdx,%rdi;"
-        "mov %rdx,%rsi;"
-        );
-#endif
     if ( vmlaunch() ) {
         panic("Failed on VMLAUNCH.");
         return;
     }
-    panic("xxx");
+#endif
 
     /* Enable MP */
     mp_enabled = 1;

@@ -53,15 +53,6 @@
 #define IA32_DEBUGCTL 0x1d9
 #define IA32_EFER 0x0c0000080
 
-struct vmx_stackframe {
-    u64 rbp;
-    u64 rsi;
-    u64 rdi;
-    u64 rdx;
-    u64 rcx;
-    u64 rbx;
-    u64 rax;
-} __attribute__ ((packed));
 
 extern struct kmem *g_kmem;
 
@@ -170,7 +161,7 @@ vmx_enable(void)
     fixed1 = rdmsr(IA32_VMX_CR4_FIXED1);
     cr = get_cr4();
     set_cr4((cr | fixed0) & fixed1);
-    //set_cr4(get_cr4() | (1 << 13));
+    set_cr4(get_cr4() | (1 << 13));
     /* todo: MCE on */
     set_cr4(get_cr4() | (1 << 7));
 
@@ -200,50 +191,85 @@ __asm__ ("_vmx_vm_exit_handler:"
          "push %rbx;"
          "push %rcx;"
          "push %rdx;"
+         "push %r8;"
+         "push %r9;"
+         "push %r10;"
+         "push %r11;"
+         "push %r12;"
+         "push %r13;"
+         "push %r14;"
+         "push %r15;"
          "push %rdi;"
-         "movq %dr0,%rax;push %rax;"
-         "movq %dr1,%rax;push %rax;"
-         "movq %dr2,%rax;push %rax;"
-         "movq %dr3,%rax;push %rax;"
-         "movq %dr4,%rax;push %rax;"
-         "movq %dr5,%rax;push %rax;"
-         "movq %dr6,%rax;push %rax;"
+         "push %rsi;"
+         "push %rbp;"
+         "movq %dr0,%rax; push %rax;"
+         "movq %dr1,%rax; push %rax;"
+         "movq %dr2,%rax; push %rax;"
+         "movq %dr3,%rax; push %rax;"
+         "movq %dr6,%rax; push %rax;"
          "movq %rsp,%rdi;"
-         "call _vmx_vm_exit_handler_c;"
+         "call _vmx_vm_exit_handler_c;");
+
+void vmx_vm_exit_handler_resume(void);
+__asm__ ("_vmx_vm_exit_handler_resume:"
+         "pop %rax; movq %rax,%dr6;"
+         "pop %rax; movq %rax,%dr3;"
+         "pop %rax; movq %rax,%dr2;"
+         "pop %rax; movq %rax,%dr1;"
+         "pop %rax; movq %rax,%dr0;"
+         "pop %rbp;"
+         "pop %rsi;"
          "pop %rdi;"
+         "pop %r15;"
+         "pop %r14;"
+         "pop %r13;"
+         "pop %r12;"
+         "pop %r11;"
+         "pop %r10;"
+         "pop %r9;"
+         "pop %r8;"
          "pop %rdx;"
          "pop %rcx;"
          "pop %rbx;"
          "pop %rax;"
-         "vmresume");
+         "vmresume;"
+         "jz 1f;"
+         "sbbq %rax,%rax;"
+         "ret;"
+         "1: movq $-1,%rax;"
+         "ret");
 
 void
 vmx_vm_exit_handler_c(u64 *stack)
 {
     u64 rd;
+    u64 qualification;
 
     /* VM exit reason: See Table C-1. Basic Exit Reasons */
     rd = vmread(0x4402);
+    qualification = vmread(0x6400);
 
     rd = rd & 0xff;
     if ( 1 == rd ) {
         /* External interrupt */
         //panic("ExtIntr");
         sti();
-        vmresume();
+        vmx_vm_exit_handler_resume();
     } else if ( 12 == rd ) {
         /* Hlt */
-        panic("Hlt");
         sti();
         halt();
-        vmresume();
-#if 0
+        vmx_vm_exit_handler_resume();
+    } else if ( 28 == rd ) {
+        vmx_vm_exit_handler_resume();
+        /* Control register */
+        char e[2048];
+        ksnprintf(e, 2048, "VM exit %d / %llx", rd, qualification);
+        panic(e);
     } else if ( 52 == rd ) {
         /* VMX-preemption timer expired */
-        //panic("VM exit (preemption expired)");
         vmwrite(0x482e, 1500);
-        vmresume();
-#endif
+        vmx_vm_exit_handler_resume();
     } else {
         char e[2048];
 #if 0
@@ -393,10 +419,24 @@ vmx_initialize_vmcs(void)
     // 0f 20 e0
     mem[0x7c00] = 0x0f; // mov %cr4, %rax
     mem[0x7c01] = 0x20;
-    mem[0x7c02] = 0xe0;
-    mem[0x7c03] = 0x90; // nop
-    mem[0x7c04] = 0xeb; // jmp
-    mem[0x7c05] = 0xfd; // back
+    //mem[0x7c02] = 0xe0;
+    mem[0x7c02] = 0xc0; // %cr0
+
+    mem[0x7c03] = 0x83; // or $0x30, %eax
+    mem[0x7c04] = 0xc8;
+    mem[0x7c05] = 0x30;
+
+    mem[0x7c06] = 0x0f; // mov %cr0, %rax
+    mem[0x7c07] = 0x22;
+    mem[0x7c08] = 0xc0;
+
+    mem[0x7c09] = 0x0f; // mov %cr0, %rax
+    mem[0x7c0a] = 0x20;
+    mem[0x7c0b] = 0xc0;
+
+    mem[0x7c0c] = 0x90; // nop
+    mem[0x7c0d] = 0xeb; // jmp
+    mem[0x7c0e] = 0xfd; // back
     ept = kmalloc(4096 * 4);
     if ( NULL == ept ) {
         kfree(mem);
@@ -622,8 +662,8 @@ vmx_initialize_vmcs(void)
     vmx_guest_tr_access_rights = 0x0000008b;
     //vmx_guest_tr_access_rights = 0x00000083;
 
-    vmx_guest_cr0 = 0x00000030;
-    //vmx_guest_cr0 = 0x00000010;
+    vmx_guest_cr0 = 0x00000020;
+    //vmx_guest_cr0 = 0x00000000;
     vmx_guest_cr3 = 0;
     //vmx_guest_cr3 = 0x79000;
     vmx_guest_cr4 = 1 << 13;
@@ -653,7 +693,7 @@ vmx_initialize_vmcs(void)
     vmx_guest_activity_state = 0;
 
     //vmx_control_cr0_mask = 0x80000021;
-    vmx_control_cr0_mask = 0;
+    vmx_control_cr0_mask = 0x00000020;
     //vmx_control_cr0_read_shadow = 0x80000021;
     vmx_control_cr0_read_shadow = 0;
     vmx_control_cr4_mask = 0x00002000;

@@ -32,6 +32,38 @@ struct vmx_vmcs {
     u64 *ptr;
 };
 
+
+/*
+ * VMX stackframe
+ */
+struct vmx_stackframe {
+    /* Debug registers */
+    u64 dr6;
+    u64 dr3;
+    u64 dr2;
+    u64 dr1;
+    u64 dr0;
+    /* Base pointer */
+    u64 rbp;
+    /* Indesx registers */
+    u64 rsi;
+    u64 rdi;
+    /* General-purpose registers */
+    u64 r15;
+    u64 r14;
+    u64 r13;
+    u64 r12;
+    u64 r11;
+    u64 r10;
+    u64 r9;
+    u64 r8;
+    u64 rdx;
+    u64 rcx;
+    u64 rbx;
+    u64 rax;
+} __attribute__ ((packed));
+
+
 u64 vmx_control_io_bitmap_a_full;
 u64 vmx_control_io_bitmap_a_high;
 u64 vmx_control_io_bitmap_b_full;
