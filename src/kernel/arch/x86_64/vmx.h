@@ -32,6 +32,38 @@ struct vmx_vmcs {
     u64 *ptr;
 };
 
+
+/*
+ * VMX stackframe
+ */
+struct vmx_stackframe {
+    /* Debug registers */
+    u64 dr6;
+    u64 dr3;
+    u64 dr2;
+    u64 dr1;
+    u64 dr0;
+    /* Base pointer */
+    u64 rbp;
+    /* Indesx registers */
+    u64 rsi;
+    u64 rdi;
+    /* General-purpose registers */
+    u64 r15;
+    u64 r14;
+    u64 r13;
+    u64 r12;
+    u64 r11;
+    u64 r10;
+    u64 r9;
+    u64 r8;
+    u64 rdx;
+    u64 rcx;
+    u64 rbx;
+    u64 rax;
+} __attribute__ ((packed));
+
+
 u64 vmx_control_io_bitmap_a_full;
 u64 vmx_control_io_bitmap_a_high;
 u64 vmx_control_io_bitmap_b_full;
@@ -44,8 +76,8 @@ u64 vmx_control_vm_exit_msr_load_full;
 u64 vmx_control_vm_exit_msr_load_high;
 u64 vmx_control_vm_entry_msr_load_full;
 u64 vmx_control_vm_entry_msr_load_high;
-u64 vmx_control_exective_vmcs_pointer_full;
-u64 vmx_control_exective_vmcs_pointer_high;
+u64 vmx_control_executive_vmcs_pointer_full;
+u64 vmx_control_executive_vmcs_pointer_high;
 u64 vmx_control_tsc_offset_full;
 u64 vmx_control_tsc_offset_high;
 u64 vmx_control_ept_pointer_full;
@@ -85,6 +117,7 @@ u64 vmx_host_ds_selector;
 u64 vmx_host_fs_selector;
 u64 vmx_host_gs_selector;
 u64 vmx_host_tr_selector;
+u64 vmx_host_pat_full;
 u64 vmx_host_efer_full;
 u64 vmx_host_sysenter_cs;
 u64 vmx_host_cr0;
@@ -114,6 +147,8 @@ u64 vmx_guest_vmcs_link_pointer_full;
 u64 vmx_guest_vmcs_link_pointer_high;
 u64 vmx_guest_debugctl_full;
 u64 vmx_guest_debugctl_high;
+u64 vmx_guest_pat_full;
+u64 vmx_guest_efer_full;
 
 u64 vmx_guest_es_limit;
 u64 vmx_guest_cs_limit;
@@ -137,7 +172,7 @@ u64 vmx_guest_interruptibility_state;
 u64 vmx_guest_activity_state;
 u64 vmx_guest_smbase;
 u64 vmx_guest_sysenter_cs;
-/*u64 vmx_preemption_timer_value;*/
+u64 vmx_preemption_timer_value;
 
 u64 vmx_guest_cr0;
 u64 vmx_guest_cr3;
@@ -163,22 +198,30 @@ u64 vmx_guest_sysenter_eip;
 struct vmx_vmcs vmx_vmcs [] = {
     /* Control fields */
     /* 64-bit */
-    /*{ 0x2000, &vmx_control_io_bitmap_a_full },*/
-    /*{ 0x2001, &vmx_control_io_bitmap_a_high },*/
-    /*{ 0x2002, &vmx_control_io_bitmap_b_full },*/
-    /*{ 0x2003, &vmx_control_io_bitmap_b_high },*/
-    /*{ 0x2004, &vmx_control_msr_bitmaps_full },*/
-    /*{ 0x2005, &vmx_control_msr_bitmaps_high },*/
+    { 0x2000, &vmx_control_io_bitmap_a_full },
+    //{ 0x2001, &vmx_control_io_bitmap_a_high },
+    { 0x2002, &vmx_control_io_bitmap_b_full },
+    //{ 0x2003, &vmx_control_io_bitmap_b_high },
+    { 0x2004, &vmx_control_msr_bitmaps_full },
+    //{ 0x2005, &vmx_control_msr_bitmaps_high },
     /*{ 0x2006, &vmx_control_vm_exit_msr_store_full },*/
     /*{ 0x2007, &vmx_control_vm_exit_msr_store_high },*/
     /*{ 0x2008, &vmx_control_vm_exit_msr_load_full },*/
     /*{ 0x2009, &vmx_control_vm_exit_msr_load_high },*/
-    /*{ 0x200a, &vmx_control_vm_entry_msr_load_full },*/
+    { 0x200a, &vmx_control_vm_entry_msr_load_full },
     /*{ 0x200b, &vmx_control_vm_entry_msr_load_high },*/
-    /*{ 0x200c, &vmx_control_exective_vmcs_pointer_full },*/
-    /*{ 0x200d, &vmx_control_exective_vmcs_pointer_high },*/
-    /*{ 0x2010, &vmx_control_tsc_offset_full },*/
-    /*{ 0x2011, &vmx_control_tsc_offset_high },*/
+    /*{ 0x200c, &vmx_control_executive_vmcs_pointer_full },*/
+    /*{ 0x200d, &vmx_control_executive_vmcs_pointer_high },*/
+    { 0x2010, &vmx_control_tsc_offset_full },
+    //{ 0x2011, &vmx_control_tsc_offset_high },
+    /*{ 0x2012, &vmx_control_virtual_apic_full },*/
+    /*{ 0x2013, &vmx_control_virtual_apic_high },*/
+    /*{ 0x2014, &vmx_control_apic_access_full },*/
+    /*{ 0x2015, &vmx_control_apic_access_high },*/
+    /*{ 0x2016, &vmx_control_posted_interrupt_desc_full },*/
+    /*{ 0x2017, &vmx_control_posted_interrupt_desc_high },*/
+    /*{ 0x2018, &vmx_control_vm_function_controls_full },*/
+    /*{ 0x2019, &vmx_control_vm_function_controls_high },*/
     { 0x201a, &vmx_control_ept_pointer_full },
     /*{ 0x201b, &vmx_control_ept_pointer_high },*/
     /* 32-bit */
@@ -187,7 +230,7 @@ struct vmx_vmcs vmx_vmcs [] = {
     /*{ 0x4004, &vmx_control_exception_bitmap },*/
     /*{ 0x4006, &vmx_control_page_fault_error_code_mask },*/
     /*{ 0x4008, &vmx_control_page_fault_error_code_match },*/
-    /*{ 0x400a, &vmx_control_cr3_target_count },*/
+    { 0x400a, &vmx_control_cr3_target_count },
     { 0x400c, &vmx_control_vm_exit_controls },
     /*{ 0x400e, &vmx_control_vm_exit_msr_store_count },*/
     /*{ 0x4010, &vmx_control_vm_exit_msr_load_count },*/
@@ -201,10 +244,10 @@ struct vmx_vmcs vmx_vmcs [] = {
     /*{ 0x4020, &vmx_control_ple_gap },*/
     /*{ 0x4022, &vmx_control_ple_window },*/
     /* Natural */
-    /*{ 0x6000, &vmx_control_cr0_mask },*/
-    /*{ 0x6002, &vmx_control_cr4_mask },*/
-    /*{ 0x6004, &vmx_control_cr0_read_shadow },*/
-    /*{ 0x6006, &vmx_control_cr4_read_shadow },*/
+    { 0x6000, &vmx_control_cr0_mask },
+    { 0x6002, &vmx_control_cr4_mask },
+    { 0x6004, &vmx_control_cr0_read_shadow },
+    { 0x6006, &vmx_control_cr4_read_shadow },
     /*{ 0x6008, &vmx_control_cr3_target_value0 },*/
     /*{ 0x600a, &vmx_control_cr3_target_value1 },*/
     /*{ 0x600c, &vmx_control_cr3_target_value2 },*/
@@ -220,20 +263,21 @@ struct vmx_vmcs vmx_vmcs [] = {
     { 0x0c0a, &vmx_host_gs_selector },
     { 0x0c0c, &vmx_host_tr_selector },
     /* 64-bit */
+    { 0x2c00, &vmx_host_pat_full },
     { 0x2c02, &vmx_host_efer_full },
     /* 32-bit */
-    /*{ 0x4c00, &vmx_host_sysenter_cs },*/
+    { 0x4c00, &vmx_host_sysenter_cs },
     /* Natural */
     { 0x6c00, &vmx_host_cr0 },
     { 0x6c02, &vmx_host_cr3 },
     { 0x6c04, &vmx_host_cr4 },
-    /*{ 0x6c06, &vmx_host_fs_base },*/
-    /*{ 0x6c08, &vmx_host_gs_base },*/
-    /*{ 0x6c0a, &vmx_host_tr_base },*/
+    { 0x6c06, &vmx_host_fs_base },
+    { 0x6c08, &vmx_host_gs_base },
+    { 0x6c0a, &vmx_host_tr_base },
     { 0x6c0c, &vmx_host_gdtr_base },
     { 0x6c0e, &vmx_host_idtr_base },
-    /*{ 0x6c10, &vmx_host_sysenter_esp },*/
-    /*{ 0x6c12, &vmx_host_sysenter_eip },*/
+    { 0x6c10, &vmx_host_sysenter_esp },
+    { 0x6c12, &vmx_host_sysenter_eip },
     { 0x6c14, &vmx_host_rsp },
     { 0x6c16, &vmx_host_rip },
 
@@ -251,8 +295,10 @@ struct vmx_vmcs vmx_vmcs [] = {
     /* 64-bit */
     { 0x2800, &vmx_guest_vmcs_link_pointer_full },
     /*{ 0x2801, &vmx_guest_vmcs_link_pointer_high },*/
-    /*{ 0x2802, &vmx_guest_debugctl_full },*/
+    { 0x2802, &vmx_guest_debugctl_full },
     /*{ 0x2803, &vmx_guest_debugctl_high },*/
+    { 0x2804, &vmx_guest_pat_full },
+    { 0x2806, &vmx_guest_efer_full },
     /* 32-bit */
     { 0x4800, &vmx_guest_es_limit },
     { 0x4802, &vmx_guest_cs_limit },
@@ -272,11 +318,11 @@ struct vmx_vmcs vmx_vmcs [] = {
     { 0x481e, &vmx_guest_gs_access_rights },
     { 0x4820, &vmx_guest_ldtr_access_rights },
     { 0x4822, &vmx_guest_tr_access_rights },
-    /*{ 0x4824, &vmx_guest_interruptibility_state },*/
-    /*{ 0x4826, &vmx_guest_activity_state },*/
+    { 0x4824, &vmx_guest_interruptibility_state },
+    { 0x4826, &vmx_guest_activity_state },
     /*{ 0x4828, &vmx_guest_smbase },*/
-    /*{ 0x482a, &vmx_guest_sysenter_cs },*/
-    /*{ 0x482e, &vmx_preemption_timer_value },*/
+    { 0x482a, &vmx_guest_sysenter_cs },
+    { 0x482e, &vmx_preemption_timer_value },
     /* Natural */
     { 0x6800, &vmx_guest_cr0 },
     { 0x6802, &vmx_guest_cr3 },

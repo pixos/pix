@@ -77,6 +77,8 @@ panic(const char *s)
     int i;
     u16 *video;
     u16 val;
+    int col;
+    int ln;
 
     /* Disable interrupt */
     cli();
@@ -89,20 +91,46 @@ panic(const char *s)
 
     /* Print out the message string directly */
     video = (u16 *)VIDEO_COLOR;
-    for ( i = 0; *s; i++, s++  ) {
-        *video = 0x2f00 | *s;
-        video++;
+
+    /* Fill out with green */
+    for ( i = 0; i < 80 * 25; i++ ) {
+        video[i] = 0x2f00;
     }
+
+    col = 0;
+    ln = 0;
+    for ( i = 0; *s; s++  ) {
+        switch ( *s ) {
+        case '\r':
+            video -= col;
+            i -= col;
+            col = 0;
+            break;
+        case '\n':
+            video += 80;
+            i += 80;
+            ln++;
+            break;
+        default:
+            *video = 0x2f00 | *s;
+            video++;
+            i++;
+            col++;
+        }
+    }
+
     /* Move the cursor */
     val = ((i & 0xff) << 8) | 0x0f;
     outw(0x3d4, val);   /* Low */
     val = (((i >> 8) & 0xff) << 8) | 0x0e;
     outw(0x3d4, val);   /* High */
+#if 0
     /* Fill out */
     for ( ; i < 80 * 25; i++ ) {
         *video = 0x2f00;
         video++;
     }
+#endif
 
     /* Stop forever */
     while ( 1 ) {
@@ -153,7 +181,6 @@ bsp_init(void)
     idt_setup_intr_gate(0, intr_dze);
     idt_setup_intr_gate(1, intr_debug);
     //idt_setup_intr_gate(2, intr_nmi);
-
     idt_setup_intr_gate(6, intr_iof);
     idt_setup_intr_gate(13, intr_gpf);
     idt_setup_intr_gate(14, intr_pf);
@@ -161,6 +188,7 @@ bsp_init(void)
     idt_setup_intr_gate(19, intr_simd_fpe);
     idt_setup_intr_gate(IV_LOC_TMR, intr_apic_loc_tmr);
     idt_setup_intr_gate(IV_CRASH, intr_crash);
+
 
     /* ToDo: Prepare the virtual pages for ACPI etc. */
 
@@ -260,7 +288,15 @@ bsp_init(void)
 
 #if 0
     if ( vmx_enable() < 0 ) {
-        panic("Failed to initialize VMX");
+        panic("Failed to initialize VMX.");
+        return;
+    }
+    if ( vmx_initialize_vmcs() ) {
+        panic("Failed on VMCX initialization.");
+        return;
+    }
+    if ( vmlaunch() ) {
+        panic("Failed on VMLAUNCH.");
         return;
     }
 #endif
