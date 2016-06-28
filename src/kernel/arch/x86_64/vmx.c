@@ -170,7 +170,7 @@ vmx_enable(void)
     fixed1 = rdmsr(IA32_VMX_CR4_FIXED1);
     cr = get_cr4();
     set_cr4((cr | fixed0) & fixed1);
-    //set_cr4(get_cr4() | (1 << 13));
+    set_cr4(get_cr4() | (1 << 13));
     /* todo: MCE on */
     set_cr4(get_cr4() | (1 << 7));
 
@@ -237,13 +237,11 @@ vmx_vm_exit_handler_c(u64 *stack)
         sti();
         halt();
         vmresume();
-#if 0
     } else if ( 52 == rd ) {
         /* VMX-preemption timer expired */
         //panic("VM exit (preemption expired)");
         vmwrite(0x482e, 1500);
         vmresume();
-#endif
     } else {
         char e[2048];
 #if 0
@@ -623,7 +621,7 @@ vmx_initialize_vmcs(void)
     //vmx_guest_tr_access_rights = 0x00000083;
 
     vmx_guest_cr0 = 0x00000030;
-    //vmx_guest_cr0 = 0x00000010;
+    //vmx_guest_cr0 = 0x00000000;
     vmx_guest_cr3 = 0;
     //vmx_guest_cr3 = 0x79000;
     vmx_guest_cr4 = 1 << 13;
