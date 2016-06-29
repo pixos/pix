@@ -95,6 +95,8 @@
 	.globl	_intr_apic_loc_tmr
 	.globl	_intr_crash
 	.globl	_sys_fork
+	.globl	_vmx_vm_exit_handler
+	.globl	_vmx_vm_exit_handler_resume
 
 	.set	APIC_LAPIC_ID,0x020
 	.set	APIC_EOI,0x0b0
@@ -916,6 +918,71 @@ _task_replace:
 	intr_lapic_isr_done
 	iretq
 
+
+/* VM Exit handler */
+_vmx_vm_exit_handler:
+	push	%rax
+	push	%rbx
+	push	%rcx
+	push	%rdx
+	push	%r8
+	push	%r9
+	push	%r10
+	push	%r11
+	push	%r12
+	push	%r13
+	push	%r14
+	push	%r15
+	push	%rdi
+	push	%rsi
+	push	%rbp
+	movq	%dr0, %rax
+	push	%rax
+	movq	%dr1, %rax
+	push	%rax
+	movq	%dr2, %rax
+	push	%rax
+	movq	%dr3, %rax
+	push	%rax
+	movq	%dr6, %rax
+	push	%rax
+	movq	%rsp, %rdi
+	call	_vmx_vm_exit_handler_c
+
+/* Resume procedure from the VM Exit handler */
+_vmx_vm_exit_handler_resume:
+	pop	%rax
+	movq	%rax, %dr6
+	pop	%rax
+	movq	%rax, %dr3
+	pop	%rax
+	movq	%rax, %dr2
+	pop	%rax
+	movq	%rax, %dr1
+	pop	%rax
+	movq	%rax,%dr0
+	pop	%rbp
+	pop	%rsi
+	pop	%rdi
+	pop	%r15
+	pop	%r14
+	pop	%r13
+	pop	%r12
+	pop	%r11
+	pop	%r10
+	pop	%r9
+	pop	%r8
+	pop	%rdx
+	pop	%rcx
+	pop	%rbx
+	pop	%rax
+	vmresume
+	jz 1f
+	sbbq	%rax, %rax
+	ret
+1:
+	movq	$-1, %rax
+	ret
 
 	.data
 syscall_table:

@@ -54,6 +54,10 @@
 #define IA32_EFER 0x0c0000080
 
 
+void vmx_vm_exit_handler(void);
+void vmx_vm_exit_handler_resume(void);
+
+
 extern struct kmem *g_kmem;
 
 /*
@@ -170,6 +174,10 @@ vmx_enable(void)
      * [49]    : Support of dual-monitor treatment of system-management
      *           interrupts and system-management mode
      * [53:50] : Memory type; 0: Uncacheable, 6: Write Back
+     * [54]    : Reporting information in the VM-exit instruction-information
+     *           field on VM exits due to execution of the INS and OUTS
+     *           instructions
+     * [55]    : VMX control (TRUE / default)
      */
     vmx = rdmsr(IA32_VMX_BASIC);
 
@@ -184,7 +192,7 @@ vmx_enable(void)
     fixed1 = rdmsr(IA32_VMX_CR4_FIXED1);
     cr = get_cr4();
     set_cr4((cr | fixed0) & fixed1);
-    set_cr4(get_cr4() | (1 << 13));
+    set_cr4(get_cr4() | CR4_VME);
     /* todo: MCE on */
     set_cr4(get_cr4() | (1 << 7));
 
@@ -208,59 +216,6 @@ vmx_enable(void)
     return 0;
 }
 
-void vmx_vm_exit_handler(void);
-__asm__ ("_vmx_vm_exit_handler:"
-         "push %rax;"
-         "push %rbx;"
-         "push %rcx;"
-         "push %rdx;"
-         "push %r8;"
-         "push %r9;"
-         "push %r10;"
-         "push %r11;"
-         "push %r12;"
-         "push %r13;"
-         "push %r14;"
-         "push %r15;"
-         "push %rdi;"
-         "push %rsi;"
-         "push %rbp;"
-         "movq %dr0,%rax; push %rax;"
-         "movq %dr1,%rax; push %rax;"
-         "movq %dr2,%rax; push %rax;"
-         "movq %dr3,%rax; push %rax;"
-         "movq %dr6,%rax; push %rax;"
-         "movq %rsp,%rdi;"
-         "call _vmx_vm_exit_handler_c;");
-
-void vmx_vm_exit_handler_resume(void);
-__asm__ ("_vmx_vm_exit_handler_resume:"
-         "pop %rax; movq %rax,%dr6;"
-         "pop %rax; movq %rax,%dr3;"
-         "pop %rax; movq %rax,%dr2;"
-         "pop %rax; movq %rax,%dr1;"
-         "pop %rax; movq %rax,%dr0;"
-         "pop %rbp;"
-         "pop %rsi;"
-         "pop %rdi;"
-         "pop %r15;"
-         "pop %r14;"
-         "pop %r13;"
-         "pop %r12;"
-         "pop %r11;"
-         "pop %r10;"
-         "pop %r9;"
-         "pop %r8;"
-         "pop %rdx;"
-         "pop %rcx;"
-         "pop %rbx;"
-         "pop %rax;"
-         "vmresume;"
-         "jz 1f;"
-         "sbbq %rax,%rax;"
-         "ret;"
-         "1: movq $-1,%rax;"
-         "ret");
 
 void
 vmx_vm_exit_handler_c(u64 *stack)
@@ -645,7 +600,7 @@ vmx_initialize_vmcs(void)
 
     vmx_guest_cr0 = 0x00000020;
     vmx_guest_cr3 = 0;
-    vmx_guest_cr4 = 1 << 13;
+    vmx_guest_cr4 = CR4_VME;
     vmx_guest_es_base = 0;
     vmx_guest_cs_base = 0;
     vmx_guest_ss_base = 0;
