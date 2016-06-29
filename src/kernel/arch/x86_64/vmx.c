@@ -174,6 +174,10 @@ vmx_enable(void)
      * [49]    : Support of dual-monitor treatment of system-management
      *           interrupts and system-management mode
      * [53:50] : Memory type; 0: Uncacheable, 6: Write Back
+     * [54]    : Reporting information in the VM-exit instruction-information
+     *           field on VM exits due to execution of the INS and OUTS
+     *           instructions
+     * [55]    : VMX control (TRUE / default)
      */
     vmx = rdmsr(IA32_VMX_BASIC);
 
