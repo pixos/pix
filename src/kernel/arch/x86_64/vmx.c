@@ -184,7 +184,7 @@ vmx_enable(void)
     fixed1 = rdmsr(IA32_VMX_CR4_FIXED1);
     cr = get_cr4();
     set_cr4((cr | fixed0) & fixed1);
-    set_cr4(get_cr4() | (1 << 13));
+    set_cr4(get_cr4() | CR4_VME);
     /* todo: MCE on */
     set_cr4(get_cr4() | (1 << 7));
 
@@ -645,7 +645,7 @@ vmx_initialize_vmcs(void)
 
     vmx_guest_cr0 = 0x00000020;
     vmx_guest_cr3 = 0;
-    vmx_guest_cr4 = 1 << 13;
+    vmx_guest_cr4 = CR4_VME;
     vmx_guest_es_base = 0;
     vmx_guest_cs_base = 0;
     vmx_guest_ss_base = 0;
