@@ -15,7 +15,7 @@
 ## Convention from the boot loader to the kernel
 
 ### Registers
-*
+No convention (currently).
 
 ### Memory
 
