@@ -1,5 +1,5 @@
 /*_
- * Copyright (c) 2015 Hirochika Asai <asai@jar.jp>
+ * Copyright (c) 2015-2016 Hirochika Asai <asai@jar.jp>
  * All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -21,7 +21,7 @@
  * SOFTWARE.
  */
 
-	.include	"asmconst.h"
+#include "const.h"
 
 /* Note that .data section cannot be used in the trampoline file because we
    need to determine the contiguous space of the trampoline code within a
@@ -68,10 +68,10 @@ idtr:
 gdt:
 	.word	0x0,0x0,0x0,0x0	/* Null entry */
 	.word	0xffff,0x0,0x9a00,0xaf	/* Code64 */
-	.word	0xffff,0x0,0x9a00,0xcf	/* Code32 */
-	.word	0xffff,0x0,0x9a00,0x8f	/* Code16 */
 	.word	0xffff,0x0,0x9200,0xaf	/* Data64 */
+	.word	0xffff,0x0,0x9a00,0xcf	/* Code32 */
 	.word	0xffff,0x0,0x9200,0xcf	/* Data32 */
+	.word	0xffff,0x0,0x9a00,0x8f	/* Code16 */
 gdt.1:
 gdtr:
 	.word	gdt.1 - gdt - 1	/* Limit */
