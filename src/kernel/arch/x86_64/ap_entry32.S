@@ -28,6 +28,9 @@
 	.code32
 	.globl	ap_entry32
 
+	.set	APIC_LAPIC_ID,0x020
+	.set	MSR_APIC_BASE,0x1b
+
 /* Entry point */
 ap_entry32:
 	cli
@@ -42,8 +45,10 @@ ap_entry32:
 	movl	%eax,%gs
 
 	/* Obtain APIC ID */
-	movl	$APIC_BASE,%edx
-	movl	0x20(%edx),%eax
+	movl	$MSR_APIC_BASE,%ecx
+	rdmsr
+	andl	$0xfffffffffffff000,%eax	/* APIC Base */
+	movl	APIC_LAPIC_ID(%eax),%eax
 	shrl	$24,%eax
 
 	/* Setup stack with 16 byte guard */
