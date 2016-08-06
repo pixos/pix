@@ -1,5 +1,5 @@
 /*_
- * Copyright (c) 2015 Hirochika Asai <asai@jar.jp>
+ * Copyright (c) 2015-2016 Hirochika Asai <asai@jar.jp>
  * All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -194,7 +194,7 @@ lapic_start_timer(u64 freq, u8 vec)
 {
     /* Estimate frequency first */
     u64 busfreq;
-    struct p_data *pdata;
+    struct cpu_data *pdata;
 
     /* Get CPU frequency to this CPU data area */
     pdata = this_cpu();

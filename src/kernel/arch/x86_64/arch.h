@@ -62,30 +62,7 @@
 /* Kernel variable */
 #define KVAR_ADDR               0x84000ULL
 
-/*********************************************************/
-/* The folloowing values are also defined in asmconst.h */
-/*********************************************************/
-/* # of IDT entries */
-#define IDT_NR                  256
-/* Kernel page table */
-#define KERNEL_PGT              0x00079000ULL
-/* Per-processor information (flags, cpuinfo, stats, tss, task, stack) */
-#define CPU_DATA_BASE           0x01000000ULL
-#define CPU_DATA_SIZE           0x10000
-#define CPU_STACK_GUARD         0x10
-#define CPU_TSS_OFFSET          (0x20 + IDT_NR * 8)
-/* Trampoline: 0x70 (0x70000) */
-#define TRAMPOLINE_VEC          0x70
-#define TRAMPOLINE_MAX_SIZE     0x1000
-/* GDT selectors */
-#define GDT_NR                  9
-#define GDT_NULL_SEL            (0<<3)
-#define GDT_RING0_CODE_SEL      (1<<3)
-#define GDT_RING0_DATA_SEL      (2<<3)
-#define GDT_RING3_CODE32_SEL    (3<<3)
-#define GDT_RING3_DATA_SEL      (4<<3)
-#define GDT_RING3_CODE64_SEL    (5<<3)
-#define GDT_TSS_SEL_BASE        (6<<3)
+#include "const.h"
 
 /* Control registers */
 #define CR4_PGE                 (1ULL<<7)
@@ -239,7 +216,7 @@ struct arch_task {
 /*
  * Data space for each processor
  */
-struct p_data {
+struct cpu_data {
     u32 flags;          /* bit 0: enabled (working); bit 1- reserved */
     u32 cpu_id;
     u64 freq;           /* Frequency */
@@ -258,7 +235,7 @@ struct p_data {
 } __attribute__ ((packed));
 
 /* in arch.c */
-struct p_data * this_cpu(void);
+struct cpu_data * this_cpu(void);
 int
 arch_exec(struct arch_task *, void (*)(void), size_t, int, char *const [],
           char *const []);

@@ -1,5 +1,5 @@
 /*_
- * Copyright (c) 2015 Hirochika Asai <asai@jar.jp>
+ * Copyright (c) 2015-2016 Hirochika Asai <asai@jar.jp>
  * All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -209,13 +209,13 @@ idt_load(void)
 void
 tss_init(void)
 {
-    struct p_data *pdata;
+    struct cpu_data *pdata;
     struct tss *tss;
     u64 i;
 
     for ( i = 0; i < MAX_PROCESSORS; i++ ) {
         /* Initialize the TSS for each processor (Local APIC) */
-        pdata = (struct p_data *)(CPU_DATA_BASE + i * CPU_DATA_SIZE);
+        pdata = (struct cpu_data *)(CPU_DATA_BASE + i * CPU_DATA_SIZE);
         tss = &pdata->tss;
         tss->reserved1 = 0;
         tss->rsp0l = 0;

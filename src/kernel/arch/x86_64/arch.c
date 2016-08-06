@@ -145,7 +145,7 @@ void
 bsp_init(void)
 {
     struct bootinfo *bi;
-    struct p_data *pdata;
+    struct cpu_data *pdata;
     long long i;
     int prox;
 
@@ -162,7 +162,7 @@ bsp_init(void)
     for ( i = 0; i < MAX_PROCESSORS; i++ ) {
         /* Fill the processor data space with zero excluding stack area */
         kmemset((u8 *)((u64)CPU_DATA_BASE + i * CPU_DATA_SIZE), 0,
-                sizeof(struct p_data));
+                sizeof(struct cpu_data));
     }
 
     /* Initialize global descriptor table */
@@ -354,7 +354,7 @@ bsp_init(void)
 void
 ap_init(void)
 {
-    struct p_data *pdata;
+    struct cpu_data *pdata;
     int prox;
 
     /* Load global descriptor table */
@@ -402,12 +402,12 @@ ap_init(void)
 /*
  * Get the CPU data structure
  */
-struct p_data *
+struct cpu_data *
 this_cpu(void)
 {
-    struct p_data *pdata;
+    struct cpu_data *pdata;
 
-    pdata = (struct p_data *)(CPU_DATA_BASE + lapic_id() * CPU_DATA_SIZE);
+    pdata = (struct cpu_data *)(CPU_DATA_BASE + lapic_id() * CPU_DATA_SIZE);
 
     return pdata;
 }
@@ -541,7 +541,7 @@ arch_task_switched(struct arch_task *prev, struct arch_task *next)
 struct ktask *
 this_ktask(void)
 {
-    struct p_data *pdata;
+    struct cpu_data *pdata;
 
     /* Get the information on this processor */
     pdata = this_cpu();
