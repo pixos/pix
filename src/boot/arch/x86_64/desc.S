@@ -22,30 +22,22 @@
  * SOFTWARE.
  */
 
-	.set	KERNEL_BASE,0x10000
-	.set	INITRAMFS_BASE,0x30000
-	.set	KERNEL_PGT,0x00079000	/* Page table */
-	.set	P_DATA_SIZE,0x10000	/* Data size for each processor */
-	.set	P_DATA_BASE,0x1000000	/* Data base for each processor */
-	.set	P_STACK_GUARD,0x10
+/* Pseudo interrupt descriptor table */
+idtr:
+	.word	0x0
+	.long	0x0
 
-	.set	BOOTINFO_BASE,0x8000	/* Boot information base address */
-	.set	BOOTINFO_SIZE,0x100	/* Size of boot info structure */
-	/* struct bootinfo {
-	 * 	u64 mm_num;		// # of entries
-	 * 	u64 mm_ptr;		// pointer to the memory map table
-	 * offset: --0x00ff unused space
-	 * offset: 0x0100-- memory map table
-	 * };
-	 */
-	.set	BOOTINFO_MM_NUM,BOOTINFO_BASE
-	.set	BOOTINFO_MM_PTR,BOOTINFO_BASE+8
-	.set	BOOTINFO_MM_TBL,BOOTINFO_BASE+BOOTINFO_SIZE
+/* Global descriptor table */
+gdt:
+	.word	0x0,0x0,0x0,0x0		/* Null entry */
+	.word	0xffff,0x0,0x9a00,0xaf	/* Code64 */
+	.word	0xffff,0x0,0x9200,0xaf	/* Data64 */
+	.word	0xffff,0x0,0x9a00,0xcf	/* Code32 */
+	.word	0xffff,0x0,0x9200,0xcf	/* Data32 */
+	.word	0xffff,0x0,0x9a00,0x8f	/* Code16 */
 
-	.set	NUM_RETRIES,3		/* # of retries for disk read */
-	.set	ERRCODE_TIMEOUT,0x80	/* Error code: Timeout */
-	.set	SECTOR_SIZE,0x200	/* 512 bytes / sector */
-	.set	BUFFER,0x6000		/* Buffer: 6000-61ff */
-
-	.set	APIC_LAPIC_ID,0x020
-	.set	MSR_APIC_BASE,0x1b
+gdt.1:
+	/* Global descriptor table register */
+gdtr:
+	.word	gdt.1 - gdt - 1		/* Limit */
+	.long	gdt			/* Address */
