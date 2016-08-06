@@ -1,5 +1,5 @@
 /*_
- * Copyright (c) 2015 Hirochika Asai <asai@jar.jp>
+ * Copyright (c) 2015-2016 Hirochika Asai <asai@jar.jp>
  * All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -21,7 +21,7 @@
  * SOFTWARE.
  */
 
-	.include	"asmconst.h"
+#include "const.h"
 
 	.text
 
@@ -50,17 +50,17 @@ entry32:
 	movl	$MSR_APIC_BASE,%ecx
 	rdmsr
 	andl	$0xfffffffffffff000,%eax	/* APIC Base */
-	movl	APIC_LAPIC_ID(%eax),%eax
-	shrl	$24,%eax
+	movl	LAPIC_ID_OFF(%eax),%eax
+	shrl	$LAPIC_ID_SHR,%eax
 	/* P6 family and Pentium processors: [27:24] */
 	/* Pentium 4 processors, Xeon processors, and later processors: [31:24] */
 
 	/* Setup stack with 16 byte guard */
 	addl	$1,%eax
-	movl	$P_DATA_SIZE,%ebx
+	movl	$CPU_DATA_SIZE,%ebx
 	mull	%ebx			/* [%edx|%eax] = %eax * %ebx */
-	addl	$P_DATA_BASE,%eax
-	subl	$P_STACK_GUARD,%eax
+	addl	$CPU_DATA_BASE,%eax
+	subl	$CPU_STACK_GUARD,%eax
 	movl	%eax,%esp
 
 	/* CPU feature check */
