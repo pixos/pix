@@ -54,13 +54,13 @@
 #define MAX_PROCESSORS          256
 
 /* GDT and IDT */
-#define GDT_ADDR                0x74000ULL
+#define GDT_ADDR                0x80000ULL
 #define GDT_MAX_SIZE            0x2000
-#define IDT_ADDR                0x76000ULL
+#define IDT_ADDR                0x82000ULL
 #define IDT_MAX_SIZE            0x2000
 
 /* Kernel variable */
-#define KVAR_ADDR               0x78000ULL
+#define KVAR_ADDR               0x84000ULL
 
 /*********************************************************/
 /* The folloowing values are also defined in asmconst.h */
@@ -70,10 +70,10 @@
 /* Kernel page table */
 #define KERNEL_PGT              0x00079000ULL
 /* Per-processor information (flags, cpuinfo, stats, tss, task, stack) */
-#define P_DATA_BASE             0x01000000ULL
-#define P_DATA_SIZE             0x10000
-#define P_STACK_GUARD           0x10
-#define P_TSS_OFFSET            (0x20 + IDT_NR * 8)
+#define CPU_DATA_BASE           0x01000000ULL
+#define CPU_DATA_SIZE           0x10000
+#define CPU_STACK_GUARD         0x10
+#define CPU_TSS_OFFSET          (0x20 + IDT_NR * 8)
 /* Trampoline: 0x70 (0x70000) */
 #define TRAMPOLINE_VEC          0x70
 #define TRAMPOLINE_MAX_SIZE     0x1000

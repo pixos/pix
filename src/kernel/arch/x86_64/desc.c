@@ -121,7 +121,7 @@ gdt_init(void)
     tss = (struct gdt_desc_tss *)(GDT_ADDR + GDT_TSS_SEL_BASE);
     for ( i = 0; i < MAX_PROCESSORS; i++ ) {
         gdt_setup_desc_tss(&tss[i],
-                           P_DATA_BASE + i * P_DATA_SIZE + P_TSS_OFFSET,
+                           CPU_DATA_BASE + i * CPU_DATA_SIZE + CPU_TSS_OFFSET,
                            sizeof(struct tss) - 1, TSS_INACTIVE, 0, 0);
     }
 
@@ -215,7 +215,7 @@ tss_init(void)
 
     for ( i = 0; i < MAX_PROCESSORS; i++ ) {
         /* Initialize the TSS for each processor (Local APIC) */
-        pdata = (struct p_data *)(P_DATA_BASE + i * P_DATA_SIZE);
+        pdata = (struct p_data *)(CPU_DATA_BASE + i * CPU_DATA_SIZE);
         tss = &pdata->tss;
         tss->reserved1 = 0;
         tss->rsp0l = 0;

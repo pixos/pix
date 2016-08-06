@@ -161,7 +161,7 @@ bsp_init(void)
     /* Reset all processors */
     for ( i = 0; i < MAX_PROCESSORS; i++ ) {
         /* Fill the processor data space with zero excluding stack area */
-        kmemset((u8 *)((u64)P_DATA_BASE + i * P_DATA_SIZE), 0,
+        kmemset((u8 *)((u64)CPU_DATA_BASE + i * CPU_DATA_SIZE), 0,
                 sizeof(struct p_data));
     }
 
@@ -407,7 +407,7 @@ this_cpu(void)
 {
     struct p_data *pdata;
 
-    pdata = (struct p_data *)(P_DATA_BASE + lapic_id() * P_DATA_SIZE);
+    pdata = (struct p_data *)(CPU_DATA_BASE + lapic_id() * CPU_DATA_SIZE);
 
     return pdata;
 }
