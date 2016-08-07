@@ -102,7 +102,7 @@
 
 /* Tick */
 #define HZ                      100
-#define IV_LOC_TMR              0x50
+#define IV_LOC_TMR              0x40
 #define IV_CRASH                0xfe
 #define NR_IV                   0x100
 #define IV_IRQ(n)               (0x20 + (n))
