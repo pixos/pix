@@ -26,6 +26,7 @@
 
 #include <aos/const.h>
 #include <aos/types.h>
+#include "const.h"
 
 /* Boot information from the boot loader */
 #define BOOTINFO_BASE           0x8000ULL
@@ -62,10 +63,36 @@
 /* Kernel variable */
 #define KVAR_ADDR               0x84000ULL
 
-#include "const.h"
-
 /* Control registers */
-#define CR4_PGE                 (1ULL<<7)
+#define CR0_PE                  (1ULL << 0) /* Protection Enable */
+#define CR0_MP                  (1ULL << 1) /* Monitor Coprocessor */
+#define CR0_EM                  (1ULL << 2) /* Emulation */
+#define CR0_TS                  (1ULL << 3) /* Task Switched */
+#define CR0_ET                  (1ULL << 4) /* Extention Type */
+#define CR0_NE                  (1ULL << 5) /* Numeric Error */
+#define CR0_WP                  (1ULL << 16) /* Write Protect */
+#define CR0_AM                  (1ULL << 18) /* Alignment Mask */
+#define CR0_NW                  (1ULL << 29) /* Not Write-through */
+#define CR0_CD                  (1ULL << 30) /* Cache Disable */
+#define CR0_PG                  (1ULL << 31) /* Paging */
+
+#define CR4_VME                 (1ULL << 0)
+#define CR4_PVI                 (1ULL << 1)
+#define CR4_TSD                 (1ULL << 2)
+#define CR4_DE                  (1ULL << 3)
+#define CR4_PSE                 (1ULL << 4)
+#define CR4_PAE                 (1ULL << 5)
+#define CR4_MCE                 (1ULL << 6)
+#define CR4_PGE                 (1ULL << 7)
+#define CR4_PCE                 (1ULL << 8)
+#define CR4_OSFXSR              (1ULL << 9)
+#define CR4_OSXMMEXCPT          (1ULL << 10)
+#define CR4_VMXE                (1ULL << 13)
+#define CR4_SMXE                (1ULL << 14)
+#define CR4_FSGSBASE            (1ULL << 16)
+#define CR4_PCIDE               (1ULL << 17)
+#define CR4_OSXSAVE             (1ULL << 18)
+#define CR4_SMEP                (1ULL << 20)
 
 /*
  * Boot information from boot loader
