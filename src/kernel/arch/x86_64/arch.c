@@ -58,9 +58,10 @@ _load_trampoline(void)
     /* Check and copy trampoline code */
     tsz = (u64)trampoline_end - (u64)trampoline;
     if ( tsz > TRAMPOLINE_MAX_SIZE ) {
-        /* Error */
+        /* Error when the size of the trampoline code exceeds 4 KiB */
         return -1;
     }
+    /* Copy the trampoline code to the trampoline region */
     for ( i = 0; i < tsz; i++ ) {
         *(u8 *)((u64)(TRAMPOLINE_VEC << 12) + i) = *(u8 *)((u64)trampoline + i);
     }
@@ -165,12 +166,14 @@ bsp_init(void)
                 sizeof(struct cpu_data));
     }
 
-    /* Initialize global descriptor table */
+    /* Initialize global descriptor table (GDT) */
     gdt_init();
-    gdt_load();
 
-    /* Initialize interrupt descriptor table */
+    /* Initialize interrupt descriptor table (IDT) */
     idt_init();
+
+    /* Load GDT/IDT */
+    gdt_load();
     idt_load();
 
     /* Load ACPI */
@@ -180,7 +183,7 @@ bsp_init(void)
     /* Set up interrupt vector */
     idt_setup_intr_gate(0, intr_dze);
     idt_setup_intr_gate(1, intr_debug);
-    //idt_setup_intr_gate(2, intr_nmi);
+    idt_setup_intr_gate(2, intr_nmi);
     idt_setup_intr_gate(6, intr_iof);
     idt_setup_intr_gate(13, intr_gpf);
     idt_setup_intr_gate(14, intr_pf);
@@ -196,7 +199,7 @@ bsp_init(void)
     ioapic_init();
 
     /* Setup interrupt service routine then initialize I/O APIC */
-    for ( i = 0; i < 32; i++ ) {
+    for ( i = 0; i < 16; i++ ) {
         ioapic_map_intr(IV_IRQ(i), i, arch_acpi.acpi_ioapic_base); /* IRQn */
     }
 
@@ -405,11 +408,7 @@ ap_init(void)
 struct cpu_data *
 this_cpu(void)
 {
-    struct cpu_data *pdata;
-
-    pdata = (struct cpu_data *)(CPU_DATA_BASE + lapic_id() * CPU_DATA_SIZE);
-
-    return pdata;
+    return (struct cpu_data *)((u64)CPU_DATA_BASE + lapic_id() * CPU_DATA_SIZE);
 }
 
 /*
