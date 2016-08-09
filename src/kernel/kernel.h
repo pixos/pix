@@ -598,9 +598,6 @@ int arch_address_width(void);
 void * arch_vmem_addr_v2p(struct vmem_space *, void *);
 int arch_vmem_init(struct vmem_space *);
 
-
-int run_experiment(int);
-
 #endif /* _KERNEL_H */
 
 /*
