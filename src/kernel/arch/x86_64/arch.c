@@ -125,13 +125,6 @@ panic(const char *s)
     outw(0x3d4, val);   /* Low */
     val = (((i >> 8) & 0xff) << 8) | 0x0e;
     outw(0x3d4, val);   /* High */
-#if 0
-    /* Fill out */
-    for ( ; i < 80 * 25; i++ ) {
-        *video = 0x2f00;
-        video++;
-    }
-#endif
 
     /* Stop forever */
     while ( 1 ) {
