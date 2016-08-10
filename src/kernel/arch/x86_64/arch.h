@@ -344,6 +344,53 @@ int proc_create(const char *, const char *, pid_t);
 /* In-line assembly */
 #define set_cr3(cr3)    __asm__ __volatile__ ("movq %%rax,%%cr3" :: "a"((cr3)))
 
+
+
+#define interrupt_handler_begin(name)           \
+    void name(void) {                           \
+        __asm__ __volatile__ ("pushq %rax;"     \
+                              "pushq %rbx;"     \
+                              "pushq %rcx;"     \
+                              "pushq %rdx;"     \
+                              "pushq %r8;"      \
+                              "pushq %r9;"      \
+                              "pushq %r10;"     \
+                              "pushq %r11;"     \
+                              "pushq %r12;"     \
+                              "pushq %r13;"     \
+                              "pushq %r14;"     \
+                              "pushq %r15;"     \
+                              "pushq %rsi;"     \
+                              "pushq %rdi;"     \
+                              "pushq %rbp;"     \
+                              "pushw %fs;"      \
+                              "pushw %gs;"      \
+            );
+#define interrupt_handler_end()                 \
+    __asm__ __volatile__ ("popw %gs;"           \
+                          "popw %fs;"           \
+                          "popq %rbp;"          \
+                          "popq %rdi;"          \
+                          "popq %rsi;"          \
+                          "popq %r15;"          \
+                          "popq %r14;"          \
+                          "popq %r13;"          \
+                          "popq %r12;"          \
+                          "popq %r11;"          \
+                          "popq %r10;"          \
+                          "popq %r9;"           \
+                          "popq %r8;"           \
+                          "popq %rdx;"          \
+                          "popq %rcx;"          \
+                          "popq %rbx;"          \
+                          "popq %rax;"          \
+                          "iretq;");            \
+    }
+
+
+
+
+
 #endif /* _KERNEL_ARCH_H */
 
 /*

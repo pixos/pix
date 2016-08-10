@@ -832,7 +832,7 @@ _intr_simd_fpe:
 .endm
 
 .macro	intr_lapic_isr_generic vec
-	.globl	_intr_apic_\vec
+	.globl	_intr_driver_\vec
 _intr_apic_\vec:
 	intr_lapic_isr	\vec
 	jmp	_task_restart
