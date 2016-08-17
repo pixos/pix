@@ -638,6 +638,7 @@ _vmresume:
 
 /* Null interrupt handler (do nothing) */
 _intr_null:
+	iretq
 	pushq	%rax
 	pushq	%rcx
 	pushq	%rdx
@@ -656,6 +657,7 @@ _intr_null:
 	popq	%rax
 	iretq
 
+/* Macro for generic exception handlers */
 .macro	intr_exception_generic name vec
 	.globl	_intr_\name
 _intr_\name:
@@ -692,6 +694,7 @@ _intr_\name:
 	iretq
 .endm
 
+/* Macro for exception handlers that hold an error code */
 .macro	intr_exception_werror name vec
 	.globl	_intr_\name
 _intr_\name:

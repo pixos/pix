@@ -174,6 +174,7 @@ bsp_init(void)
     acpi_load(&arch_acpi);
 
     /* Set up interrupt vector */
+    /* Register exceptions as traps */
     idt_setup_trap_gate(0, intr_dze);
     idt_setup_trap_gate(1, intr_debug);
     idt_setup_trap_gate(2, intr_nmi);
@@ -183,6 +184,8 @@ bsp_init(void)
     idt_setup_trap_gate(6, intr_iof);
     idt_setup_trap_gate(7, intr_dna);
     idt_setup_trap_gate(8, intr_df);
+    idt_setup_trap_gate(9, intr_cso);
+    idt_setup_trap_gate(10, intr_invtss);
     idt_setup_trap_gate(11, intr_snpf);
     idt_setup_trap_gate(12, intr_ssf);
     idt_setup_trap_gate(13, intr_gpf);
@@ -193,6 +196,7 @@ bsp_init(void)
     idt_setup_trap_gate(19, intr_simd_fpe);
     idt_setup_trap_gate(20, intr_vef);
     idt_setup_trap_gate(30, intr_se);
+    /* Interrupts */
     idt_setup_intr_gate(IV_LOC_TMR, intr_apic_loc_tmr);
     idt_setup_intr_gate(IV_CRASH, intr_crash);
 
@@ -208,12 +212,12 @@ bsp_init(void)
     /* Initialize I/O APIC */
     ioapic_init();
 
-    /* Setup interrupt service routine then initialize I/O APIC */
+    /* Setup interrupt service routine */
     for ( i = 0; i < 16; i++ ) {
         ioapic_map_intr(IV_IRQ(i), i, arch_acpi.acpi_ioapic_base); /* IRQn */
     }
 
-    /* Initialize the local APIC */
+    /* Initialize the local APIC for this processor */
     lapic_init();
 
     /* Get the proximity domain */
@@ -408,7 +412,7 @@ ap_init(void)
     /* Load TSS */
     tr_load(lapic_id());
 
-    /* Initialize the local APIC */
+    /* Initialize the local APIC for this processor */
     lapic_init();
 }
 
