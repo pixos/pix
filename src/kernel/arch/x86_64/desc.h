@@ -34,6 +34,7 @@
 /* IDT flags */
 #define IDT_PRESENT     0x80
 #define IDT_INTGATE     0x0e
+#define IDT_TRAPGATE    0x0f
 
 #define TSS_INACTIVE    0x9
 #define TSS_BUSY        0xb
@@ -107,6 +108,7 @@ void gdt_load(void);
 void idt_init(void);
 void idt_load(void);
 void idt_setup_intr_gate(int, void *);
+void idt_setup_trap_gate(int, void *);
 void tss_init(void);
 void tr_load(int);
 

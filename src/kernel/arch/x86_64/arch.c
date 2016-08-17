@@ -174,16 +174,33 @@ bsp_init(void)
     acpi_load(&arch_acpi);
 
     /* Set up interrupt vector */
-    idt_setup_intr_gate(0, intr_dze);
-    idt_setup_intr_gate(1, intr_debug);
-    idt_setup_intr_gate(2, intr_nmi);
-    idt_setup_intr_gate(6, intr_iof);
-    idt_setup_intr_gate(13, intr_gpf);
-    idt_setup_intr_gate(14, intr_pf);
-    idt_setup_intr_gate(16, intr_x87_fpe);
-    idt_setup_intr_gate(19, intr_simd_fpe);
+    idt_setup_trap_gate(0, intr_dze);
+    idt_setup_trap_gate(1, intr_debug);
+    idt_setup_trap_gate(2, intr_nmi);
+    idt_setup_trap_gate(3, intr_breakpoint);
+    idt_setup_trap_gate(4, intr_overflow);
+    idt_setup_trap_gate(5, intr_bre);
+    idt_setup_trap_gate(6, intr_iof);
+    idt_setup_trap_gate(7, intr_dna);
+    idt_setup_trap_gate(8, intr_df);
+    idt_setup_trap_gate(11, intr_snpf);
+    idt_setup_trap_gate(12, intr_ssf);
+    idt_setup_trap_gate(13, intr_gpf);
+    idt_setup_trap_gate(14, intr_pf);
+    idt_setup_trap_gate(16, intr_x87_fpe);
+    idt_setup_trap_gate(17, intr_acf);
+    idt_setup_trap_gate(18, intr_mca);
+    idt_setup_trap_gate(19, intr_simd_fpe);
+    idt_setup_trap_gate(20, intr_vef);
+    idt_setup_trap_gate(30, intr_se);
     idt_setup_intr_gate(IV_LOC_TMR, intr_apic_loc_tmr);
     idt_setup_intr_gate(IV_CRASH, intr_crash);
+
+    /* For driver use */
+    //idt_setup_intr_gate(0x50, intr_driver0x50);
+    for ( i = 0x50; i < 0xe0; i++ ) {
+        //idt_setup_intr_gate(i, intr_driver##0x50);
+    }
 
 
     /* ToDo: Prepare the virtual pages for ACPI etc. */
@@ -575,39 +592,38 @@ arch_idle(void)
 }
 
 /*
+ * Exception handler
+ */
+void
+isr_exception(int nr, void *ip, u64 cs, u64 flags, void *sp)
+{
+    char buf[128];
+
+    ksnprintf(buf, sizeof(buf), "#%d: ip=%llx, cs=%llx, flags=%llx, sp=%llx",
+              nr, ip, cs, flags, sp);
+    panic(buf);
+}
+
+/*
+ * Exception handler with error code
+ */
+void
+isr_exception_werror(int nr, u64 error, void *ip, u64 cs, u64 flags, void *sp)
+{
+    char buf[128];
+
+    ksnprintf(buf, sizeof(buf), "#%d (%llx): ip=%llx, cs=%llx, flags=%llx, "
+              "sp=%llx", nr, error, ip, cs, flags, sp);
+    panic(buf);
+}
+
+/*
  * Debug fault/trap
  */
 void
-isr_debug(void)
+isr_debug(void *ip, u64 cs, u64 flags, void *sp, u64 ss)
 {
     char *buf = this_ktask()->proc->name;
-    panic(buf);
-}
-
-/*
- * Invalid opcode fault
- */
-void
-isr_io_fault(void *rip)
-{
-    char buf[128];
-    u64 x = (u64)rip;
-
-    ksnprintf(buf, sizeof(buf), "Invalid Opcode Fault: %016x", x);
-    panic(buf);
-}
-
-/*
- * General protection fault
- */
-void
-isr_general_protection_fault(void *rip, u64 error)
-{
-    char buf[128];
-    u64 x = (u64)rip;
-
-    ksnprintf(buf, sizeof(buf), "FIXME: General Protection Fault (%d): %016x",
-              error, x);
     panic(buf);
 }
 
@@ -615,7 +631,7 @@ isr_general_protection_fault(void *rip, u64 error)
  * Page fault handler
  */
 void
-isr_page_fault(void *rip, void *addr, u64 error)
+isr_page_fault(void *addr, u64 error, void *rip, u64 cs, u64 flags, void *sp)
 {
     char buf[128];
     u64 x = (u64)rip;

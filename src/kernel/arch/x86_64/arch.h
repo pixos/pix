@@ -289,16 +289,24 @@ void intr_nmi(void);
 void intr_breakpoint(void);
 void intr_overflow(void);
 void intr_bre(void);
+void intr_iof(void);
 void intr_dna(void);
 void intr_df(void);
+void intr_cso(void);
+void intr_invtss(void);
 void intr_snpf(void);
 void intr_ssf(void);
-
-void intr_iof(void);
 void intr_gpf(void);
 void intr_pf(void);
 void intr_x87_fpe(void);
+void intr_acf(void);
+void intr_mca(void);
 void intr_simd_fpe(void);
+void intr_vef(void);
+void intr_se(void);
+
+
+
 void intr_apic_loc_tmr(void);
 void intr_crash(void);
 void task_restart(void);
@@ -342,12 +350,16 @@ struct arch_task * task_create_idle(void);
 int proc_create(const char *, const char *, pid_t);
 
 /* In-line assembly */
+/* void set_cr0(u64 cr0) */
+#define set_cr0(cr0)    __asm__ __volatile__ ("movq %%rax,%%cr0" :: "a"((cr0)))
+/* void set_cr3(void *) */
 #define set_cr3(cr3)    __asm__ __volatile__ ("movq %%rax,%%cr3" :: "a"((cr3)))
+/* void set_cr4(u64) */
+#define set_cr4(cr4)    __asm__ __volatile__ ("movq %%rax,%%cr4" :: "a"((cr4)))
 
 
-
-#define interrupt_handler_begin(name)           \
-    void name(void) {                           \
+#define interrupt_handler_begin(handler)        \
+    void handler(void) {                        \
         __asm__ __volatile__ ("pushq %rax;"     \
                               "pushq %rbx;"     \
                               "pushq %rcx;"     \
@@ -366,7 +378,7 @@ int proc_create(const char *, const char *, pid_t);
                               "pushw %fs;"      \
                               "pushw %gs;"      \
             );
-#define interrupt_handler_end()                 \
+#define interrupt_handler_end                   \
     __asm__ __volatile__ ("popw %gs;"           \
                           "popw %fs;"           \
                           "popq %rbp;"          \
@@ -388,6 +400,26 @@ int proc_create(const char *, const char *, pid_t);
     }
 
 
+#define APIC_LAPIC_ID 0x020
+#define MSR_APIC_BASE 0x1b
+#define str(a)  st(a)
+#define st(a)   #a
+#define interrupt_task_restart                                  \
+    __asm__ __volatile__ ("movq $" str(MSR_APIC_BASE) ",%rcx;"  \
+                          "rdmsr;"                              \
+                          "shlq $32,%rdx;"                      \
+                          "addq %rax,%rdx;"                     \
+                          "andq $0xfffffffffffff000,%rdx;"      \
+                          "xorq %rax,%rax;"                     \
+                          "movl " str(APIC_LAPIC_ID) "(%rdx),%eax;" \
+                          /* Calculate the processor data space from the APIC ID */ \
+                          "movq $" str(CPU_DATA_SIZE) ",%rbx;"          \
+                          "mulq %rbx; /* [%rdx:%rax] = %rax * %rbx */"  \
+                          "addq $" str(CPU_DATA_BASE) ",%rax;"          \
+                          "movq %rax,%rbp;"                             \
+                          /* If the next task is not scheduled, immediately restart this task */ \
+                          "cmpq $0," str(CPU_NEXT_TASK_OFFSET) "(%rbp);" \
+                          "jz 2f;");
 
 
 

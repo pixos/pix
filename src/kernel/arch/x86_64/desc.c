@@ -159,7 +159,7 @@ idt_setup_gate_desc(struct idt_gate_desc *idt, u64 base, u16 selector, u8 flags)
 }
 
 /*
- * Setup interrupt gate of interrupt descriptor table
+ * Setup an interrupt gate in the interrupt descriptor table
  */
 void
 idt_setup_intr_gate(int nr, void *target)
@@ -170,6 +170,20 @@ idt_setup_intr_gate(int nr, void *target)
                                    + nr * sizeof(struct idt_gate_desc));
     idt_setup_gate_desc(idt, (u64)target, GDT_RING0_CODE_SEL,
                         IDT_PRESENT | IDT_INTGATE);
+}
+
+/*
+ * Setup a trap gate in the interrupt descriptor table
+ */
+void
+idt_setup_trap_gate(int nr, void *target)
+{
+    struct idt_gate_desc *idt;
+
+    idt = (struct idt_gate_desc *)(IDT_ADDR
+                                   + nr * sizeof(struct idt_gate_desc));
+    idt_setup_gate_desc(idt, (u64)target, GDT_RING0_CODE_SEL,
+                        IDT_PRESENT | IDT_TRAPGATE);
 }
 
 /*

@@ -61,11 +61,8 @@
 	.globl	_syscall_setup
 	.globl	_asm_ioapic_map_intr
 	.globl	_get_cr0
-	.globl	_set_cr0
 	.globl	_get_cr3
-	//.globl	_set_cr3
 	.globl	_get_cr4
-	.globl	_set_cr4
 	.globl	_invlpg
 	.globl	_vmxon
 	.globl	_vmclear
@@ -93,6 +90,10 @@
 	.globl	_intr_pf
 	.globl	_intr_x87_fpe
 	.globl	_intr_simd_fpe
+	.globl	_intr_acf
+	.globl	_intr_mca
+	.globl	_intr_vef
+	.globl	_intr_se
 	.globl	_intr_apic_loc_tmr
 	.globl	_intr_crash
 	.globl	_sys_fork
@@ -554,29 +555,14 @@ _get_cr0:
 	movq	%cr0,%rax
 	ret
 
-/* void set_cr0(u64 cr0) */
-_set_cr0:
-	movq	%rdi,%cr0
-	ret
-
 /* void * get_cr3(void) */
 _get_cr3:
 	movq	%cr3,%rax
 	ret
 
-/* void set_cr3(void *) */
-//_set_cr3:
-//	movq	%rdi,%cr3
-//	ret
-
 /* u64 get_cr4(void) */
 _get_cr4:
 	movq	%cr4,%rax
-	ret
-
-/* void set_cr4(u64) */
-_set_cr4:
-	movq	%rdi,%cr4
 	ret
 
 /* void invlpg(void *) */
@@ -650,7 +636,7 @@ _vmresume:
 	movq	$-1,%rax
 	ret
 
-/* Null function for interrupt handler */
+/* Null interrupt handler (do nothing) */
 _intr_null:
 	pushq	%rax
 	pushq	%rcx
@@ -670,109 +656,155 @@ _intr_null:
 	popq	%rax
 	iretq
 
-/* Debug fault or trap */
-_intr_debug:
+.macro	intr_exception_generic name vec
+	.globl	_intr_\name
+_intr_\name:
 	pushq	%rbp
 	movq	%rsp,%rbp
-	pushq	%rbx
-	movq	16(%rbp),%rbx
-	movq	%rbx,%dr0	/* cs */
-	movq	8(%rbp),%rbx
-	movq	%rbx,%dr1	/* rip */
-	movq	32(%rbp),%rbx
-	movq	%rbx,%dr2	/* rsp */
-	call	_isr_debug
-	popq	%rbx
-	popq	%rbp
-	iretq
-
-_intr_dze:
-_intr_nmi:
-_intr_breakpoint:
-_intr_overflow:
-_intr_bre:
-_intr_dna:
-_intr_df:
-_intr_snpf:
-_intr_ssf:
-	iretq
-
-/* Interrupt handler for invalid opcode exception */
-_intr_iof:
-	pushq	%rbp
-	movq	%rsp,%rbp
-	pushq	%rdi
-	pushq	%rbx
-	movq	16(%rbp),%rbx
-	//movq	%rbx,%dr0	/* cs */
-	movq	8(%rbp),%rdi
-	//movq	%rbx,%dr1	/* rip */
-	movq	32(%rbp),%rbx
-	//movq	%rbx,%dr2	/* rsp */
-	call	_isr_io_fault
-	popq	%rbx
-	popq	%rdi
-	popq	%rbp
-	iretq
-
-/* Interrupt handler for general protection fault
- * Error code, RIP, CS, RFLAGS, (RSP, SS) */
-_intr_gpf:
-	pushq	%rbp
-	movq	%rsp,%rbp
-	pushq	%rbx
-	movq	16(%rbp),%rbx	/* rip */
-	movq	8(%rbp),%rbx	/* error code */
-	movq	40(%rbp),%rbx	/* rsp */
-	movq	48(%rbp),%rbx	/* ss */
-	//movq	(gpf_reentry),%rbx
-	//cmpq	$0,%rbx
-	//jz	1f
-	//movq	%rbx,16(%rbp)   /* Overwrite the reentry point (%rip) */
-	pushq	%rdi
-	pushq	%rsi
-	movq	16(%rbp),%rdi	/* rip */
-	movq	8(%rbp),%rsi	/* error code */
-	call	_isr_general_protection_fault
-	popq	%rsi
-	popq	%rdi
-1:	popq	%rbx
-	popq	%rbp
-	addq	$0x8,%rsp
-	iretq
-
-
-/* Interrupt handler for page fault
- * Error code, RIP, CS, RFLAGS, (RSP, SS) */
-_intr_pf:
-	pushq	%rbp
-	movq	%rsp,%rbp
+	pushq	%rax
 	pushq	%rdi
 	pushq	%rsi
 	pushq	%rdx
-	movq	16(%rbp),%rdi	/* rip */
-	movq	%cr2,%rsi	/* virtual address */
-	movq	8(%rbp),%rdx	/* error code */
-	//movq	%rdi,%dr0
-	//movq	%rsi,%dr1
-	//movq	%rdx,%dr2
-	call	_isr_page_fault
+	pushq	%rcx
+	pushq	%r8
+	pushq	%r9
+	pushq	%r10
+	pushq	%r11
+	pushq	%rbx
+	movq	$\vec,%rdi
+	movq	8(%rbp),%rsi	/* rip */
+	movq	16(%rbp),%rdx	/* cs */
+	movq	24(%rbp),%rcx	/* rflags */
+	movq	32(%rbp),%r8	/* rsp */
+	/* 40(%rbp): ss */
+	call	_isr_exception
+	popq	%rbx
+	popq	%r11
+	popq	%r10
+	popq	%r9
+	popq	%r8
+	popq	%rcx
 	popq	%rdx
 	popq	%rsi
 	popq	%rdi
+	popq	%rax
+	popq	%rbp
+	iretq
+.endm
+
+.macro	intr_exception_werror name vec
+	.globl	_intr_\name
+_intr_\name:
+	pushq	%rbp
+	movq	%rsp,%rbp
+	pushq	%rax
+	pushq	%rdi
+	pushq	%rsi
+	pushq	%rdx
+	pushq	%rcx
+	pushq	%r8
+	pushq	%r9
+	pushq	%r10
+	pushq	%r11
+	pushq	%rbx
+	movq	$\vec,%rdi
+	movq	8(%rbp),%rsi	/* error code */
+	movq	16(%rbp),%rdx	/* rip */
+	movq	24(%rbp),%rcx	/* cs */
+	movq	32(%rbp),%r8	/* rflags */
+	movq	40(%rbp),%r9	/* rsp */
+	/* 48(%rbp): ss */
+	call	_isr_exception
+	popq	%rbx
+	popq	%r11
+	popq	%r10
+	popq	%r9
+	popq	%r8
+	popq	%rcx
+	popq	%rdx
+	popq	%rsi
+	popq	%rdi
+	popq	%rax
 	popq	%rbp
 	addq	$0x8,%rsp
 	iretq
+.endm
 
-/* x87 floating point exception
- * RIP, CS, RFLAGS, (RSP, SS): without error code */
-_intr_x87_fpe:
+/* Divide-by-zero Error (#DE) */
+	intr_exception_generic dze 0x00
+/* Debug fault or trap */
+	intr_exception_generic debug 0x01
+/* Non-maskable Interrupt */
+	intr_exception_generic nmi 0x02
+/* Breakpoint (#BP) */
+	intr_exception_generic breakpoint 0x03
+/* Overflow (#OF) */
+	intr_exception_generic overflow 0x04
+/* Bound Range Exceeded (#BR) */
+	intr_exception_generic bre 0x05
+/* Invalid Opcode (#UD) */
+	intr_exception_generic iof 0x06
+/* Device Not Available (#NM) */
+	intr_exception_generic dna 0x07
+/* Double Fault (#DF) */
+	intr_exception_werror df 0x08
+/* Coprocessor Segment Overrun */
+	intr_exception_generic cso 0x09
+/* Invalid TSS (#TS) */
+	intr_exception_werror invtss 0x0a
+/* Segment Not Present (#NP) */
+	intr_exception_werror snpf 0x0b
+/* Stack-Segment Fault (#SS) */
+	intr_exception_werror ssf 0x0c
+/* General Protection Fault (#GP) */
+	intr_exception_werror gpf 0x0d
+/* Page Fault (#PF) */
+_intr_pf:
+	pushq	%rbp
+	movq	%rsp,%rbp
+	pushq	%rax
+	pushq	%rdi
+	pushq	%rsi
+	pushq	%rdx
+	pushq	%rcx
+	pushq	%r8
+	pushq	%r9
+	pushq	%r10
+	pushq	%r11
+	pushq	%rbx
+	movq	%cr2,%rdi	/* virtual address */
+	movq	8(%rbp),%rsi	/* error code */
+	movq	16(%rbp),%rdx	/* rip */
+	movq	24(%rbp),%rcx	/* cs */
+	movq	32(%rbp),%r8	/* rflags */
+	movq	40(%rbp),%r9	/* rsp */
+	/* 48(%rbp): ss */
+	call	_isr_page_fault
+	popq	%rbx
+	popq	%r11
+	popq	%r10
+	popq	%r9
+	popq	%r8
+	popq	%rcx
+	popq	%rdx
+	popq	%rsi
+	popq	%rdi
+	popq	%rax
+	popq	%rbp
+	addq	$0x8,%rsp
 	iretq
-
-/* SIMD floating point exception
- * RIP, CS, RFLAGS, (RSP, SS): without error code */
-_intr_simd_fpe:
-	iretq
+/* x87 Floating-Point Exception (#MF) */
+	intr_exception_generic x87_fpe 0x10
+/* Alignment Check (#AC) */
+	intr_exception_werror acf 0x11
+/* Machine Check (#MC) */
+	intr_exception_generic mca 0x12
+/* SIMD Floating-Point Exception (#XM/#XF) */
+	intr_exception_generic simd_fpe 0x13
+/* Virtualization Exception (#VE) */
+	intr_exception_generic vef 0x14
+/* Security Exception (#SX) */
+	intr_exception_werror se 0x1e
 
 
 /* macro to save registers to the stackframe and call the interrupt handler */
