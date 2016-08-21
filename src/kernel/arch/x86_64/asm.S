@@ -507,7 +507,7 @@ sys_fork_restart:
 	movq	0(%rbp),%rcx
 	movq	$0xabcd,%rcx
 	movq	%rcx,-160(%rdx)	/* rbp */
-	movw	$(GDT_RING3_DATA_SEL+3),%cx
+	movw	$(GDT_RING3_DATA64_SEL+3),%cx
 	movw	%cx,-162(%rdx)	/* fs */
 	movw	%cx,-164(%rdx)	/* gs */
 
@@ -868,7 +868,7 @@ _intr_pf:
 
 .macro	intr_lapic_isr_generic vec
 	.globl	_intr_driver_\vec
-_intr_apic_\vec:
+_intr_driver_\vec:
 	intr_lapic_isr	\vec
 	jmp	_task_restart
 .endm

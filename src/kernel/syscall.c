@@ -27,6 +27,9 @@
 #include <machine/sysarch.h>
 #include "kernel.h"
 
+/* System call table */
+void *syscall_table[SYS_MAXSYSCALL];
+
 typedef __builtin_va_list va_list;
 #define va_start(ap, last)      __builtin_va_start((ap), (last))
 #define va_arg                  __builtin_va_arg

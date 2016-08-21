@@ -493,6 +493,8 @@ extern struct pmem *pmem;
 extern struct proc_table *proc_table;
 extern struct ktask_root *ktask_root;
 
+extern void *syscall_table[];
+
 /* for variable-length arguments */
 typedef __builtin_va_list va_list;
 #define va_start(ap, last)      __builtin_va_start((ap), (last))

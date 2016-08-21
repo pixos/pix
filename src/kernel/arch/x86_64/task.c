@@ -488,7 +488,7 @@ proc_create(const char *path, const char *name, pid_t pid)
     case KTASK_POLICY_USER:
     default:
         cs = GDT_RING3_CODE64_SEL + 3;
-        ss = GDT_RING3_DATA_SEL + 3;
+        ss = GDT_RING3_DATA64_SEL + 3;
         flags = 0x3200;
         break;
     }

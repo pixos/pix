@@ -98,6 +98,7 @@
  * Boot information from boot loader
  */
 struct bootinfo {
+    /* Systen address map obtained through BIOS */
     struct {
         u64 nr;
         struct bootinfo_sysaddrmap_entry *entries;      /* u64 */
@@ -181,7 +182,7 @@ struct tss {
 } __attribute__ ((packed));
 
 /*
- * Page table entry
+ * Page table entry (4 KiB block)
  */
 struct page_entry {
     u64 entries[512];
@@ -304,6 +305,23 @@ void intr_mca(void);
 void intr_simd_fpe(void);
 void intr_vef(void);
 void intr_se(void);
+
+void intr_driver_0x50(void);
+void intr_driver_0x51(void);
+void intr_driver_0x52(void);
+void intr_driver_0x53(void);
+void intr_driver_0x54(void);
+void intr_driver_0x55(void);
+void intr_driver_0x56(void);
+void intr_driver_0x57(void);
+void intr_driver_0x58(void);
+void intr_driver_0x59(void);
+void intr_driver_0x5a(void);
+void intr_driver_0x5b(void);
+void intr_driver_0x5c(void);
+void intr_driver_0x5d(void);
+void intr_driver_0x5e(void);
+void intr_driver_0x5f(void);
 
 
 

@@ -32,10 +32,8 @@
 #include "memory.h"
 
 /* Prototype declarations */
-static int _load_trampoline(void);
-
-/* System call table */
-void *syscall_table[SYS_MAXSYSCALL];
+static int load_trampoline(void);
+static void cpu_init(void);
 
 /* ACPI structure */
 struct acpi arch_acpi;
@@ -50,7 +48,7 @@ extern struct kmem *g_kmem;
  * Relocate the trampoline code to a 4 KiB page alined space
  */
 static int
-_load_trampoline(void)
+load_trampoline(void)
 {
     int i;
     int tsz;
@@ -67,6 +65,75 @@ _load_trampoline(void)
     }
 
     return 0;
+}
+
+/*
+ * Initialize CPU data structure
+ */
+static void
+cpu_init(void)
+{
+    int i;
+
+    /* Reset all processors */
+    for ( i = 0; i < MAX_PROCESSORS; i++ ) {
+        /* Fill the processor data space with zero excluding stack area */
+        kmemset((u8 *)((u64)CPU_DATA_BASE + i * CPU_DATA_SIZE), 0,
+                sizeof(struct cpu_data));
+    }
+}
+
+/*
+ * Set up the exception/interrupt handlers
+ */
+static void
+intr_setup(void)
+{
+    int i;
+
+    /* Register exceptions as traps */
+    idt_setup_trap_gate(0, intr_dze);
+    idt_setup_trap_gate(1, intr_debug);
+    idt_setup_trap_gate(2, intr_nmi);
+    idt_setup_trap_gate(3, intr_breakpoint);
+    idt_setup_trap_gate(4, intr_overflow);
+    idt_setup_trap_gate(5, intr_bre);
+    idt_setup_trap_gate(6, intr_iof);
+    idt_setup_trap_gate(7, intr_dna);
+    idt_setup_trap_gate(8, intr_df);
+    idt_setup_trap_gate(9, intr_cso);
+    idt_setup_trap_gate(10, intr_invtss);
+    idt_setup_trap_gate(11, intr_snpf);
+    idt_setup_trap_gate(12, intr_ssf);
+    idt_setup_trap_gate(13, intr_gpf);
+    idt_setup_trap_gate(14, intr_pf);
+    idt_setup_trap_gate(16, intr_x87_fpe);
+    idt_setup_trap_gate(17, intr_acf);
+    idt_setup_trap_gate(18, intr_mca);
+    idt_setup_trap_gate(19, intr_simd_fpe);
+    idt_setup_trap_gate(20, intr_vef);
+    idt_setup_trap_gate(30, intr_se);
+    /* Interrupts */
+    idt_setup_intr_gate(IV_LOC_TMR, intr_apic_loc_tmr);
+    idt_setup_intr_gate(IV_CRASH, intr_crash);
+
+    /* For driver use */
+    idt_setup_intr_gate(0x50, intr_driver_0x50);
+    idt_setup_intr_gate(0x51, intr_driver_0x51);
+    idt_setup_intr_gate(0x52, intr_driver_0x52);
+    idt_setup_intr_gate(0x53, intr_driver_0x53);
+    idt_setup_intr_gate(0x54, intr_driver_0x54);
+    idt_setup_intr_gate(0x55, intr_driver_0x55);
+    idt_setup_intr_gate(0x56, intr_driver_0x56);
+    idt_setup_intr_gate(0x57, intr_driver_0x57);
+    idt_setup_intr_gate(0x58, intr_driver_0x58);
+    idt_setup_intr_gate(0x59, intr_driver_0x59);
+    idt_setup_intr_gate(0x5a, intr_driver_0x5a);
+    idt_setup_intr_gate(0x5b, intr_driver_0x5b);
+    idt_setup_intr_gate(0x5c, intr_driver_0x5c);
+    idt_setup_intr_gate(0x5d, intr_driver_0x5d);
+    idt_setup_intr_gate(0x5e, intr_driver_0x5e);
+    idt_setup_intr_gate(0x5f, intr_driver_0x5f);
 }
 
 /*
@@ -153,11 +220,7 @@ bsp_init(void)
     bi = (struct bootinfo *)BOOTINFO_BASE;
 
     /* Reset all processors */
-    for ( i = 0; i < MAX_PROCESSORS; i++ ) {
-        /* Fill the processor data space with zero excluding stack area */
-        kmemset((u8 *)((u64)CPU_DATA_BASE + i * CPU_DATA_SIZE), 0,
-                sizeof(struct cpu_data));
-    }
+    cpu_init();
 
     /* Initialize global descriptor table (GDT) */
     gdt_init();
@@ -174,38 +237,7 @@ bsp_init(void)
     acpi_load(&arch_acpi);
 
     /* Set up interrupt vector */
-    /* Register exceptions as traps */
-    idt_setup_trap_gate(0, intr_dze);
-    idt_setup_trap_gate(1, intr_debug);
-    idt_setup_trap_gate(2, intr_nmi);
-    idt_setup_trap_gate(3, intr_breakpoint);
-    idt_setup_trap_gate(4, intr_overflow);
-    idt_setup_trap_gate(5, intr_bre);
-    idt_setup_trap_gate(6, intr_iof);
-    idt_setup_trap_gate(7, intr_dna);
-    idt_setup_trap_gate(8, intr_df);
-    idt_setup_trap_gate(9, intr_cso);
-    idt_setup_trap_gate(10, intr_invtss);
-    idt_setup_trap_gate(11, intr_snpf);
-    idt_setup_trap_gate(12, intr_ssf);
-    idt_setup_trap_gate(13, intr_gpf);
-    idt_setup_trap_gate(14, intr_pf);
-    idt_setup_trap_gate(16, intr_x87_fpe);
-    idt_setup_trap_gate(17, intr_acf);
-    idt_setup_trap_gate(18, intr_mca);
-    idt_setup_trap_gate(19, intr_simd_fpe);
-    idt_setup_trap_gate(20, intr_vef);
-    idt_setup_trap_gate(30, intr_se);
-    /* Interrupts */
-    idt_setup_intr_gate(IV_LOC_TMR, intr_apic_loc_tmr);
-    idt_setup_intr_gate(IV_CRASH, intr_crash);
-
-    /* For driver use */
-    //idt_setup_intr_gate(0x50, intr_driver0x50);
-    for ( i = 0x50; i < 0xe0; i++ ) {
-        //idt_setup_intr_gate(i, intr_driver##0x50);
-    }
-
+    intr_setup();
 
     /* ToDo: Prepare the virtual pages for ACPI etc. */
 
@@ -236,7 +268,7 @@ bsp_init(void)
     tss_init();
     tr_load(lapic_id());
 
-    /* Setup system call */
+    /* Setup system calls */
     for ( i = 0; i < SYS_MAXSYSCALL; i++ ) {
         syscall_table[i] = NULL;
     }
@@ -322,7 +354,7 @@ bsp_init(void)
     mp_enabled = 1;
 
     /* Load trampoline code */
-    _load_trampoline();
+    load_trampoline();
 
     /* Send INIT IPI */
     lapic_send_init_ipi();
@@ -485,7 +517,7 @@ arch_exec(struct arch_task *t, void (*entry)(void), size_t size, int policy,
     case KTASK_POLICY_USER:
     default:
         cs = GDT_RING3_CODE64_SEL + 3;
-        ss = GDT_RING3_DATA_SEL + 3;
+        ss = GDT_RING3_DATA64_SEL + 3;
         flags = 0x3200;
         break;
     }
