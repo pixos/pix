@@ -54,7 +54,6 @@
 #define APIC_TMRDIV_X128        0xa
 #define APIC_FREQ_PROBE         100000
 
-void lapic_init(void);
 u64 lapic_base_addr(void);
 void lapic_send_init_ipi(void);
 void lapic_send_startup_ipi(u8);
