@@ -532,6 +532,8 @@ int pmem_init(struct pmem *);
 int kmem_init(void);
 void * kmalloc(size_t);
 void kfree(void *);
+void * vmalloc(size_t);
+void vfree(void *);
 struct vmem_region * vmem_region_create(void);
 struct vmem_space * vmem_space_create(void);
 void vmem_space_delete(struct vmem_space *);

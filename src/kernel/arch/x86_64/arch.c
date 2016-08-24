@@ -236,21 +236,18 @@ bsp_init(void)
     kmemset(&arch_acpi, 0, sizeof(struct acpi));
     acpi_load(&arch_acpi);
 
+    /* ToDo: Prepare the virtual pages for ACPI etc. */
+
     /* Initialize I/O APIC */
     ioapic_init();
 
     /* Set up interrupt vector */
     intr_setup();
 
-    /* ToDo: Prepare the virtual pages for ACPI etc. */
-
     /* Setup interrupt service routine */
     for ( i = 0; i < 16; i++ ) {
         ioapic_map_intr(IV_IRQ(i), i, arch_acpi.acpi_ioapic_base); /* IRQn */
     }
-
-    /* Initialize the local APIC for this processor */
-    //lapic_init();
 
     /* Get the proximity domain */
     prox = acpi_lapic_prox_domain(&arch_acpi, lapic_id());
@@ -443,9 +440,6 @@ ap_init(void)
 
     /* Load TSS */
     tr_load(lapic_id());
-
-    /* Initialize the local APIC for this processor */
-    //lapic_init();
 }
 
 /*

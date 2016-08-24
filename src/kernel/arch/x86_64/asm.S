@@ -1054,6 +1054,10 @@ _task_restart:
 	/* If the current task is null, then do not need to save anything */
 	cmpq	$0,CPU_CUR_TASK_OFFSET(%rbp)
 	jz	1f
+	/* Set CR0.TS */
+	movq	%cr0,%rax
+	bts	$3,%rax
+	movq	%rax,%cr0
 	/* Save the stack pointer (restart point) */
 	movq	CPU_CUR_TASK_OFFSET(%rbp),%rax
 	movq	%rsp,TASK_RP(%rax)
