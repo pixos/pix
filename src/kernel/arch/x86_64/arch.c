@@ -261,6 +261,12 @@ bsp_init(void)
     /* Load LDT */
     lldt(0);
 
+    int a,b;
+    //xgetbv(a, b);
+    a = 0x5;
+    b = 0;
+    //__asm__ __volatile__ ("xsetbv" :: "a"(a), "d"(b));
+
     /* Initialize TSS */
     tss_init();
     tr_load(lapic_id());

@@ -225,13 +225,16 @@ struct arch_vmem_space {
  * Task (architecture specific structure)
  */
 struct arch_task {
-    /* Do not change the first two.  These must be on the top.  See asm.s. */
-    /* Restart point */
+    /* Do not change the first four.  These must be on the top.  See asm.S and
+       const.h. */
+    /* Restart point (a part of kstack) */
     struct stackframe64 *rp;
     /* SP0 for tss */
     u64 sp0;
     /* CR3: Physical address of the page table */
     void *cr3;
+    /* FPU/SSE registers */
+    void *xregs;
     /* Kernel stack pointer (kernel address) */
     void *kstack;
     /* User stack pointer (virtual address) */
@@ -374,6 +377,11 @@ int proc_create(const char *, const char *, pid_t);
 #define set_cr3(cr3)    __asm__ __volatile__ ("movq %%rax,%%cr3" :: "a"((cr3)))
 /* void set_cr4(u64) */
 #define set_cr4(cr4)    __asm__ __volatile__ ("movq %%rax,%%cr4" :: "a"((cr4)))
+/* void xsave(void *) */
+//#define xsave(mem, a, d)  __asm__ __volatile__ ("xsave64 (%%rdi)" :: "D"(mem), "a"(a), "d"(d));
+#define xsave(mem, a, d)
+
+#define xgetbv(a, b)    __asm__ __volatile__ ("xgetbv; movq %%rax,%%dr1" : "=a"(a), "=d"(b));
 
 
 #define interrupt_handler_begin(handler)        \

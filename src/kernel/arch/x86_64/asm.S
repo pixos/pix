@@ -717,7 +717,7 @@ _intr_\name:
 	movq	32(%rbp),%r8	/* rflags */
 	movq	40(%rbp),%r9	/* rsp */
 	/* 48(%rbp): ss */
-	call	_isr_exception
+	call	_isr_exception_werror
 	popq	%rbx
 	popq	%r11
 	popq	%r10
@@ -748,7 +748,36 @@ _intr_\name:
 /* Invalid Opcode (#UD) */
 	intr_exception_generic iof 0x06
 /* Device Not Available (#NM) */
-	intr_exception_generic dna 0x07
+_intr_dna:
+	pushq	%rbp
+	movq	%rsp,%rbp
+	pushq	%rax
+	pushq	%rdi
+	pushq	%rsi
+	pushq	%rdx
+	pushq	%rcx
+	pushq	%r8
+	pushq	%r9
+	pushq	%r10
+	pushq	%r11
+	pushq	%rbx
+	movq	8(%rbp),%rdx	/* rip */
+	movq	16(%rbp),%rcx	/* cs */
+	movq	24(%rbp),%r8	/* rflags */
+	movq	32(%rbp),%r9	/* rsp */
+	/* 48(%rbp): ss */
+	popq	%rbx
+	popq	%r11
+	popq	%r10
+	popq	%r9
+	popq	%r8
+	popq	%rcx
+	popq	%rdx
+	popq	%rsi
+	popq	%rdi
+	popq	%rax
+	popq	%rbp
+	iretq
 /* Double Fault (#DF) */
 	intr_exception_werror df 0x08
 /* Coprocessor Segment Overrun */
@@ -829,9 +858,14 @@ _intr_pf:
 	pushq	%rbp
 	pushw	%fs
 	pushw	%gs
+	/* Set CR0.TS */
+	movq	%cr0,%rax
+	bts	$3,%rax
+	movq	%rax,%cr0
 	/* Call kernel function for ISR */
 	movq	$\vec,%rdi
 	callq	_kintr_isr
+	clts
 	/* EOI for the local APIC */
 	movq	$MSR_APIC_BASE,%rcx
 	rdmsr			/* Read APIC info to [%edx:%eax]; N.B., higer */
@@ -1054,13 +1088,15 @@ _task_restart:
 	/* If the current task is null, then do not need to save anything */
 	cmpq	$0,CPU_CUR_TASK_OFFSET(%rbp)
 	jz	1f
-	/* Set CR0.TS */
-	movq	%cr0,%rax
-	bts	$3,%rax
-	movq	%rax,%cr0
 	/* Save the stack pointer (restart point) */
 	movq	CPU_CUR_TASK_OFFSET(%rbp),%rax
 	movq	%rsp,TASK_RP(%rax)
+	/* Save the FPU/SSE registers */
+	movq	TASK_XREGS(%rax),%rdi
+	movq	$5,%rax
+	movq	$0,%rdx
+	xsave64	(%rdi)
+	clts
 1:
 	/* Notify that the current task is switched (to the kernel) */
 	movq	CPU_CUR_TASK_OFFSET(%rbp),%rdi
@@ -1072,8 +1108,14 @@ _task_restart:
 	movq	TASK_RP(%rax),%rsp
 	movq	$0,CPU_NEXT_TASK_OFFSET(%rbp)
 	/* Change page table */
-	movq	TASK_CR3(%rax),%rax
-	movq	%rax,%cr3
+	movq	TASK_CR3(%rax),%rdx
+	movq	%rdx,%cr3
+	/* Restore FPU/SSE registers */
+	movq	TASK_XREGS(%rax),%rdi
+	movq	$5,%rax
+	movq	$0,%rdx
+	movq	%rdi,%dr0
+	xrstor64	(%rdi)
 	/* Setup sp0 in TSS */
 	movq	CPU_CUR_TASK_OFFSET(%rbp),%rax
 	movq	TASK_SP0(%rax),%rdx
@@ -1089,6 +1131,11 @@ _task_replace:
 	/* Change page table */
 	movq	TASK_CR3(%rdi),%rax
 	movq	%rax,%cr3
+	/* Restore FPU/SSE registers */
+	movq	TASK_XREGS(%rdi),%rbx
+	movq	$5,%rax
+	movq	$0,%rdx
+	xrstor64	(%rbx)
 	/* Get the APIC ID */
 	movq	$MSR_APIC_BASE,%rcx
 	rdmsr

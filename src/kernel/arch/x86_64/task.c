@@ -42,9 +42,18 @@ task_new(void)
     if ( NULL == t ) {
         return NULL;
     }
+    /* Create a space for FPU/SSE registers */
+    t->xregs = kmalloc(4096);
+    if ( NULL == t->xregs ) {
+        kfree(t);
+        return NULL;
+    }
+    kmemset(t->xregs, 0, 4096);
+    xsave(t->xregs, 5, 0);
     /* Allocate the kernel task structure of a new task */
     t->kstack = kmalloc(KSTACK_SIZE);
     if ( NULL == t->kstack ) {
+        kfree(t->xregs);
         kfree(t);
         return NULL;
     }
@@ -52,6 +61,7 @@ task_new(void)
     t->ustack = kmalloc(USTACK_SIZE);
     if ( NULL == t->ustack ) {
         kfree(t->kstack);
+        kfree(t->xregs);
         kfree(t);
         return NULL;
     }
@@ -60,6 +70,7 @@ task_new(void)
     if ( NULL == t->ktask ) {
         kfree(t->ustack);
         kfree(t->kstack);
+        kfree(t->xregs);
         kfree(t);
         return NULL;
     }
@@ -101,9 +112,19 @@ proc_fork(struct proc *op, struct ktask *ot, struct ktask **ntp)
         kfree(np);
         return NULL;
     }
+    /* Create a space for FPU/SSE registers */
+    t->xregs = kmalloc(4096);
+    if ( NULL == t->xregs ) {
+        kfree(t);
+        kfree(np);
+        return NULL;
+    }
+    kmemset(t->xregs, 0, 4096);
+    xsave(t->xregs, 5, 0);
     /* Allocate the kernel task structure of a new task */
     t->kstack = kmalloc(KSTACK_SIZE);
     if ( NULL == t->kstack ) {
+        kfree(t->xregs);
         kfree(t);
         kfree(np);
         return NULL;
@@ -112,6 +133,7 @@ proc_fork(struct proc *op, struct ktask *ot, struct ktask **ntp)
     t->ktask = kmalloc(sizeof(struct ktask));
     if ( NULL == t->ktask ) {
         kfree(t->kstack);
+        kfree(t->xregs);
         kfree(t);
         kfree(np);
         return NULL;
@@ -127,6 +149,7 @@ proc_fork(struct proc *op, struct ktask *ot, struct ktask **ntp)
     if ( NULL == paddr1 ) {
         kfree(t->ktask);
         kfree(t->kstack);
+        kfree(t->xregs);
         kfree(t);
         kfree(np);
         return NULL;
@@ -138,6 +161,7 @@ proc_fork(struct proc *op, struct ktask *ot, struct ktask **ntp)
         pmem_free_pages(paddr1);
         kfree(t->ktask);
         kfree(t->kstack);
+        kfree(t->xregs);
         kfree(t);
         kfree(np);
         return NULL;
@@ -148,6 +172,7 @@ proc_fork(struct proc *op, struct ktask *ot, struct ktask **ntp)
         pmem_free_pages(paddr1);
         kfree(t->ktask);
         kfree(t->kstack);
+        kfree(t->xregs);
         kfree(t);
         kfree(np);
         return NULL;
@@ -161,6 +186,7 @@ proc_fork(struct proc *op, struct ktask *ot, struct ktask **ntp)
         pmem_free_pages(paddr1);
         kfree(t->ktask);
         kfree(t->kstack);
+        kfree(t->xregs);
         kfree(t);
         kfree(np);
         return NULL;
@@ -180,6 +206,7 @@ proc_fork(struct proc *op, struct ktask *ot, struct ktask **ntp)
         pmem_free_pages(paddr1);
         kfree(t->ktask);
         kfree(t->kstack);
+        kfree(t->xregs);
         kfree(t);
         kfree(np);
         return NULL;
@@ -265,9 +292,19 @@ task_create_idle(void)
     /* Page table for the kernel */
     t->cr3 = ((struct arch_vmem_space *)g_kmem->space->arch)->pgt;
 
+    /* Create a space for FPU/SSE registers */
+    t->xregs = kmalloc(4096);
+    if ( NULL == t->xregs ) {
+        kfree(t);
+        return NULL;
+    }
+    kmemset(t->xregs, 0, 4096);
+    xsave(t->xregs, 5, 0);
+
     /* Kernel stack */
     t->kstack = kmalloc(KSTACK_SIZE);
     if ( NULL == t->kstack ) {
+        kfree(t->xregs);
         kfree(t);
         return NULL;
     }
@@ -277,6 +314,7 @@ task_create_idle(void)
     t->ustack = kmalloc(USTACK_SIZE);
     if ( NULL == t->ustack ) {
         kfree(t->kstack);
+        kfree(t->xregs);
         kfree(t);
         return NULL;
     }
@@ -287,6 +325,7 @@ task_create_idle(void)
     if ( NULL == t->ktask ) {
         kfree(t->ustack);
         kfree(t->kstack);
+        kfree(t->xregs);
         kfree(t);
         return NULL;
     }
@@ -391,10 +430,18 @@ proc_create(const char *path, const char *name, pid_t pid)
     }
     kmemset(t, 0, sizeof(struct arch_task));
 
+    /* Create a space for FPU/SSE registers */
+    t->xregs = kmalloc(4096);
+    if ( NULL == t->xregs ) {
+        goto error_task;
+    }
+    kmemset(t->xregs, 0, 4096);
+    xsave(t->xregs, 5, 0);
+
     /* Create a task */
     t->ktask = kmalloc(sizeof(struct ktask));
     if ( NULL == t->ktask ) {
-        goto error_task;
+        goto error_xregs;
     }
     kmemset(t->ktask, 0, sizeof(struct ktask));
     t->ktask->arch = t;
@@ -513,6 +560,8 @@ error_ustack:
     kfree(t->kstack);
 error_kstack:
     kfree(t->ktask);
+error_xregs:
+    kfree(t->xregs);
 error_task:
     kfree(t);
 error_arch_task:

@@ -88,8 +88,9 @@ entry32:
 
 3:
 	/* Enable PAE and SSE */
-	movl	$0x00000220,%eax	/* CR4[bit 5] = PAE */
+	movl	$0x00040220,%eax	/* CR4[bit 5] = PAE */
 	movl	%eax,%cr4		/* CR4[bit 9] = OSFXSR */
+					/* CR4[bit 18] = OSXSAVE */
 /* Create 64bit page table */
 pg_setup:
 	movl	$KERNEL_PGT,%ebx	/* Low 12 bit must be zero */
