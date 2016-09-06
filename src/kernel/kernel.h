@@ -27,6 +27,27 @@
 #include <aos/const.h>
 #include <aos/types.h>
 #include <sys/resource.h>
+#include <sys/syscall.h>
+
+/* Architecture-specific configuration */
+#if defined(ARCH_X86_64) && ARCH_X86_64
+/* The virtual address and (reserved) size of kernel variable */
+#define KVAR_ADDR       0x00084000ULL
+#define KVAR_SIZE       0x00004000ULL
+/* Boot information from the boot loader */
+#define BOOTINFO_BASE   0x00008000ULL
+#else
+#error "This architecture is not supported."
+/* Define the kernel variables to mitigate IDE's errors in coding */
+#define KVAR_ADDR       0
+#define KVAR_SIZE       0
+#define BOOTINFO_BASE   0
+#endif
+#define g_kvar          ((struct kernel_variables *)KVAR_ADDR)
+#define g_kmem          g_kvar->kmem
+#define g_proc_table    g_kvar->proc_table
+#define g_ktask_root    g_kvar->ktask_root
+#define g_syscall_table g_kvar->syscall_table
 
 #define FLOOR(val, base)        (((val) / (base)) * (base))
 #define CEIL(val, base)         ((((val) - 1) / (base) + 1) * (base))
@@ -37,6 +58,7 @@
 #define PAGESIZE                4096ULL         /* 4 KiB */
 #define SUPERPAGESIZE           (1ULL << 21)    /* 2 MiB */
 #define SP_SHIFT                9               /* log2(2M/4K)*/
+#define KPAGESIZE               SUPERPAGESIZE
 
 #define PAGE_ADDR(i)            (PAGESIZE * (u64)(i))
 #define SUPERPAGE_ADDR(i)       (SUPERPAGESIZE * (u64)(i))
@@ -483,17 +505,11 @@ struct kevent_handlers {
 
 /* Global variables */
 struct kernel_variables {
-    struct pmem *pmem;
+    struct kmem *kmem;
     struct proc_table *proc_table;
     struct ktask_root *ktask_root;
+    void *syscall_table[SYS_MAXSYSCALL];
 };
-
-/* Global variable */
-extern struct pmem *pmem;
-extern struct proc_table *proc_table;
-extern struct ktask_root *ktask_root;
-
-extern void *syscall_table[];
 
 /* for variable-length arguments */
 typedef __builtin_va_list va_list;
@@ -505,6 +521,7 @@ typedef __builtin_va_list va_list;
 
 
 /* in kernel.c */
+void kinit(void);
 void kernel(void);
 int kstrcmp(const char *, const char *);
 size_t kstrlen(const char *);
@@ -601,6 +618,7 @@ int arch_kmem_map(struct vmem_space *, void *, void *, int);
 int arch_address_width(void);
 void * arch_vmem_addr_v2p(struct vmem_space *, void *);
 int arch_vmem_init(struct vmem_space *);
+void syscall_setup(void *, size_t);
 
 #endif /* _KERNEL_H */
 

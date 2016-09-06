@@ -42,7 +42,7 @@ struct acpi arch_acpi;
 int mp_enabled;
 
 /* Kernel memory */
-extern struct kmem *g_kmem;
+//extern struct kmem *g_kmem;
 
 /*
  * Relocate the trampoline code to a 4 KiB page alined space
@@ -89,8 +89,6 @@ cpu_init(void)
 static void
 intr_setup(void)
 {
-    int i;
-
     /* Register exceptions as traps */
     idt_setup_trap_gate(0, intr_dze);
     idt_setup_trap_gate(1, intr_debug);
@@ -261,60 +259,32 @@ bsp_init(void)
     /* Load LDT */
     lldt(0);
 
-    int a,b;
-    //xgetbv(a, b);
-    a = 0x5;
-    b = 0;
-    //__asm__ __volatile__ ("xsetbv" :: "a"(a), "d"(b));
-
     /* Initialize TSS */
     tss_init();
     tr_load(lapic_id());
 
-    /* Setup system calls */
-    for ( i = 0; i < SYS_MAXSYSCALL; i++ ) {
-        syscall_table[i] = NULL;
-    }
-    syscall_table[SYS_exit] = sys_exit;
-    syscall_table[SYS_fork] = sys_fork;
-    syscall_table[SYS_read] = sys_read;
-    syscall_table[SYS_write] = sys_write;
-    syscall_table[SYS_open] = sys_open;
-    syscall_table[SYS_close] = sys_close;
-    syscall_table[SYS_wait4] = sys_wait4;
-    syscall_table[SYS_getpid] = sys_getpid;
-    syscall_table[SYS_getuid] = sys_getuid;
-    syscall_table[SYS_kill] = sys_kill;
-    syscall_table[SYS_getppid] = sys_getppid;
-    syscall_table[SYS_getgid] = sys_getgid;
-    syscall_table[SYS_execve] = sys_execve;
-    syscall_table[SYS_mmap] = sys_mmap;
-    syscall_table[SYS_munmap] = sys_munmap;
-    syscall_table[SYS_lseek] = sys_lseek;
-    syscall_table[SYS_sysarch] = sys_sysarch;
-    syscall_setup(syscall_table, SYS_MAXSYSCALL);
 
     /* Initialize the process table */
-    proc_table = kmalloc(sizeof(struct proc_table));
-    if ( NULL == proc_table ) {
+    g_proc_table = kmalloc(sizeof(struct proc_table));
+    if ( NULL == g_proc_table ) {
         panic("Fatal: Could not initialize the process table.");
         return;
     }
     for ( i = 0; i < PROC_NR; i++ ) {
-        proc_table->procs[i] = NULL;
+        g_proc_table->procs[i] = NULL;
     }
-    proc_table->lastpid = -1;
+    g_proc_table->lastpid = -1;
 
     /* Initialize the task lists */
-    ktask_root = kmalloc(sizeof(struct ktask_root));
-    if ( NULL == ktask_root ) {
+    g_ktask_root = kmalloc(sizeof(struct ktask_root));
+    if ( NULL == g_ktask_root ) {
         panic("Fatal: Could not initialize the task lists.");
         return;
     }
-    ktask_root->r.head = NULL;
-    ktask_root->r.tail = NULL;
-    ktask_root->b.head = NULL;
-    ktask_root->b.tail = NULL;
+    g_ktask_root->r.head = NULL;
+    g_ktask_root->r.tail = NULL;
+    g_ktask_root->b.head = NULL;
+    g_ktask_root->b.tail = NULL;
 
     /* Enable this processor */
     pdata = this_cpu();
@@ -337,6 +307,9 @@ bsp_init(void)
         panic("Fatal: Could not initialize the ramfs.");
         return;
     }
+
+    /* Initialize the kernel */
+    kinit();
 
 #if 0
     if ( vmx_enable() < 0 ) {

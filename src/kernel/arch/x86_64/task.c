@@ -27,7 +27,7 @@
 #include "memory.h"
 
 /* Kernel memory */
-extern struct kmem *g_kmem;
+//extern struct kmem *g_kmem;
 
 /*
  * Create a new task
@@ -380,7 +380,7 @@ proc_create(const char *path, const char *name, pid_t pid)
     ssize_t i;
 
     /* Check the process table first */
-    if ( NULL != proc_table->procs[pid] ) {
+    if ( NULL != g_proc_table->procs[pid] ) {
         /* The process is already exists */
         return -1;
     }
@@ -420,8 +420,8 @@ proc_create(const char *path, const char *name, pid_t pid)
     proc->code_size = size;
 
     /* Process table */
-    proc_table->procs[pid] = proc;
-    proc_table->lastpid = pid;
+    g_proc_table->procs[pid] = proc;
+    g_proc_table->lastpid = pid;
 
     /* Create an architecture-specific task data structure */
     t = kmalloc(sizeof(struct arch_task));
@@ -515,12 +515,12 @@ proc_create(const char *path, const char *name, pid_t pid)
     l->ktask = t->ktask;
     l->next = NULL;
     /* Push */
-    if ( NULL == ktask_root->r.head ) {
-        ktask_root->r.head = l;
-        ktask_root->r.tail = l;
+    if ( NULL == g_ktask_root->r.head ) {
+        g_ktask_root->r.head = l;
+        g_ktask_root->r.tail = l;
     } else {
-        ktask_root->r.tail->next = l;
-        ktask_root->r.tail = l;
+        g_ktask_root->r.tail->next = l;
+        g_ktask_root->r.tail = l;
     }
 
     /* Configure the ring protection by the policy */

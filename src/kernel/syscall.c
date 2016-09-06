@@ -27,9 +27,6 @@
 #include <machine/sysarch.h>
 #include "kernel.h"
 
-/* System call table */
-void *syscall_table[SYS_MAXSYSCALL];
-
 typedef __builtin_va_list va_list;
 #define va_start(ap, last)      __builtin_va_start((ap), (last))
 #define va_arg                  __builtin_va_arg
@@ -95,8 +92,9 @@ sys_fork_c(u64 *task, u64 *ret0, u64 *ret1)
     /* Search an available process ID */
     pid = -1;
     for ( i = 0; i < PROC_NR; i++ ) {
-        if ( NULL == proc_table->procs[(proc_table->lastpid + i) % PROC_NR] ) {
-            pid = (proc_table->lastpid + i) % PROC_NR;
+        if ( NULL
+             == g_proc_table->procs[(g_proc_table->lastpid + i) % PROC_NR] ) {
+            pid = (g_proc_table->lastpid + i) % PROC_NR;
             break;
         }
     }
@@ -117,19 +115,19 @@ sys_fork_c(u64 *task, u64 *ret0, u64 *ret1)
         kfree(l);
         return -1;
     }
-    proc_table->procs[pid] = np;
-    proc_table->lastpid = pid;
+    g_proc_table->procs[pid] = np;
+    g_proc_table->lastpid = pid;
 
     /* Kernel task (running) */
     l->ktask = nt;
     l->next = NULL;
     /* Push */
-    if ( NULL == ktask_root->r.head ) {
-        ktask_root->r.head = l;
-        ktask_root->r.tail = l;
+    if ( NULL == g_ktask_root->r.head ) {
+        g_ktask_root->r.head = l;
+        g_ktask_root->r.tail = l;
     } else {
-        ktask_root->r.tail->next = l;
-        ktask_root->r.tail = l;
+        g_ktask_root->r.tail->next = l;
+        g_ktask_root->r.tail = l;
     }
 
     *task = (u64)nt->arch;

@@ -570,7 +570,6 @@ lba2chs:
 	ret
 
 
-
 	.data
 
 /* Messages */

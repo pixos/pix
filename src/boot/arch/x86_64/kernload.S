@@ -110,7 +110,7 @@ kernload:
 
 	/* Check the partition table in the MBR */
 	movw	$(BUFFER >> 4),%ax
-	movw	%ax,%fs		/* %fs = segment for the BUFFER*/
+	movw	%ax,%fs		/* %fs = segment for the BUFFER */
 	movw	$(BUFFER & 0xf),%bx	/* %bx = offset */
 	testb	$0x80,%fs:0x1be+0x0(%bx)	/* Bootable? */
 	jz	kload_error	/* No, then print an error message */
@@ -861,7 +861,7 @@ putc:
 	ret
 
 
-	.data
+//	.data
 
 /* Messages */
 msg_error:

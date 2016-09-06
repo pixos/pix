@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2015 Hirochika Asai
+# Copyright (c) 2015-2016 Hirochika Asai
 # All rights reserved.
 #
 # Authors:
@@ -10,7 +10,8 @@ ARCH=x86_64
 
 ## Global flags
 ASFLAGS=-nostdlib -I./kernel/arch/$(ARCH)/
-CFLAGS=-I./include -Wall -fleading-underscore -nostdinc -nostdlib -O3 -m64
+CFLAGS=-I./include -Wall -fleading-underscore -nostdinc -nostdlib -O3 -m64 \
+	-DARCH_X86_64=1
 
 ## Override the flags
 diskboot: ASFLAGS=-nostdlib -I./boot/arch/$(ARCH)/
@@ -21,7 +22,8 @@ bootmon: CFLAGS=-I./include \
 pxeboot: ASFLAGS=-nostdlib -I./boot/arch/$(ARCH)/
 
 kpack: CFLAGS=-I./include \
-	-Wall -fleading-underscore -nostdlib -nodefaultlibs -fno-builtin -O3 -m64
+	-Wall -fleading-underscore -nostdlib -nodefaultlibs -fno-builtin -O3 -m64 \
+	-DARCH_X86_64=1
 
 ## IPL
 diskboot: boot/arch/$(ARCH)/diskboot.o

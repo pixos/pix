@@ -58,7 +58,7 @@ void vmx_vm_exit_handler(void);
 void vmx_vm_exit_handler_resume(void);
 
 
-extern struct kmem *g_kmem;
+//extern struct kmem *g_kmem;
 
 /*
  * VMX Basic Exit Reasons

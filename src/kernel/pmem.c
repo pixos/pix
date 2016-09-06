@@ -24,7 +24,7 @@
 #include <aos/const.h>
 #include "kernel.h"
 
-extern struct kmem *g_kmem;
+//extern struct kmem *g_kmem;
 
 /* Prototype declarations of static functions */
 static int _pmem_buddy_split(struct pmem *, struct pmem_buddy *, int);

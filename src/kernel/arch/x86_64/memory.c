@@ -26,8 +26,6 @@
 #include "memory.h"
 #include "../../kernel.h"
 
-extern struct kmem *g_kmem;
-
 #define KMEM_LOW_P2V(a)         ((u64)(a))
 
 #define KMEM_DIR_RW(a)          ((a) | 0x007ULL)
@@ -95,7 +93,6 @@ static void _disable_page_global(void);
 int
 arch_memory_init(struct bootinfo *bi, struct acpi *acpi)
 {
-    struct kmem *kmem;
     struct kstring region;
     struct kstring pmem;
     struct kstring pmem_pages;
@@ -116,14 +113,13 @@ arch_memory_init(struct bootinfo *bi, struct acpi *acpi)
        and physical memory with this page table. */
 
     /* Initialize the kernel memory management data structure */
-    kmem = _kmem_init(&region);
-    if ( NULL == kmem ) {
+    g_kmem = _kmem_init(&region);
+    if ( NULL == g_kmem ) {
         return -1;
     }
-    g_kmem = kmem;
 
     /* Initialize the physical pages */
-    ret = _pmem_init_stage2(kmem, &region, &pmem, &pmem_pages);
+    ret = _pmem_init_stage2(g_kmem, &region, &pmem, &pmem_pages);
     if ( ret < 0 ) {
         return -1;
     }
@@ -136,7 +132,9 @@ arch_memory_init(struct bootinfo *bi, struct acpi *acpi)
  *
  * SYNOPSIS
  *      static int
- *      _pmem_init_stage1(struct bootinfo *bi, void **base, u64 *pmsz);
+ *      _pmem_init_stage1(struct bootinfo *bi, struct acpi *acpi,
+ *                        struct kstring *region, struct kstring *pmem,
+ *                        struct kstring *pmem_pages);
  *
  * DESCRIPTION
  *      The _pmem_init_stage1() function allocates a space for the physical

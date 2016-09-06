@@ -24,7 +24,6 @@
 #include <aos/const.h>
 #include "kernel.h"
 
-struct kmem *g_kmem;
 
 /* Prototype declarations of static functions */
 static void * _kmalloc_slab(struct kmem *, size_t);
@@ -294,7 +293,7 @@ kfree(void *ptr)
 
     if ( 0 == (u64)ptr % SUPERPAGESIZE ) {
         /* Free pages */
-        //kmem_free_pages(ptr);
+        //kmem_free_pages(g_kmem, ptr);
     } else {
         /* Search for each order */
         for ( i = 0; i < KMEM_SLAB_BASE_ORDER; i++ ) {

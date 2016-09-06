@@ -28,11 +28,8 @@
 #include <aos/types.h>
 #include "const.h"
 
-/* Boot information from the boot loader */
-#define BOOTINFO_BASE           0x8000ULL
-
 /* Color video RAM */
-#define VIDEO_COLOR             0xb8000ULL
+#define VIDEO_COLOR             0x000b8000ULL
 
 /* Lowest memory address managed by memory allocator
  * Note that ISA memory hole (0x00f00000-0x00ffffff) are detected as available
@@ -60,8 +57,6 @@
 #define IDT_ADDR                0x82000ULL
 #define IDT_MAX_SIZE            0x2000
 
-/* Kernel variable */
-#define KVAR_ADDR               0x84000ULL
 
 /* Control registers */
 #define CR0_PE                  (1ULL << 0) /* Protection Enable */
@@ -332,7 +327,6 @@ void intr_apic_loc_tmr(void);
 void intr_crash(void);
 void task_restart(void);
 void task_replace(void *);
-void syscall_setup(void *, u64);
 void pause(void);
 u8 inb(u16);
 u16 inw(u16);
@@ -378,10 +372,10 @@ int proc_create(const char *, const char *, pid_t);
 /* void set_cr4(u64) */
 #define set_cr4(cr4)    __asm__ __volatile__ ("movq %%rax,%%cr4" :: "a"((cr4)))
 /* void xsave(void *) */
-//#define xsave(mem, a, d)  __asm__ __volatile__ ("xsave64 (%%rdi)" :: "D"(mem), "a"(a), "d"(d));
-#define xsave(mem, a, d)
-
-#define xgetbv(a, b)    __asm__ __volatile__ ("xgetbv; movq %%rax,%%dr1" : "=a"(a), "=d"(b));
+#define xsave(mem, a, d)                                                \
+    __asm__ __volatile__ ("xsave64 (%%rdi)" :: "D"(mem), "a"(a), "d"(d));
+#define xgetbv(a, b)                                                    \
+    __asm__ __volatile__ ("xgetbv; movq %%rax,%%dr1" : "=a"(a), "=d"(b));
 
 
 #define interrupt_handler_begin(handler)        \
