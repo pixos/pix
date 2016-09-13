@@ -44,7 +44,7 @@ entry16:
 	/* Go into protected mode and flush the pipeline */
 	ljmpl	$GDT_CODE32,$entry32
 
-	//.data
+	.data
 
 	/* Temporary descriptors (GDT/IDT) */
 	.include	"desc.S"

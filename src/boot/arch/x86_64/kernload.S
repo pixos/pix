@@ -417,7 +417,7 @@ read_file_fat12:
 	call	fat12_next_cluster
 	movl	%ecx,-32(%bp)
 	cmpl	$0x0ff8,%ecx
-	jl	1b
+	jl	10f
 
 	/* Restore registers */
 	movl	-4(%bp),%eax
@@ -431,6 +431,11 @@ read_file_fat12:
 	movw	%bp,%sp
 	popw	%bp
 	ret
+
+10:
+	mov	%ecx,%dr0
+0:	hlt
+	jmp 0b
 
 
 /*
@@ -538,10 +543,9 @@ fat12_next_cluster:
 	movw	$(BUFFER >> 4),%bx
 	movw	%bx,%es
 	movw	$(BUFFER & 0xf),%bx
-	movw	%dx,%bx
+	//movw	%dx,%bx
 	movw	%es:(%bx),%cx	/* Get two bytes */
 	andl	$0xffff,%ecx	/*  (24 bits of them will be retrieved below) */
-
 	testl	$1,-12(%bp)	/* Check the cluster number is odd or even */
 	jz	2f	/* Jump if even */
 	/* Odd, then use the most significant 24 bits */
@@ -861,7 +865,7 @@ putc:
 	ret
 
 
-//	.data
+	.data
 
 /* Messages */
 msg_error:

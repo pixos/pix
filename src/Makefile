@@ -17,13 +17,13 @@ CFLAGS=-I./include -Wall -fleading-underscore -nostdinc -nostdlib -O3 -m64 \
 diskboot: ASFLAGS=-nostdlib -I./boot/arch/$(ARCH)/
 bootmon: ASFLAGS=-nostdlib -I./boot/arch/$(ARCH)/
 bootmon: CFLAGS=-I./include \
-	-Wall -fleading-underscore -nostdlib -nodefaultlibs -fno-builtin -O3 -m64
+	-Wall -fleading-underscore -fPIC -nostdlib -nodefaultlibs -fno-builtin -O3 -m64
 
 pxeboot: ASFLAGS=-nostdlib -I./boot/arch/$(ARCH)/
 
 kpack: ASFLAGS=-fPIC -nostdlib -I./kernel/arch/$(ARCH)/
 kpack: CFLAGS=-I./include \
-	-Wall -fleading-underscore -fPIC -nostdlib -mcmodel=medium -nodefaultlibs -fno-builtin -O3 -m64 \
+	-Wall -fleading-underscore -fPIC -nostdlib -nodefaultlibs -fno-builtin -O0 -m64 \
 	-DARCH_X86_64=1
 
 ## IPL

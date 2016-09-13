@@ -39,7 +39,7 @@ struct ramfs {
     u64 *root;
 };
 
-struct ramfs *ramfs;
+static struct ramfs *ramfs;
 
 /* Prototype declarations */
 ssize_t ramfs_read(struct fildes *, void *, size_t);

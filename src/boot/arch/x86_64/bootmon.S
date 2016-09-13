@@ -35,7 +35,7 @@
  */
 bootmon:
 	/* Save parameters from IPL */
-	movb	%dl,drive
+	movb	%dl,(drive)
 
 	/* Set video mode to 16bit color text mode */
 	movb	$VGA_TEXT_COLOR_80x25,%al

@@ -52,6 +52,11 @@ load_trampoline(void)
 
     /* Check and copy trampoline code */
     tsz = (u64)trampoline_end - (u64)trampoline;
+
+    //char buf[512];
+    //ksnprintf(buf, 512, "%llx %llx", &tsz, i);
+    //panic(buf);
+
     if ( tsz > TRAMPOLINE_MAX_SIZE ) {
         /* Error when the size of the trampoline code exceeds 4 KiB */
         return -1;
@@ -217,6 +222,24 @@ bsp_init(void)
     /* Reset all processors */
     cpu_init();
 
+    /* Load trampoline code with the boot strap page table */
+    load_trampoline();
+
+    //__asm__ ("lea -0x7d(%rip),%rcx; mov %rcx,%dr2");
+    char buf[512];
+#if 0
+    u64 aaa = (u64)trampoline;
+    __asm__ ("mov %%rax,%%dr0;lea -0x8a(%%rip),%%rax;movq %%rax,%%dr1;mov %%rcx,%%dr2"
+             : "=a"(aaa) : "a"(trampoline), "c"(trampoline_end));
+#endif
+    //__asm__ ("lea -0x87(%rip),%rcx; mov %rcx,%rax; mov %rax,%dr2");
+    //__asm__ ("1: hlt; jmp 1b");
+    //__asm__ ("lea 0x5950(%rip),%rdx;mov %rdx,%dr0");
+    //__asm__ __volatile__ ("mov %%rdx,%%dr0" :: "d"(trampoline));
+
+    ksnprintf(buf, 512, "%llx %llx", &trampoline_end, &trampoline);
+    panic(buf);
+
     /* Initialize global descriptor table (GDT) */
     gdt_init();
 
@@ -260,7 +283,6 @@ bsp_init(void)
     tss_init();
     tr_load(lapic_id());
 
-
     /* Initialize the process table */
     g_proc_table = kmalloc(sizeof(struct proc_table));
     if ( NULL == g_proc_table ) {
@@ -300,16 +322,10 @@ bsp_init(void)
     }
 
     /* Initialize initramfs */
-    if ( ramfs_init((u64 *)INITRAMFS_BASE) < 0 ) {
+    if ( ramfs_init((u64 *)KMEM_P2V(INITRAMFS_BASE)) < 0 ) {
         panic("Fatal: Could not initialize the ramfs.");
         return;
     }
-
-    char buf[512];
-    ksnprintf(buf, 512, "%llx %d %lld", g_ktask_root, sizeof(struct ktask_root),
-        pdata->freq);
-    panic(buf);
-
 
     /* Initialize the kernel */
     kinit();
@@ -329,11 +345,9 @@ bsp_init(void)
     }
 #endif
 
+
     /* Enable MP */
     mp_enabled = 1;
-
-    /* Load trampoline code */
-    load_trampoline();
 
     /* Send INIT IPI */
     lapic_send_init_ipi();
@@ -349,6 +363,7 @@ bsp_init(void)
 
     /* Send another Start Up IPI */
     lapic_send_startup_ipi(TRAMPOLINE_VEC & 0xff);
+    //__asm__ ("1: hlt; jmp 1b");
 
     /* Wait 200 us */
     acpi_busy_usleep(&arch_acpi, 200);
