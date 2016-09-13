@@ -126,7 +126,8 @@ kstart64:
 	addl	$1,%eax
 	movl	$CPU_DATA_SIZE,%ebx
 	mull	%ebx			/* [%edx|%eax] = %eax * %ebx */
-	addq	$CPU_DATA_BASE,%rax
+	movabs	$CPU_DATA_BASE,%rdx
+	addq	%rdx,%rax
 	subq	$CPU_STACK_GUARD,%rax
 	movq	%rax,%rsp
 
@@ -158,7 +159,8 @@ apstart64:
 	addl	$1,%eax
 	movl	$CPU_DATA_SIZE,%ebx
 	mull	%ebx			/* [%edx|%eax] = %eax * %ebx */
-	addq	$CPU_DATA_BASE,%rax
+	movabs	$CPU_DATA_BASE,%rdx
+	addq	%rdx,%rax
 	subq	$CPU_STACK_GUARD,%rax
 	movq	%rax,%rsp
 
@@ -183,7 +185,8 @@ _lgdt:
 	lgdt	(%rdi)
 	/* Reload GDT */
 	pushq	%rsi
-	pushq	$1f	/* Just to do ret */
+	movabs	$1f,%rax
+	pushq	%rax	/* Just to do ret */
 	lretq
 1:
 	/* Set data selector */
@@ -393,11 +396,13 @@ _spin_unlock_intr:
 
 /* void syscall_setup(void *, u64 nr) */
 _syscall_setup:
-	movq	%rdi,(syscall_table)
-	movq	%rsi,(syscall_nr)
+	movabs	$SYSCALL_TABLE,%rax
+	movq	%rdi,(%rax)
+	movabs	$SYSCALL_NR,%rax
+	movq	%rsi,(%rax)
 	/* Write syscall entry point */
 	movq	$0xc0000082,%rcx	/* IA32_LSTAR */
-	movq	$syscall_entry,%rax
+	movabs	$syscall_entry,%rax
 	movq	%rax,%rdx
 	shrq	$32,%rdx
 	wrmsr
@@ -425,11 +430,13 @@ syscall_entry:
 	pushq	%rbx
 
 	/* Check the number */
-	cmpq	(syscall_nr),%rax
+	movabs	$SYSCALL_NR,%rbx
+	cmpq	(%rbx),%rax
 	jge	1f
 
 	/* Lookup the system call table and call one corresponding to %rax */
-	movq	(syscall_table),%rbx
+	movabs	$SYSCALL_TABLE,%rcx
+	movq	(%rcx),%rbx
 	cmpq	$0,%rbx
 	je	1f
 	shlq	$3,%rax		/* 8 byte for each function pointer */
@@ -487,7 +494,7 @@ sys_fork_restart:
 	movq	%rcx,-24(%rdx)	/* rflags */
 	movq	$GDT_RING0_CODE_SEL,%rcx
 	movq	%rcx,-32(%rdx)	/* cs */
-	movq	$1f,%rcx
+	movabs	$1f,%rcx
 	movq	%rcx,-40(%rdx)	/* rip */
 	movq	%rsi,-48(%rdx)	/* rax */
 	movq	-24(%rbp),%rcx
@@ -1079,7 +1086,8 @@ _task_restart:
 	/* Calculate the processor data space from the APIC ID */
 	movq	$CPU_DATA_SIZE,%rbx
 	mulq	%rbx		/* [%rdx:%rax] = %rax * %rbx */
-	addq	$CPU_DATA_BASE,%rax
+	movabs	$CPU_DATA_BASE,%rdx
+	addq	%rdx,%rax
 	movq	%rax,%rbp
 	/* If the next task is not scheduled, immediately restart this task */
 	cmpq	$0,CPU_NEXT_TASK_OFFSET(%rbp)
@@ -1147,7 +1155,8 @@ _task_replace:
 	/* Calculate the processor data space from the APIC ID */
 	movq	$CPU_DATA_SIZE,%rbx
 	mulq	%rbx		/* [%rdx:%rax] = %rax * %rbx */
-	addq	$CPU_DATA_BASE,%rax
+	movabs	$CPU_DATA_BASE,%rdx
+	addq	%rdx,%rax
 	movq	%rax,%rbp
 	/* Setup sp0 in TSS */
 	movq	TASK_SP0(%rdi),%rdx
@@ -1221,9 +1230,3 @@ _vmx_vm_exit_handler_resume:
 1:
 	movq	$-1, %rax
 	ret
-
-	.data
-syscall_table:
-	.quad	0
-syscall_nr:
-	.quad	0

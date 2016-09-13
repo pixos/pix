@@ -21,8 +21,9 @@ bootmon: CFLAGS=-I./include \
 
 pxeboot: ASFLAGS=-nostdlib -I./boot/arch/$(ARCH)/
 
+kpack: ASFLAGS=-fPIC -nostdlib -I./kernel/arch/$(ARCH)/
 kpack: CFLAGS=-I./include \
-	-Wall -fleading-underscore -nostdlib -nodefaultlibs -fno-builtin -O3 -m64 \
+	-Wall -fleading-underscore -fPIC -nostdlib -mcmodel=medium -nodefaultlibs -fno-builtin -O3 -m64 \
 	-DARCH_X86_64=1
 
 ## IPL
@@ -81,8 +82,8 @@ kpack: kernel/arch/$(ARCH)/asm.o \
 	kernel/mpq.o \
 	kernel/ramfs.o \
 	kernel/syscall.o
-	$(LD) -N -e kstart64 -Ttext=0x10000 --oformat binary -o $@ $^
-	$(LD) -N -e kstart64 -Ttext=0x10000 -o kpack.dbg $^
+	$(LD) -N -e kstart64 -Ttext=0xc0010000 --oformat binary -o $@ $^
+	$(LD) -N -e kstart64 -Ttext=0xc0010000 -o kpack.dbg $^
 
 ## init server
 init: servers/init/init.o lib/arch/$(ARCH)/libc.o lib/arch/$(ARCH)/libcasm.o

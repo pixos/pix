@@ -32,10 +32,10 @@
 /* Architecture-specific configuration */
 #if defined(ARCH_X86_64) && ARCH_X86_64
 /* The virtual address and (reserved) size of kernel variable */
-#define KVAR_ADDR       0x00084000ULL
+#define KVAR_ADDR       0xc0084000ULL
 #define KVAR_SIZE       0x00004000ULL
 /* Boot information from the boot loader */
-#define BOOTINFO_BASE   0x00008000ULL
+#define BOOTINFO_BASE   0xc0008000ULL
 #else
 #error "This architecture is not supported."
 /* Define the kernel variables to mitigate IDE's errors in coding */
@@ -58,15 +58,27 @@
 #define PAGESIZE                4096ULL         /* 4 KiB */
 #define SUPERPAGESIZE           (1ULL << 21)    /* 2 MiB */
 #define SP_SHIFT                9               /* log2(2M/4K)*/
-#define KPAGESIZE               SUPERPAGESIZE
+#define PHYS_PAGESIZE           SUPERPAGESIZE
+#define KERN_PAGESIZE           SUPERPAGESIZE
+
+#define CACHELINESIZE           64
+#define CACHE_ALIGN(a)          CEIL(a, CACHELINESIZE)
+#define PAGE_ALIGN(a)           CEIL(a, PAGESIZE)
+#define SUPERPAGE_ALIGN(a)      CEIL(a, SUPERPAGESIZE)
+#define PHYS_PAGE_ALIGN(a)      CEIL(a, PHYS_PAGESIZE)
 
 #define PAGE_ADDR(i)            (PAGESIZE * (u64)(i))
 #define SUPERPAGE_ADDR(i)       (SUPERPAGESIZE * (u64)(i))
+#define PHYS_PAGE_ADDR(i)       (PHYS_PAGESIZE * (u64)(i))
+#define KERN_PAGE_ADDR(i)       (KERN_PAGESIZE * (u64)(i))
 #define PAGE_INDEX(a)           ((u64)(a) / PAGESIZE)
 #define SUPERPAGE_INDEX(a)      ((u64)(a) / SUPERPAGESIZE)
+#define PHYS_PAGE_INDEX(a)      ((u64)(a) / PHYS_PAGESIZE)
+#define KERN_PAGE_INDEX(a)      ((u64)(a) / KERN_PAGESIZE)
 
+/* Flags for struct pmem */
 #define PMEM_USABLE             (1)             /* Usable */
-#define PMEM_USED               (1<<1)          /* Used */
+#define PMEM_USED               (1 << 1)        /* Used */
 #define PMEM_IS_FREE(x)         (PMEM_USABLE == (x)->flags ? 1 : 0)
 
 #define PMEM_MAX_BUDDY_ORDER    18
@@ -81,6 +93,9 @@
 #define PMEM_INVAL_INDEX        0xffffffffUL
 
 
+/*
+ * Kernel memory
+ */
 /* 32 (2^5) -byte is the minimum object size of a slab object */
 #define KMEM_SLAB_BASE_ORDER    5
 /* 1024 (2^(5 + 6 - 1)) byte is the maximum object size of a slab object */
@@ -88,9 +103,16 @@
 /* 2^16 objects in a cache */
 #define KMEM_SLAB_NR_OBJ_ORDER  4
 
-#define KMEM_MAX_BUDDY_ORDER    21
-//#define KMEM_REGION_SIZE        512
+#define KMEM_MAX_BUDDY_ORDER    10
+#define KMEM_INVAL_BUDDY_ORDER  0x3f
 
+#define KMEM_USABLE             (1)
+#define KMEM_USED               (1<<1)
+#define KMEM_IS_FREE(x)         (KMEM_USABLE == ((x)->flags & 0x3))
+
+/*
+ * Virtual memory
+ */
 #define VMEM_MAX_BUDDY_ORDER    18
 #define VMEM_INVAL_BUDDY_ORDER  0x3f
 
@@ -241,6 +263,39 @@ struct vmem_space {
 };
 
 /*
+ * Kernel page
+ */
+struct kmem_page {
+    /* Physical address */
+    reg_t addr;
+    /* Order */
+    int order;
+    /* Flags */
+    int flags;
+    /* Buddy system */
+    struct kmem_page *next;
+    struct kmem_page *prev;
+};
+
+/*
+ * Kernel memory
+ */
+struct kmem_space {
+    /* Superpages */
+    ptr_t start;
+    size_t len;                 /* Constant multiplication of SUPERPAGESIZE */
+
+    /* Superpages belonging to kernel */
+    struct kmem_page *pages;
+
+    /* Buddy system for superpages and pages */
+    struct kmem_page *heads[KMEM_MAX_BUDDY_ORDER + 1];
+
+    /* Architecture-specific data structure (struct arch_kmem_space) */
+    void *arch;
+};
+
+/*
  * Physical page
  */
 struct pmem_page {
@@ -372,8 +427,8 @@ struct kmem {
     /* Slab allocator */
     struct kmem_slab_root slab;
 
-    /* Virtual memory */
-    struct vmem_space *space;
+    /* Kernel memory */
+    struct kmem_space *space;
 
     /* Memory pool; Page data structure pool */
     struct {
@@ -384,6 +439,9 @@ struct kmem {
         /* Regions */
         //struct vmem_region *regs;
     } pool;
+
+    /* Architecture-specific data structure */
+    void *arch_kmem;
 
     /* Physical memory */
     struct pmem *pmem;
@@ -570,8 +628,11 @@ struct vmem_page * vmem_grab_pages(struct vmem_space *, int);
 void vmem_return_pages(struct vmem_page *);
 
 /* in kmem.c */
+int kmem_buddy_init(struct kmem *);
 void * kmem_alloc_pages(struct kmem *, size_t);
 void kmem_free_pages(struct kmem *, void *);
+struct kmem_page * kmem_grab_pages(struct kmem *, int);
+void kmem_return_pages(struct kmem *, struct kmem_page *);
 
 /* in pmem.c */
 void * pmem_alloc_pages(int, int);
@@ -614,7 +675,7 @@ pid_t sys_fork(void);
 void spin_lock(u32 *);
 void spin_unlock(u32 *);
 int arch_vmem_map(struct vmem_space *, void *, void *, int);
-int arch_kmem_map(struct vmem_space *, void *, void *, int);
+int arch_kmem_map(struct kmem *, void *, void *, int);
 int arch_address_width(void);
 void * arch_vmem_addr_v2p(struct vmem_space *, void *);
 int arch_vmem_init(struct vmem_space *);

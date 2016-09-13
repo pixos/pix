@@ -39,10 +39,7 @@ static void cpu_init(void);
 struct acpi arch_acpi;
 
 /* Multiprocessor enabled */
-int mp_enabled;
-
-/* Kernel memory */
-//extern struct kmem *g_kmem;
+static int mp_enabled;
 
 /*
  * Relocate the trampoline code to a 4 KiB page alined space
@@ -307,6 +304,12 @@ bsp_init(void)
         panic("Fatal: Could not initialize the ramfs.");
         return;
     }
+
+    char buf[512];
+    ksnprintf(buf, 512, "%llx %d %lld", g_ktask_root, sizeof(struct ktask_root),
+        pdata->freq);
+    panic(buf);
+
 
     /* Initialize the kernel */
     kinit();

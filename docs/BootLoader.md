@@ -32,6 +32,7 @@ No convention (currently).
 | `0008 0000` | `---- ----` | Used by kernel                   |
 
 
+### Boot info data structure
 
     // 0x8000--0x80ff
     struct bootinfo {
@@ -48,7 +49,9 @@ No convention (currently).
     } [bootinfo.mm_num];
 
 ### Page table
-Linear mapping with 1-Gbyte paging for the first 4 GiB space
+Linear mapping with 2-MiB paging for the first 3-GiB space, and the first 1-GiB
+space is also mapped to 3--4 GiB space of the page table.
+
 
 ### GDT
 

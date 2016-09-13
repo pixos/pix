@@ -28,33 +28,48 @@
 #include <aos/types.h>
 #include "const.h"
 
-/* Color video RAM */
-#define VIDEO_COLOR             0x000b8000ULL
+/* Color video RAM (virtual memory) */
+#define VIDEO_COLOR             0xc00b8000ULL
 
 /* Lowest memory address managed by memory allocator
  * Note that ISA memory hole (0x00f00000-0x00ffffff) are detected as available
  * in the system memory map obtained from the BIOS, so be carefull if we use
- * the address below 0x01000000 for PMEM_LBOUND.
+ * the address below 0x01000000 for PMEM_LBOUND.  The range from 0x01000000 to
+ * 0x01ffffff is used by the management data structure of processors.
  */
 #define PMEM_LBOUND             0x02000000ULL
+/* Highest memory address mapped to the linear address of the boot strap page
+   table */
+#define PMEM_MAPPED_UBOUND      0xbfffffffULL
 
+/* Physical memory address used by the kernel memory allocator */
 #define KMEM_BASE               0x00100000ULL
 #define KMEM_MAX_SIZE           0x00e00000ULL
 
-#define KMEM_REGION_PMEM_BASE   0x100000000ULL
+
+#define KERNEL_BASE             0xc0000000ULL
+#define KERNEL_SIZE             0x18000000ULL
+#define KERNEL_SPEC_SIZE        0x28000000ULL
+
+#define KMEM_P2V(a)             ((u64)(a) + KERNEL_BASE)
+#define KMEM_LOW_P2V(a)         ((u64)(a))
+
 #define KMEM_REGION_KERNEL_BASE 0xc0000000ULL
 #define KMEM_REGION_KERNEL_SIZE 0x18000000ULL
 
 #define KMEM_REGION_SPEC_BASE   0xd8000000ULL
 #define KMEM_REGION_SPEC_SIZE   0x28000000ULL
 
+#define KMEM_REGION_PMEM_BASE   0x100000000ULL
+
+
 /* Maximum number of processors supported in this operating system */
 #define MAX_PROCESSORS          256
 
 /* GDT and IDT */
-#define GDT_ADDR                0x80000ULL
+#define GDT_ADDR                0xc0080000ULL
 #define GDT_MAX_SIZE            0x2000
-#define IDT_ADDR                0x82000ULL
+#define IDT_ADDR                0xc0082000ULL
 #define IDT_MAX_SIZE            0x2000
 
 
@@ -194,8 +209,38 @@ struct arch_page_entry {
         u64 bits;
     } u;
 };
+/*
+ * Page directory
+ */
 struct arch_page_dir {
-    u64 *entries[512];
+    u64 entries[512];
+};
+
+struct arch_kmem {
+    /* The root of the 4-level page table (virtual address) */
+    void *pml4;
+    /* Page directory pointer table */
+    void *pdpt;
+    /* Kernel page directory */
+    void *kpd;
+
+    /* Kernel's cr3 (physical address) */
+    void *cr3;
+};
+
+/*
+ * Kernel memory space (i.e., page table)
+ */
+struct arch_kmem_space {
+    /* The root of the 4-level page table (virtual address) */
+    struct arch_page_dir *pml4;
+    /* The pointer to page directory pointer table */
+    struct arch_page_dir *pdpt;
+    /* The pointer to the page directory */
+    struct arch_page_dir *pd;
+
+    /* cr3 (physical address) */
+    void *cr3;
 };
 
 /*

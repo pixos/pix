@@ -121,9 +121,15 @@ pg_setup.2:
 	addl	$0x00200000,%eax
 	loop	pg_setup.2
 
-	/* Relocate the kernel to the first 2 MiB starting at 3 GiB */
+	/* Relocate the kernel to the first 32 MiB starting at 3 GiB */
 	movl	$0x083,%eax
-	movl	%eax,0x2000(%ebx)
+	leal	0x5000(%ebx),%edi
+	movl	$16,%ecx
+pg_kernel:
+	movl	%eax,(%edi)
+	addl	$8,%edi
+	addl	$0x00200000,%eax
+	loop	pg_kernel
 
 	/* Set page table register */
 	movl	%ebx,%cr3
