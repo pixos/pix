@@ -197,6 +197,7 @@ intr_irq0:
 	/* Restore registers */
 	popw	%si
 	popw	%dx
+	movw	%dx,%ds
 	popw	%dx
 	popw	%cx
 	popw	%bx
