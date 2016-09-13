@@ -417,7 +417,11 @@ read_file_fat12:
 	call	fat12_next_cluster
 	movl	%ecx,-32(%bp)
 	cmpl	$0x0ff8,%ecx
-	jl	10f
+	jl	1b
+
+		mov	%ecx,%dr0
+0:	hlt
+	jmp 0b
 
 	/* Restore registers */
 	movl	-4(%bp),%eax
@@ -431,11 +435,6 @@ read_file_fat12:
 	movw	%bp,%sp
 	popw	%bp
 	ret
-
-10:
-	mov	%ecx,%dr0
-0:	hlt
-	jmp 0b
 
 
 /*
