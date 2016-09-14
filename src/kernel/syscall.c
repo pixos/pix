@@ -162,7 +162,7 @@ sys_read(int fildes, void *buf, size_t nbyte)
 
     s = "read";
 
-    video = (u16 *)0xb8000;
+    video = (u16 *)0xc00b8000;
     for ( i = 0; i < 80 * 25; i++ ) {
         //*(video + i) = 0xe000;
         *(video + i) = 0x2000;
@@ -202,7 +202,7 @@ sys_write(int fildes, const void *buf, size_t nbyte)
 
     s = "write";
 
-    video = (u16 *)0xb8000;
+    video = (u16 *)0xc00b8000;
     for ( i = 0; i < 80 * 25; i++ ) {
         *(video + i) = 0xe000;
         //*(video + i) = 0x2000;
@@ -255,7 +255,7 @@ sys_write(int fildes, const void *buf, size_t nbyte)
 int
 sys_open(const char *path, int oflag, ...)
 {
-    u64 *initramfs = (u64 *)INITRAMFS_BASE;
+    u64 *initramfs = (u64 *)INITRAMFS_BASE + 0xc0000000;
     u64 offset = 0;
     u64 size;
     struct ktask *t;
@@ -336,7 +336,7 @@ sys_wait4(pid_t pid, int *stat_loc, int options, struct rusage *rusage)
     int i;
     char *s = "sys_wait4";
 
-    video = (u16 *)0xb8000;
+    video = (u16 *)0xc00b8000;
     for ( i = 0; i < 80 * 25; i++ ) {
         *(video + i) = 0xe000;
     }

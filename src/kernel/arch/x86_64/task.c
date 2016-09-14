@@ -290,7 +290,7 @@ task_create_idle(void)
     kmemset(t, 0, sizeof(struct arch_task));
 
     /* Page table for the kernel */
-    t->cr3 = ((struct arch_vmem_space *)g_kmem->space->arch)->pgt;
+    t->cr3 = ((struct arch_kmem_space *)g_kmem->space->arch)->cr3;
 
     /* Create a space for FPU/SSE registers */
     t->xregs = kmalloc(4096);
@@ -362,7 +362,7 @@ task_create_idle(void)
 int
 proc_create(const char *path, const char *name, pid_t pid)
 {
-    u64 *initramfs = (u64 *)INITRAMFS_BASE;
+    u64 *initramfs = (u64 *)KMEM_P2V(INITRAMFS_BASE);
     u64 offset = 0;
     u64 size;
     struct arch_task *t;
@@ -457,14 +457,14 @@ proc_create(const char *path, const char *name, pid_t pid)
 
     /* Prepare the user stack */
     ppage1 = pmem_alloc_pages(PMEM_ZONE_LOWMEM,
-                              bitwidth(USTACK_SIZE / PAGESIZE));
+                              bitwidth(USTACK_SIZE / PHYS_PAGESIZE));
     if ( NULL == ppage1 ) {
         goto error_ustack;
     }
 
     /* Prepare exec */
     ppage2 = pmem_alloc_pages(PMEM_ZONE_LOWMEM,
-                              bitwidth(DIV_CEIL(size, PAGESIZE)));
+                              bitwidth(DIV_CEIL(size, PHYS_PAGESIZE)));
     if ( NULL == ppage2 ) {
         goto error_exec;
         return -1;
@@ -473,18 +473,20 @@ proc_create(const char *path, const char *name, pid_t pid)
 
     /* Set user stack */
     t->ustack = (void *)USTACK_INIT;
-    for ( i = 0; i < (ssize_t)(USTACK_SIZE / PAGESIZE); i++ ) {
-        ret = arch_vmem_map(proc->vmem, t->ustack + PAGE_ADDR(i),
-                            ppage1 + PAGE_ADDR(i), VMEM_USABLE | VMEM_USED);
+    for ( i = 0; i < (ssize_t)(USTACK_SIZE / SUPERPAGESIZE); i++ ) {
+        ret = arch_vmem_map(proc->vmem, t->ustack + SUPERPAGE_ADDR(i),
+                            ppage1 + SUPERPAGE_ADDR(i),
+                            VMEM_USABLE | VMEM_USED | VMEM_SUPERPAGE);
         if ( ret < 0 ) {
             /* FIXME: Handle this error */
             panic("FIXME 1");
         }
     }
     exec = (void *)CODE_INIT;
-    for ( i = 0; i < (ssize_t)DIV_CEIL(size, PAGESIZE); i++ ) {
-        ret = arch_vmem_map(proc->vmem, exec + PAGESIZE * i,
-                            ppage2 + PAGESIZE * i, VMEM_USABLE | VMEM_USED);
+    for ( i = 0; i < (ssize_t)DIV_CEIL(size, SUPERPAGESIZE); i++ ) {
+        ret = arch_vmem_map(proc->vmem, exec + SUPERPAGESIZE * i,
+                            ppage2 + SUPERPAGESIZE * i,
+                            VMEM_USABLE | VMEM_USED | VMEM_SUPERPAGE);
         if ( ret < 0 ) {
             /* FIXME: Handle this error */
             panic("FIXME 2");
@@ -497,7 +499,7 @@ proc_create(const char *path, const char *name, pid_t pid)
     set_cr3(((struct arch_vmem_space *)proc->vmem->arch)->pgt);
 
     /* Copy the program from the initramfs to user space */
-    (void)kmemcpy(exec, (void *)(INITRAMFS_BASE + offset), size);
+    (void)kmemcpy(exec, (void *)(KMEM_P2V(INITRAMFS_BASE) + offset), size);
 
     /* Restore CR3 */
     set_cr3(saved_cr3);

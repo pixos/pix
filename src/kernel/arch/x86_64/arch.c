@@ -39,7 +39,7 @@ static void cpu_init(void);
 struct acpi arch_acpi;
 
 /* Multiprocessor enabled */
-static int mp_enabled;
+int mp_enabled;
 
 /*
  * Relocate the trampoline code to a 4 KiB page alined space
@@ -52,10 +52,6 @@ load_trampoline(void)
 
     /* Check and copy trampoline code */
     tsz = (u64)trampoline_end - (u64)trampoline;
-
-    //char buf[512];
-    //ksnprintf(buf, 512, "%llx %llx", &tsz, i);
-    //panic(buf);
 
     if ( tsz > TRAMPOLINE_MAX_SIZE ) {
         /* Error when the size of the trampoline code exceeds 4 KiB */
@@ -209,6 +205,7 @@ bsp_init(void)
     struct cpu_data *pdata;
     long long i;
     int prox;
+    int ret;
 
     /* Reset */
     mp_enabled = 0;
@@ -223,22 +220,11 @@ bsp_init(void)
     cpu_init();
 
     /* Load trampoline code with the boot strap page table */
-    load_trampoline();
-
-    //__asm__ ("lea -0x7d(%rip),%rcx; mov %rcx,%dr2");
-    char buf[512];
-#if 0
-    u64 aaa = (u64)trampoline;
-    __asm__ ("mov %%rax,%%dr0;lea -0x8a(%%rip),%%rax;movq %%rax,%%dr1;mov %%rcx,%%dr2"
-             : "=a"(aaa) : "a"(trampoline), "c"(trampoline_end));
-#endif
-    //__asm__ ("lea -0x87(%rip),%rcx; mov %rcx,%rax; mov %rax,%dr2");
-    //__asm__ ("1: hlt; jmp 1b");
-    //__asm__ ("lea 0x5950(%rip),%rdx;mov %rdx,%dr0");
-    //__asm__ __volatile__ ("mov %%rdx,%%dr0" :: "d"(trampoline));
-
-    ksnprintf(buf, 512, "%llx %llx", &trampoline_end, &trampoline);
-    panic(buf);
+    ret = load_trampoline();
+    if ( ret < 0 ) {
+        panic("Fatal: Could not load trampoline");
+        return;
+    }
 
     /* Initialize global descriptor table (GDT) */
     gdt_init();
@@ -345,7 +331,6 @@ bsp_init(void)
     }
 #endif
 
-
     /* Enable MP */
     mp_enabled = 1;
 
@@ -363,7 +348,6 @@ bsp_init(void)
 
     /* Send another Start Up IPI */
     lapic_send_startup_ipi(TRAMPOLINE_VEC & 0xff);
-    //__asm__ ("1: hlt; jmp 1b");
 
     /* Wait 200 us */
     acpi_busy_usleep(&arch_acpi, 200);
@@ -378,10 +362,12 @@ bsp_init(void)
         panic("Fatal: Cannot create the `pm' server.");
         return;
     }
+#if 0
     if ( proc_create("/servers/init", "init", 1) < 0 ) {
         panic("Fatal: Cannot create the `init' server.");
         return;
     }
+#endif
 
     /* Schedule the idle task */
     this_cpu()->cur_task = NULL;
@@ -412,7 +398,7 @@ ap_init(void)
     /* Disable the global page feature */
     set_cr4(get_cr4() & ~CR4_PGE);
     /* Set the page table */
-    set_cr3(((struct arch_vmem_space *)g_kmem->space->arch)->pgt);
+    set_cr3(((struct arch_kmem_space *)g_kmem->space->arch)->cr3);
     /* Enable the global page feature */
     set_cr4(get_cr4() | CR4_PGE);
 
@@ -669,7 +655,7 @@ isr_page_fault(void *addr, u64 error, void *rip, u64 cs, u64 flags, void *sp)
     t = this_ktask();
     if ( NULL == t || NULL == t->proc ) {
         ksnprintf(buf, sizeof(buf),
-                  "FIXME: Invalid task calls sys_exit() %016llx @%016llx", y,
+                  "An unknown task causes page fault: %016llx @%016llx", y,
                   x);
         panic(buf);
         return;

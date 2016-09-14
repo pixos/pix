@@ -216,18 +216,6 @@ struct arch_page_dir {
     u64 entries[512];
 };
 
-struct arch_kmem {
-    /* The root of the 4-level page table (virtual address) */
-    void *pml4;
-    /* Page directory pointer table */
-    void *pdpt;
-    /* Kernel page directory */
-    void *kpd;
-
-    /* Kernel's cr3 (physical address) */
-    void *cr3;
-};
-
 /*
  * Kernel memory space (i.e., page table)
  */
@@ -259,6 +247,21 @@ struct arch_vmem_space {
     u64 **array;
     /* Leaves for virtual memory */
     u64 **vls;
+
+#if 0
+    struct {
+        /* The root of the 4-level page table (virtual address) */
+        struct arch_page_dir *pml4;
+    } virt;
+    struct {
+        struct arch_page_dir *pml4;
+        struct arch_page_dir **pdpt;
+        struct arch_page_dir **pd;
+    } phys;
+
+    /* cr3 (physical address) */
+    void *cr3;
+#endif
 };
 
 /*

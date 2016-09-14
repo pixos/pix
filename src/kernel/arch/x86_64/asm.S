@@ -1122,7 +1122,6 @@ _task_restart:
 	movq	TASK_XREGS(%rax),%rdi
 	movq	$5,%rax
 	movq	$0,%rdx
-	movq	%rdi,%dr0
 	xrstor64	(%rdi)
 	/* Setup sp0 in TSS */
 	movq	CPU_CUR_TASK_OFFSET(%rbp),%rax

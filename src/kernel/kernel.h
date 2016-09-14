@@ -677,6 +677,7 @@ void spin_unlock(u32 *);
 int arch_vmem_map(struct vmem_space *, void *, void *, int);
 int arch_kmem_map(struct kmem *, void *, void *, int);
 int arch_address_width(void);
+void * arch_kmem_addr_v2p(struct kmem *, void *);
 void * arch_vmem_addr_v2p(struct vmem_space *, void *);
 int arch_vmem_init(struct vmem_space *);
 void syscall_setup(void *, size_t);
