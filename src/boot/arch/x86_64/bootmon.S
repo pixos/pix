@@ -35,7 +35,7 @@
  */
 bootmon:
 	/* Save parameters from IPL */
-	movb	%dl,drive
+	movb	%dl,(drive)
 
 	/* Set video mode to 16bit color text mode */
 	movb	$VGA_TEXT_COLOR_80x25,%al
@@ -197,6 +197,7 @@ intr_irq0:
 	/* Restore registers */
 	popw	%si
 	popw	%dx
+	movw	%dx,%ds
 	popw	%dx
 	popw	%cx
 	popw	%bx
@@ -568,7 +569,6 @@ lba2chs:
 	popw	%bx
 	popw	%ax
 	ret
-
 
 
 	.data

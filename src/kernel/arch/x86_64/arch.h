@@ -28,40 +28,50 @@
 #include <aos/types.h>
 #include "const.h"
 
-/* Boot information from the boot loader */
-#define BOOTINFO_BASE           0x8000ULL
-
-/* Color video RAM */
-#define VIDEO_COLOR             0xb8000ULL
+/* Color video RAM (virtual memory) */
+#define VIDEO_COLOR             0xc00b8000ULL
 
 /* Lowest memory address managed by memory allocator
  * Note that ISA memory hole (0x00f00000-0x00ffffff) are detected as available
  * in the system memory map obtained from the BIOS, so be carefull if we use
- * the address below 0x01000000 for PMEM_LBOUND.
+ * the address below 0x01000000 for PMEM_LBOUND.  The range from 0x01000000 to
+ * 0x01ffffff is used by the management data structure of processors.
  */
 #define PMEM_LBOUND             0x02000000ULL
+/* Highest memory address mapped to the linear address of the boot strap page
+   table */
+#define PMEM_MAPPED_UBOUND      0xbfffffffULL
 
+/* Physical memory address used by the kernel memory allocator */
 #define KMEM_BASE               0x00100000ULL
 #define KMEM_MAX_SIZE           0x00e00000ULL
 
-#define KMEM_REGION_PMEM_BASE   0x100000000ULL
+
+#define KERNEL_BASE             0xc0000000ULL
+#define KERNEL_SIZE             0x18000000ULL
+#define KERNEL_SPEC_SIZE        0x28000000ULL
+
+#define KMEM_P2V(a)             ((u64)(a) + KERNEL_BASE)
+#define KMEM_LOW_P2V(a)         ((u64)(a))
+
 #define KMEM_REGION_KERNEL_BASE 0xc0000000ULL
 #define KMEM_REGION_KERNEL_SIZE 0x18000000ULL
 
 #define KMEM_REGION_SPEC_BASE   0xd8000000ULL
 #define KMEM_REGION_SPEC_SIZE   0x28000000ULL
 
+#define KMEM_REGION_PMEM_BASE   0x100000000ULL
+
+
 /* Maximum number of processors supported in this operating system */
 #define MAX_PROCESSORS          256
 
 /* GDT and IDT */
-#define GDT_ADDR                0x80000ULL
+#define GDT_ADDR                0xc0080000ULL
 #define GDT_MAX_SIZE            0x2000
-#define IDT_ADDR                0x82000ULL
+#define IDT_ADDR                0xc0082000ULL
 #define IDT_MAX_SIZE            0x2000
 
-/* Kernel variable */
-#define KVAR_ADDR               0x84000ULL
 
 /* Control registers */
 #define CR0_PE                  (1ULL << 0) /* Protection Enable */
@@ -98,6 +108,7 @@
  * Boot information from boot loader
  */
 struct bootinfo {
+    /* Systen address map obtained through BIOS */
     struct {
         u64 nr;
         struct bootinfo_sysaddrmap_entry *entries;      /* u64 */
@@ -181,7 +192,7 @@ struct tss {
 } __attribute__ ((packed));
 
 /*
- * Page table entry
+ * Page table entry (4 KiB block)
  */
 struct page_entry {
     u64 entries[512];
@@ -198,8 +209,26 @@ struct arch_page_entry {
         u64 bits;
     } u;
 };
+/*
+ * Page directory
+ */
 struct arch_page_dir {
-    u64 *entries[512];
+    u64 entries[512];
+};
+
+/*
+ * Kernel memory space (i.e., page table)
+ */
+struct arch_kmem_space {
+    /* The root of the 4-level page table (virtual address) */
+    struct arch_page_dir *pml4;
+    /* The pointer to page directory pointer table */
+    struct arch_page_dir *pdpt;
+    /* The pointer to the page directory */
+    struct arch_page_dir *pd;
+
+    /* cr3 (physical address) */
+    void *cr3;
 };
 
 /*
@@ -218,19 +247,37 @@ struct arch_vmem_space {
     u64 **array;
     /* Leaves for virtual memory */
     u64 **vls;
+
+#if 0
+    struct {
+        /* The root of the 4-level page table (virtual address) */
+        struct arch_page_dir *pml4;
+    } virt;
+    struct {
+        struct arch_page_dir *pml4;
+        struct arch_page_dir **pdpt;
+        struct arch_page_dir **pd;
+    } phys;
+
+    /* cr3 (physical address) */
+    void *cr3;
+#endif
 };
 
 /*
  * Task (architecture specific structure)
  */
 struct arch_task {
-    /* Do not change the first two.  These must be on the top.  See asm.s. */
-    /* Restart point */
+    /* Do not change the first four.  These must be on the top.  See asm.S and
+       const.h. */
+    /* Restart point (a part of kstack) */
     struct stackframe64 *rp;
     /* SP0 for tss */
     u64 sp0;
     /* CR3: Physical address of the page table */
     void *cr3;
+    /* FPU/SSE registers */
+    void *xregs;
     /* Kernel stack pointer (kernel address) */
     void *kstack;
     /* User stack pointer (virtual address) */
@@ -289,21 +336,45 @@ void intr_nmi(void);
 void intr_breakpoint(void);
 void intr_overflow(void);
 void intr_bre(void);
+void intr_iof(void);
 void intr_dna(void);
 void intr_df(void);
+void intr_cso(void);
+void intr_invtss(void);
 void intr_snpf(void);
 void intr_ssf(void);
-
-void intr_iof(void);
 void intr_gpf(void);
 void intr_pf(void);
 void intr_x87_fpe(void);
+void intr_acf(void);
+void intr_mca(void);
 void intr_simd_fpe(void);
+void intr_vef(void);
+void intr_se(void);
+
+void intr_driver_0x50(void);
+void intr_driver_0x51(void);
+void intr_driver_0x52(void);
+void intr_driver_0x53(void);
+void intr_driver_0x54(void);
+void intr_driver_0x55(void);
+void intr_driver_0x56(void);
+void intr_driver_0x57(void);
+void intr_driver_0x58(void);
+void intr_driver_0x59(void);
+void intr_driver_0x5a(void);
+void intr_driver_0x5b(void);
+void intr_driver_0x5c(void);
+void intr_driver_0x5d(void);
+void intr_driver_0x5e(void);
+void intr_driver_0x5f(void);
+
+
+
 void intr_apic_loc_tmr(void);
 void intr_crash(void);
 void task_restart(void);
 void task_replace(void *);
-void syscall_setup(void *, u64);
 void pause(void);
 u8 inb(u16);
 u16 inw(u16);
@@ -342,7 +413,83 @@ struct arch_task * task_create_idle(void);
 int proc_create(const char *, const char *, pid_t);
 
 /* In-line assembly */
+/* void set_cr0(u64 cr0) */
+#define set_cr0(cr0)    __asm__ __volatile__ ("movq %%rax,%%cr0" :: "a"((cr0)))
+/* void set_cr3(void *) */
 #define set_cr3(cr3)    __asm__ __volatile__ ("movq %%rax,%%cr3" :: "a"((cr3)))
+/* void set_cr4(u64) */
+#define set_cr4(cr4)    __asm__ __volatile__ ("movq %%rax,%%cr4" :: "a"((cr4)))
+/* void xsave(void *) */
+#define xsave(mem, a, d)                                                \
+    __asm__ __volatile__ ("xsave64 (%%rdi)" :: "D"(mem), "a"(a), "d"(d));
+#define xgetbv(a, b)                                                    \
+    __asm__ __volatile__ ("xgetbv; movq %%rax,%%dr1" : "=a"(a), "=d"(b));
+
+
+#define interrupt_handler_begin(handler)        \
+    void handler(void) {                        \
+        __asm__ __volatile__ ("pushq %rax;"     \
+                              "pushq %rbx;"     \
+                              "pushq %rcx;"     \
+                              "pushq %rdx;"     \
+                              "pushq %r8;"      \
+                              "pushq %r9;"      \
+                              "pushq %r10;"     \
+                              "pushq %r11;"     \
+                              "pushq %r12;"     \
+                              "pushq %r13;"     \
+                              "pushq %r14;"     \
+                              "pushq %r15;"     \
+                              "pushq %rsi;"     \
+                              "pushq %rdi;"     \
+                              "pushq %rbp;"     \
+                              "pushw %fs;"      \
+                              "pushw %gs;"      \
+            );
+#define interrupt_handler_end                   \
+    __asm__ __volatile__ ("popw %gs;"           \
+                          "popw %fs;"           \
+                          "popq %rbp;"          \
+                          "popq %rdi;"          \
+                          "popq %rsi;"          \
+                          "popq %r15;"          \
+                          "popq %r14;"          \
+                          "popq %r13;"          \
+                          "popq %r12;"          \
+                          "popq %r11;"          \
+                          "popq %r10;"          \
+                          "popq %r9;"           \
+                          "popq %r8;"           \
+                          "popq %rdx;"          \
+                          "popq %rcx;"          \
+                          "popq %rbx;"          \
+                          "popq %rax;"          \
+                          "iretq;");            \
+    }
+
+
+#define APIC_LAPIC_ID 0x020
+#define MSR_APIC_BASE 0x1b
+#define str(a)  st(a)
+#define st(a)   #a
+#define interrupt_task_restart                                  \
+    __asm__ __volatile__ ("movq $" str(MSR_APIC_BASE) ",%rcx;"  \
+                          "rdmsr;"                              \
+                          "shlq $32,%rdx;"                      \
+                          "addq %rax,%rdx;"                     \
+                          "andq $0xfffffffffffff000,%rdx;"      \
+                          "xorq %rax,%rax;"                     \
+                          "movl " str(APIC_LAPIC_ID) "(%rdx),%eax;" \
+                          /* Calculate the processor data space from the APIC ID */ \
+                          "movq $" str(CPU_DATA_SIZE) ",%rbx;"          \
+                          "mulq %rbx; /* [%rdx:%rax] = %rax * %rbx */"  \
+                          "addq $" str(CPU_DATA_BASE) ",%rax;"          \
+                          "movq %rax,%rbp;"                             \
+                          /* If the next task is not scheduled, immediately restart this task */ \
+                          "cmpq $0," str(CPU_NEXT_TASK_OFFSET) "(%rbp);" \
+                          "jz 2f;");
+
+
 
 #endif /* _KERNEL_ARCH_H */
 

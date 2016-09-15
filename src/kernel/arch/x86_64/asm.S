@@ -61,11 +61,8 @@
 	.globl	_syscall_setup
 	.globl	_asm_ioapic_map_intr
 	.globl	_get_cr0
-	.globl	_set_cr0
 	.globl	_get_cr3
-	//.globl	_set_cr3
 	.globl	_get_cr4
-	.globl	_set_cr4
 	.globl	_invlpg
 	.globl	_vmxon
 	.globl	_vmclear
@@ -93,6 +90,10 @@
 	.globl	_intr_pf
 	.globl	_intr_x87_fpe
 	.globl	_intr_simd_fpe
+	.globl	_intr_acf
+	.globl	_intr_mca
+	.globl	_intr_vef
+	.globl	_intr_se
 	.globl	_intr_apic_loc_tmr
 	.globl	_intr_crash
 	.globl	_sys_fork
@@ -125,7 +126,8 @@ kstart64:
 	addl	$1,%eax
 	movl	$CPU_DATA_SIZE,%ebx
 	mull	%ebx			/* [%edx|%eax] = %eax * %ebx */
-	addq	$CPU_DATA_BASE,%rax
+	movabs	$CPU_DATA_BASE,%rdx
+	addq	%rdx,%rax
 	subq	$CPU_STACK_GUARD,%rax
 	movq	%rax,%rsp
 
@@ -157,7 +159,8 @@ apstart64:
 	addl	$1,%eax
 	movl	$CPU_DATA_SIZE,%ebx
 	mull	%ebx			/* [%edx|%eax] = %eax * %ebx */
-	addq	$CPU_DATA_BASE,%rax
+	movabs	$CPU_DATA_BASE,%rdx
+	addq	%rdx,%rax
 	subq	$CPU_STACK_GUARD,%rax
 	movq	%rax,%rsp
 
@@ -182,7 +185,8 @@ _lgdt:
 	lgdt	(%rdi)
 	/* Reload GDT */
 	pushq	%rsi
-	pushq	$1f	/* Just to do ret */
+	movabs	$1f,%rax
+	pushq	%rax	/* Just to do ret */
 	lretq
 1:
 	/* Set data selector */
@@ -392,11 +396,13 @@ _spin_unlock_intr:
 
 /* void syscall_setup(void *, u64 nr) */
 _syscall_setup:
-	movq	%rdi,(syscall_table)
-	movq	%rsi,(syscall_nr)
+	movabs	$SYSCALL_TABLE,%rax
+	movq	%rdi,(%rax)
+	movabs	$SYSCALL_NR,%rax
+	movq	%rsi,(%rax)
 	/* Write syscall entry point */
 	movq	$0xc0000082,%rcx	/* IA32_LSTAR */
-	movq	$syscall_entry,%rax
+	movabs	$syscall_entry,%rax
 	movq	%rax,%rdx
 	shrq	$32,%rdx
 	wrmsr
@@ -424,11 +430,13 @@ syscall_entry:
 	pushq	%rbx
 
 	/* Check the number */
-	cmpq	(syscall_nr),%rax
+	movabs	$SYSCALL_NR,%rbx
+	cmpq	(%rbx),%rax
 	jge	1f
 
 	/* Lookup the system call table and call one corresponding to %rax */
-	movq	(syscall_table),%rbx
+	movabs	$SYSCALL_TABLE,%rcx
+	movq	(%rcx),%rbx
 	cmpq	$0,%rbx
 	je	1f
 	shlq	$3,%rax		/* 8 byte for each function pointer */
@@ -486,7 +494,7 @@ sys_fork_restart:
 	movq	%rcx,-24(%rdx)	/* rflags */
 	movq	$GDT_RING0_CODE_SEL,%rcx
 	movq	%rcx,-32(%rdx)	/* cs */
-	movq	$1f,%rcx
+	movabs	$1f,%rcx
 	movq	%rcx,-40(%rdx)	/* rip */
 	movq	%rsi,-48(%rdx)	/* rax */
 	movq	-24(%rbp),%rcx
@@ -506,7 +514,7 @@ sys_fork_restart:
 	movq	0(%rbp),%rcx
 	movq	$0xabcd,%rcx
 	movq	%rcx,-160(%rdx)	/* rbp */
-	movw	$(GDT_RING3_DATA_SEL+3),%cx
+	movw	$(GDT_RING3_DATA64_SEL+3),%cx
 	movw	%cx,-162(%rdx)	/* fs */
 	movw	%cx,-164(%rdx)	/* gs */
 
@@ -554,29 +562,14 @@ _get_cr0:
 	movq	%cr0,%rax
 	ret
 
-/* void set_cr0(u64 cr0) */
-_set_cr0:
-	movq	%rdi,%cr0
-	ret
-
 /* void * get_cr3(void) */
 _get_cr3:
 	movq	%cr3,%rax
 	ret
 
-/* void set_cr3(void *) */
-//_set_cr3:
-//	movq	%rdi,%cr3
-//	ret
-
 /* u64 get_cr4(void) */
 _get_cr4:
 	movq	%cr4,%rax
-	ret
-
-/* void set_cr4(u64) */
-_set_cr4:
-	movq	%rdi,%cr4
 	ret
 
 /* void invlpg(void *) */
@@ -650,8 +643,9 @@ _vmresume:
 	movq	$-1,%rax
 	ret
 
-/* Null function for interrupt handler */
+/* Null interrupt handler (do nothing) */
 _intr_null:
+	iretq
 	pushq	%rax
 	pushq	%rcx
 	pushq	%rdx
@@ -670,109 +664,186 @@ _intr_null:
 	popq	%rax
 	iretq
 
-/* Debug fault or trap */
-_intr_debug:
+/* Macro for generic exception handlers */
+.macro	intr_exception_generic name vec
+	.globl	_intr_\name
+_intr_\name:
 	pushq	%rbp
 	movq	%rsp,%rbp
-	pushq	%rbx
-	movq	16(%rbp),%rbx
-	movq	%rbx,%dr0	/* cs */
-	movq	8(%rbp),%rbx
-	movq	%rbx,%dr1	/* rip */
-	movq	32(%rbp),%rbx
-	movq	%rbx,%dr2	/* rsp */
-	call	_isr_debug
-	popq	%rbx
-	popq	%rbp
-	iretq
-
-_intr_dze:
-_intr_nmi:
-_intr_breakpoint:
-_intr_overflow:
-_intr_bre:
-_intr_dna:
-_intr_df:
-_intr_snpf:
-_intr_ssf:
-	iretq
-
-/* Interrupt handler for invalid opcode exception */
-_intr_iof:
-	pushq	%rbp
-	movq	%rsp,%rbp
-	pushq	%rdi
-	pushq	%rbx
-	movq	16(%rbp),%rbx
-	//movq	%rbx,%dr0	/* cs */
-	movq	8(%rbp),%rdi
-	//movq	%rbx,%dr1	/* rip */
-	movq	32(%rbp),%rbx
-	//movq	%rbx,%dr2	/* rsp */
-	call	_isr_io_fault
-	popq	%rbx
-	popq	%rdi
-	popq	%rbp
-	iretq
-
-/* Interrupt handler for general protection fault
- * Error code, RIP, CS, RFLAGS, (RSP, SS) */
-_intr_gpf:
-	pushq	%rbp
-	movq	%rsp,%rbp
-	pushq	%rbx
-	movq	16(%rbp),%rbx	/* rip */
-	movq	8(%rbp),%rbx	/* error code */
-	movq	40(%rbp),%rbx	/* rsp */
-	movq	48(%rbp),%rbx	/* ss */
-	//movq	(gpf_reentry),%rbx
-	//cmpq	$0,%rbx
-	//jz	1f
-	//movq	%rbx,16(%rbp)   /* Overwrite the reentry point (%rip) */
-	pushq	%rdi
-	pushq	%rsi
-	movq	16(%rbp),%rdi	/* rip */
-	movq	8(%rbp),%rsi	/* error code */
-	call	_isr_general_protection_fault
-	popq	%rsi
-	popq	%rdi
-1:	popq	%rbx
-	popq	%rbp
-	addq	$0x8,%rsp
-	iretq
-
-
-/* Interrupt handler for page fault
- * Error code, RIP, CS, RFLAGS, (RSP, SS) */
-_intr_pf:
-	pushq	%rbp
-	movq	%rsp,%rbp
+	pushq	%rax
 	pushq	%rdi
 	pushq	%rsi
 	pushq	%rdx
-	movq	16(%rbp),%rdi	/* rip */
-	movq	%cr2,%rsi	/* virtual address */
-	movq	8(%rbp),%rdx	/* error code */
-	//movq	%rdi,%dr0
-	//movq	%rsi,%dr1
-	//movq	%rdx,%dr2
-	call	_isr_page_fault
+	pushq	%rcx
+	pushq	%r8
+	pushq	%r9
+	pushq	%r10
+	pushq	%r11
+	pushq	%rbx
+	movq	$\vec,%rdi
+	movq	8(%rbp),%rsi	/* rip */
+	movq	16(%rbp),%rdx	/* cs */
+	movq	24(%rbp),%rcx	/* rflags */
+	movq	32(%rbp),%r8	/* rsp */
+	/* 40(%rbp): ss */
+	call	_isr_exception
+	popq	%rbx
+	popq	%r11
+	popq	%r10
+	popq	%r9
+	popq	%r8
+	popq	%rcx
 	popq	%rdx
 	popq	%rsi
 	popq	%rdi
+	popq	%rax
+	popq	%rbp
+	iretq
+.endm
+
+/* Macro for exception handlers that hold an error code */
+.macro	intr_exception_werror name vec
+	.globl	_intr_\name
+_intr_\name:
+	pushq	%rbp
+	movq	%rsp,%rbp
+	pushq	%rax
+	pushq	%rdi
+	pushq	%rsi
+	pushq	%rdx
+	pushq	%rcx
+	pushq	%r8
+	pushq	%r9
+	pushq	%r10
+	pushq	%r11
+	pushq	%rbx
+	movq	$\vec,%rdi
+	movq	8(%rbp),%rsi	/* error code */
+	movq	16(%rbp),%rdx	/* rip */
+	movq	24(%rbp),%rcx	/* cs */
+	movq	32(%rbp),%r8	/* rflags */
+	movq	40(%rbp),%r9	/* rsp */
+	/* 48(%rbp): ss */
+	call	_isr_exception_werror
+	popq	%rbx
+	popq	%r11
+	popq	%r10
+	popq	%r9
+	popq	%r8
+	popq	%rcx
+	popq	%rdx
+	popq	%rsi
+	popq	%rdi
+	popq	%rax
 	popq	%rbp
 	addq	$0x8,%rsp
 	iretq
+.endm
 
-/* x87 floating point exception
- * RIP, CS, RFLAGS, (RSP, SS): without error code */
-_intr_x87_fpe:
+/* Divide-by-zero Error (#DE) */
+	intr_exception_generic dze 0x00
+/* Debug fault or trap */
+	intr_exception_generic debug 0x01
+/* Non-maskable Interrupt */
+	intr_exception_generic nmi 0x02
+/* Breakpoint (#BP) */
+	intr_exception_generic breakpoint 0x03
+/* Overflow (#OF) */
+	intr_exception_generic overflow 0x04
+/* Bound Range Exceeded (#BR) */
+	intr_exception_generic bre 0x05
+/* Invalid Opcode (#UD) */
+	intr_exception_generic iof 0x06
+/* Device Not Available (#NM) */
+_intr_dna:
+	pushq	%rbp
+	movq	%rsp,%rbp
+	pushq	%rax
+	pushq	%rdi
+	pushq	%rsi
+	pushq	%rdx
+	pushq	%rcx
+	pushq	%r8
+	pushq	%r9
+	pushq	%r10
+	pushq	%r11
+	pushq	%rbx
+	movq	8(%rbp),%rdx	/* rip */
+	movq	16(%rbp),%rcx	/* cs */
+	movq	24(%rbp),%r8	/* rflags */
+	movq	32(%rbp),%r9	/* rsp */
+	/* 48(%rbp): ss */
+	popq	%rbx
+	popq	%r11
+	popq	%r10
+	popq	%r9
+	popq	%r8
+	popq	%rcx
+	popq	%rdx
+	popq	%rsi
+	popq	%rdi
+	popq	%rax
+	popq	%rbp
 	iretq
-
-/* SIMD floating point exception
- * RIP, CS, RFLAGS, (RSP, SS): without error code */
-_intr_simd_fpe:
+/* Double Fault (#DF) */
+	intr_exception_werror df 0x08
+/* Coprocessor Segment Overrun */
+	intr_exception_generic cso 0x09
+/* Invalid TSS (#TS) */
+	intr_exception_werror invtss 0x0a
+/* Segment Not Present (#NP) */
+	intr_exception_werror snpf 0x0b
+/* Stack-Segment Fault (#SS) */
+	intr_exception_werror ssf 0x0c
+/* General Protection Fault (#GP) */
+	intr_exception_werror gpf 0x0d
+/* Page Fault (#PF) */
+_intr_pf:
+	pushq	%rbp
+	movq	%rsp,%rbp
+	pushq	%rax
+	pushq	%rdi
+	pushq	%rsi
+	pushq	%rdx
+	pushq	%rcx
+	pushq	%r8
+	pushq	%r9
+	pushq	%r10
+	pushq	%r11
+	pushq	%rbx
+	movq	%cr2,%rdi	/* virtual address */
+	movq	8(%rbp),%rsi	/* error code */
+	movq	16(%rbp),%rdx	/* rip */
+	movq	24(%rbp),%rcx	/* cs */
+	movq	32(%rbp),%r8	/* rflags */
+	movq	40(%rbp),%r9	/* rsp */
+	/* 48(%rbp): ss */
+	call	_isr_page_fault
+	popq	%rbx
+	popq	%r11
+	popq	%r10
+	popq	%r9
+	popq	%r8
+	popq	%rcx
+	popq	%rdx
+	popq	%rsi
+	popq	%rdi
+	popq	%rax
+	popq	%rbp
+	addq	$0x8,%rsp
 	iretq
+/* x87 Floating-Point Exception (#MF) */
+	intr_exception_generic x87_fpe 0x10
+/* Alignment Check (#AC) */
+	intr_exception_werror acf 0x11
+/* Machine Check (#MC) */
+	intr_exception_generic mca 0x12
+/* SIMD Floating-Point Exception (#XM/#XF) */
+	intr_exception_generic simd_fpe 0x13
+/* Virtualization Exception (#VE) */
+	intr_exception_generic vef 0x14
+/* Security Exception (#SX) */
+	intr_exception_werror se 0x1e
 
 
 /* macro to save registers to the stackframe and call the interrupt handler */
@@ -794,9 +865,14 @@ _intr_simd_fpe:
 	pushq	%rbp
 	pushw	%fs
 	pushw	%gs
+	/* Set CR0.TS */
+	movq	%cr0,%rax
+	bts	$3,%rax
+	movq	%rax,%cr0
 	/* Call kernel function for ISR */
 	movq	$\vec,%rdi
 	callq	_kintr_isr
+	clts
 	/* EOI for the local APIC */
 	movq	$MSR_APIC_BASE,%rcx
 	rdmsr			/* Read APIC info to [%edx:%eax]; N.B., higer */
@@ -832,8 +908,8 @@ _intr_simd_fpe:
 .endm
 
 .macro	intr_lapic_isr_generic vec
-	.globl	_intr_apic_\vec
-_intr_apic_\vec:
+	.globl	_intr_driver_\vec
+_intr_driver_\vec:
 	intr_lapic_isr	\vec
 	jmp	_task_restart
 .endm
@@ -1010,7 +1086,8 @@ _task_restart:
 	/* Calculate the processor data space from the APIC ID */
 	movq	$CPU_DATA_SIZE,%rbx
 	mulq	%rbx		/* [%rdx:%rax] = %rax * %rbx */
-	addq	$CPU_DATA_BASE,%rax
+	movabs	$CPU_DATA_BASE,%rdx
+	addq	%rdx,%rax
 	movq	%rax,%rbp
 	/* If the next task is not scheduled, immediately restart this task */
 	cmpq	$0,CPU_NEXT_TASK_OFFSET(%rbp)
@@ -1022,6 +1099,12 @@ _task_restart:
 	/* Save the stack pointer (restart point) */
 	movq	CPU_CUR_TASK_OFFSET(%rbp),%rax
 	movq	%rsp,TASK_RP(%rax)
+	/* Save the FPU/SSE registers */
+	movq	TASK_XREGS(%rax),%rdi
+	movq	$5,%rax
+	movq	$0,%rdx
+	xsave64	(%rdi)
+	clts
 1:
 	/* Notify that the current task is switched (to the kernel) */
 	movq	CPU_CUR_TASK_OFFSET(%rbp),%rdi
@@ -1033,8 +1116,13 @@ _task_restart:
 	movq	TASK_RP(%rax),%rsp
 	movq	$0,CPU_NEXT_TASK_OFFSET(%rbp)
 	/* Change page table */
-	movq	TASK_CR3(%rax),%rax
-	movq	%rax,%cr3
+	movq	TASK_CR3(%rax),%rdx
+	movq	%rdx,%cr3
+	/* Restore FPU/SSE registers */
+	movq	TASK_XREGS(%rax),%rdi
+	movq	$5,%rax
+	movq	$0,%rdx
+	xrstor64	(%rdi)
 	/* Setup sp0 in TSS */
 	movq	CPU_CUR_TASK_OFFSET(%rbp),%rax
 	movq	TASK_SP0(%rax),%rdx
@@ -1050,6 +1138,11 @@ _task_replace:
 	/* Change page table */
 	movq	TASK_CR3(%rdi),%rax
 	movq	%rax,%cr3
+	/* Restore FPU/SSE registers */
+	movq	TASK_XREGS(%rdi),%rbx
+	movq	$5,%rax
+	movq	$0,%rdx
+	xrstor64	(%rbx)
 	/* Get the APIC ID */
 	movq	$MSR_APIC_BASE,%rcx
 	rdmsr
@@ -1061,7 +1154,8 @@ _task_replace:
 	/* Calculate the processor data space from the APIC ID */
 	movq	$CPU_DATA_SIZE,%rbx
 	mulq	%rbx		/* [%rdx:%rax] = %rax * %rbx */
-	addq	$CPU_DATA_BASE,%rax
+	movabs	$CPU_DATA_BASE,%rdx
+	addq	%rdx,%rax
 	movq	%rax,%rbp
 	/* Setup sp0 in TSS */
 	movq	TASK_SP0(%rdi),%rdx
@@ -1135,9 +1229,3 @@ _vmx_vm_exit_handler_resume:
 1:
 	movq	$-1, %rax
 	ret
-
-	.data
-syscall_table:
-	.quad	0
-syscall_nr:
-	.quad	0

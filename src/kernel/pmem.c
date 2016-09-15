@@ -24,7 +24,7 @@
 #include <aos/const.h>
 #include "kernel.h"
 
-extern struct kmem *g_kmem;
+//extern struct kmem *g_kmem;
 
 /* Prototype declarations of static functions */
 static int _pmem_buddy_split(struct pmem *, struct pmem_buddy *, int);
@@ -89,7 +89,7 @@ pmem_alloc_pages(int zone, int order)
         pmem->pages[idx + i].flags |= PMEM_USED;
     }
 
-    return (void *)PAGE_ADDR(idx);
+    return (void *)PHYS_PAGE_ADDR(idx);
 }
 
 /*
@@ -162,7 +162,7 @@ pmem_free_pages(void *a)
     pmem = g_kmem->pmem;
 
     /* Get the index of the first page of the memory space to be released */
-    idx = PAGE_INDEX(a);
+    idx = PHYS_PAGE_INDEX(a);
 
     /* Check if the page index is within the physical memory space */
     if ( (size_t)idx >= pmem->nr ) {
@@ -279,7 +279,7 @@ _pmem_buddy_merge(struct pmem *pmem, struct pmem_buddy *buddy,
     }
 
     /* Get the first page of the buddy at the upper order */
-    p0 = &pmem->pages[FLOOR(pi, PAGESIZE)];
+    p0 = &pmem->pages[FLOOR(pi, PHYS_PAGESIZE)];
 
     /* Get the neighboring buddy */
     p1 = p0 + (1ULL << o);

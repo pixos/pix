@@ -114,8 +114,9 @@ gdt_init(void)
     gdt_setup_desc(&gdt[1], 0, 0xfffff, code, 0, 1, 0, 1); /* Ring 0 code */
     gdt_setup_desc(&gdt[2], 0, 0xfffff, data, 0, 1, 0, 1); /* Ring 0 data */
     gdt_setup_desc(&gdt[3], 0, 0xfffff, code, 3, 0, 1, 1); /* Ring 3 code */
-    gdt_setup_desc(&gdt[4], 0, 0xfffff, data, 3, 1, 0, 1); /* Ring 3 data */
+    gdt_setup_desc(&gdt[4], 0, 0xfffff, data, 3, 0, 1, 1); /* Ring 3 data */
     gdt_setup_desc(&gdt[5], 0, 0xfffff, code, 3, 1, 0, 1); /* Ring 3 code */
+    gdt_setup_desc(&gdt[6], 0, 0xfffff, data, 3, 1, 0, 1); /* Ring 3 data */
 
     /* TSS */
     tss = (struct gdt_desc_tss *)(GDT_ADDR + GDT_TSS_SEL_BASE);
@@ -159,7 +160,7 @@ idt_setup_gate_desc(struct idt_gate_desc *idt, u64 base, u16 selector, u8 flags)
 }
 
 /*
- * Setup interrupt gate of interrupt descriptor table
+ * Setup an interrupt gate in the interrupt descriptor table
  */
 void
 idt_setup_intr_gate(int nr, void *target)
@@ -170,6 +171,20 @@ idt_setup_intr_gate(int nr, void *target)
                                    + nr * sizeof(struct idt_gate_desc));
     idt_setup_gate_desc(idt, (u64)target, GDT_RING0_CODE_SEL,
                         IDT_PRESENT | IDT_INTGATE);
+}
+
+/*
+ * Setup a trap gate in the interrupt descriptor table
+ */
+void
+idt_setup_trap_gate(int nr, void *target)
+{
+    struct idt_gate_desc *idt;
+
+    idt = (struct idt_gate_desc *)(IDT_ADDR
+                                   + nr * sizeof(struct idt_gate_desc));
+    idt_setup_gate_desc(idt, (u64)target, GDT_RING0_CODE_SEL,
+                        IDT_PRESENT | IDT_TRAPGATE);
 }
 
 /*

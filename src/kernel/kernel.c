@@ -22,10 +22,44 @@
  */
 
 #include <aos/const.h>
+#include <sys/syscall.h>
 #include "kernel.h"
 
-struct proc_table *proc_table;
-struct ktask_root *ktask_root;
+void
+kinit(void)
+{
+    int i;
+
+    /* Check the kernel variable size */
+    if ( sizeof(struct kernel_variables) > KVAR_SIZE ) {
+        panic("Invalid struct kernel_variable size.");
+    }
+
+    /* Setup system calls */
+    for ( i = 0; i < SYS_MAXSYSCALL; i++ ) {
+        g_syscall_table[i] = NULL;
+    }
+    g_syscall_table[SYS_exit] = sys_exit;
+    g_syscall_table[SYS_fork] = sys_fork;
+    g_syscall_table[SYS_read] = sys_read;
+    g_syscall_table[SYS_write] = sys_write;
+    g_syscall_table[SYS_open] = sys_open;
+    g_syscall_table[SYS_close] = sys_close;
+    g_syscall_table[SYS_wait4] = sys_wait4;
+    g_syscall_table[SYS_getpid] = sys_getpid;
+    g_syscall_table[SYS_getuid] = sys_getuid;
+    g_syscall_table[SYS_kill] = sys_kill;
+    g_syscall_table[SYS_getppid] = sys_getppid;
+    g_syscall_table[SYS_getgid] = sys_getgid;
+    g_syscall_table[SYS_execve] = sys_execve;
+    g_syscall_table[SYS_mmap] = sys_mmap;
+    g_syscall_table[SYS_munmap] = sys_munmap;
+    g_syscall_table[SYS_lseek] = sys_lseek;
+    g_syscall_table[SYS_sysarch] = sys_sysarch;
+
+    syscall_setup(g_syscall_table, SYS_MAXSYSCALL);
+}
+
 
 /*
  * Entry point to the kernel in C for all processors, called from asm.s.

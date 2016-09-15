@@ -24,7 +24,6 @@
 #include <aos/const.h>
 #include "kernel.h"
 
-struct kmem *g_kmem;
 
 /* Prototype declarations of static functions */
 static void * _kmalloc_slab(struct kmem *, size_t);
@@ -196,7 +195,7 @@ _kmalloc_slab_new(struct kmem *kmem, size_t o)
     s = (1ULL << (o + KMEM_SLAB_BASE_ORDER + KMEM_SLAB_NR_OBJ_ORDER))
         + sizeof(struct kmem_slab);
     /* Align the page to fit to the buddy system, and get the order */
-    nr = DIV_CEIL(s, PAGESIZE);
+    nr = DIV_CEIL(s, KERN_PAGESIZE);
     /* Allocate pages */
     hdr = kmem_alloc_pages(kmem, nr);
     if ( NULL == hdr ) {
@@ -204,13 +203,13 @@ _kmalloc_slab_new(struct kmem *kmem, size_t o)
     }
     /* Calculate the number of slab objects in this block; N.B., + 1 in the
        denominator is the `marks' for each objects. */
-    hdr->nr = (nr * PAGESIZE - sizeof(struct kmem_slab))
+    hdr->nr = (nr * KERN_PAGESIZE - sizeof(struct kmem_slab))
         / ((1ULL << (o + KMEM_SLAB_BASE_ORDER)) + 1);
     /* Reset counters */
     hdr->nused = 0;
     hdr->free = 0;
     /* Set the address of the first slab object */
-    hdr->obj_head = (void *)((u64)hdr + (nr * PAGESIZE)
+    hdr->obj_head = (void *)((u64)hdr + (nr * KERN_PAGESIZE)
                              - ((1ULL << (o + KMEM_SLAB_BASE_ORDER))
                                 * hdr->nr));
     /* Reset marks and next cache */
@@ -258,7 +257,7 @@ _kmalloc_pages(struct kmem *kmem, size_t size)
     spin_lock(&kmem->slab_lock);
 
     /* Large object: Page allocator */
-    ptr = kmem_alloc_pages(kmem, DIV_CEIL(size, PAGESIZE));
+    ptr = kmem_alloc_pages(kmem, DIV_CEIL(size, KERN_PAGESIZE));
 
     /* Unlock */
     spin_unlock(&kmem->slab_lock);
@@ -292,9 +291,9 @@ kfree(void *ptr)
     /* Lock */
     spin_lock(&g_kmem->slab_lock);
 
-    if ( 0 == (u64)ptr % SUPERPAGESIZE ) {
+    if ( 0 == (u64)ptr % KERN_PAGESIZE ) {
         /* Free pages */
-        //kmem_free_pages(ptr);
+        //kmem_free_pages(g_kmem, ptr);
     } else {
         /* Search for each order */
         for ( i = 0; i < KMEM_SLAB_BASE_ORDER; i++ ) {

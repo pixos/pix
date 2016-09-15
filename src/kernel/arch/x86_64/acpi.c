@@ -37,6 +37,7 @@ static int _parse_fadt(struct acpi *, struct acpi_sdt_hdr *);
 static int _parse_rsdt(struct acpi *, struct acpi_rsdp *);
 static int _rsdp_search_range(struct acpi *, u64, u64);
 
+static u64 acpi_pm_tmr_port;
 
 /*
  * Validate ACPI checksum: Since the ACPI checksum is a one-byte modular sum,
@@ -64,7 +65,7 @@ _validate_checksum(const u8 *ptr, int len)
 int
 acpi_timer_available(struct acpi *acpi)
 {
-    if ( 0 == acpi->acpi_pm_tmr_port ) {
+    if ( 0 == acpi_pm_tmr_port ) {
         return -1;
     }
 
@@ -79,7 +80,7 @@ acpi_timer_available(struct acpi *acpi)
 u32
 acpi_get_timer(struct acpi *acpi)
 {
-    return inl(acpi->acpi_pm_tmr_port);
+    return inl(acpi_pm_tmr_port);
 }
 
 /*
@@ -209,9 +210,9 @@ _parse_fadt(struct acpi *acpi, struct acpi_sdt_hdr *sdt)
         /* FADT revision 2.0 or higher */
         if ( fadt->x_pm_timer_block.addr_space == 1 ) {
             /* Must be 1 (System I/O) */
-            acpi->acpi_pm_tmr_port = fadt->x_pm_timer_block.addr;
-            if ( !acpi->acpi_pm_tmr_port ) {
-                acpi->acpi_pm_tmr_port = fadt->pm_timer_block;
+            acpi_pm_tmr_port = fadt->x_pm_timer_block.addr;
+            if ( !acpi_pm_tmr_port ) {
+                acpi_pm_tmr_port = fadt->pm_timer_block;
             }
         }
 
@@ -240,7 +241,7 @@ _parse_fadt(struct acpi *acpi, struct acpi_sdt_hdr *sdt)
         }
     } else {
         /* Revision  */
-        acpi->acpi_pm_tmr_port = fadt->pm_timer_block;
+        acpi_pm_tmr_port = fadt->pm_timer_block;
 
         /* PM1a control block  */
         acpi->acpi_pm1a_ctrl_block = fadt->pm1a_ctrl_block;
@@ -417,6 +418,7 @@ acpi_load(struct acpi *acpi)
 
     /* Reset the data structure */
     kmemset(acpi, 0, sizeof(struct acpi));
+    acpi_pm_tmr_port = 0;
 
     /* Check 1KB of EBDA, first */
     ebda = *(u16 *)BDA_EDBA;

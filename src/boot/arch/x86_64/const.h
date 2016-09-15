@@ -215,7 +215,7 @@ struct bootinfo {
 
 #define BOOTMON_SEG             0x0900  /* Memory where to load boot monitor */
 #define BOOTMON_OFF             0x0000  /*  segment and offset [0900:0000] */
-#define BOOTMON_SIZE            0x000f  /* Boot monitor size in sector */
+#define BOOTMON_SIZE            0x0037  /* Boot monitor size in sector */
 
 #endif
 

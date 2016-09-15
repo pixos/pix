@@ -1,5 +1,5 @@
 /*_
- * Copyright (c) 2015 Hirochika Asai <asai@jar.jp>
+ * Copyright (c) 2015-2016 Hirochika Asai <asai@jar.jp>
  * All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -21,6 +21,8 @@
  * SOFTWARE.
  */
 
+#include "const.h"
+
 	.text
 
 	.code64
@@ -32,7 +34,7 @@
 entry64:
 	cli
 
-	movl	$0x20,%eax
+	movl	$GDT_DATA64,%eax
 	movl	%eax,%ss
 	movl	%eax,%ds
 	xorl	%eax,%eax

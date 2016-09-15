@@ -92,8 +92,9 @@ sys_fork_c(u64 *task, u64 *ret0, u64 *ret1)
     /* Search an available process ID */
     pid = -1;
     for ( i = 0; i < PROC_NR; i++ ) {
-        if ( NULL == proc_table->procs[(proc_table->lastpid + i) % PROC_NR] ) {
-            pid = (proc_table->lastpid + i) % PROC_NR;
+        if ( NULL
+             == g_proc_table->procs[(g_proc_table->lastpid + i) % PROC_NR] ) {
+            pid = (g_proc_table->lastpid + i) % PROC_NR;
             break;
         }
     }
@@ -114,19 +115,19 @@ sys_fork_c(u64 *task, u64 *ret0, u64 *ret1)
         kfree(l);
         return -1;
     }
-    proc_table->procs[pid] = np;
-    proc_table->lastpid = pid;
+    g_proc_table->procs[pid] = np;
+    g_proc_table->lastpid = pid;
 
     /* Kernel task (running) */
     l->ktask = nt;
     l->next = NULL;
     /* Push */
-    if ( NULL == ktask_root->r.head ) {
-        ktask_root->r.head = l;
-        ktask_root->r.tail = l;
+    if ( NULL == g_ktask_root->r.head ) {
+        g_ktask_root->r.head = l;
+        g_ktask_root->r.tail = l;
     } else {
-        ktask_root->r.tail->next = l;
-        ktask_root->r.tail = l;
+        g_ktask_root->r.tail->next = l;
+        g_ktask_root->r.tail = l;
     }
 
     *task = (u64)nt->arch;
@@ -161,7 +162,7 @@ sys_read(int fildes, void *buf, size_t nbyte)
 
     s = "read";
 
-    video = (u16 *)0xb8000;
+    video = (u16 *)0xc00b8000;
     for ( i = 0; i < 80 * 25; i++ ) {
         //*(video + i) = 0xe000;
         *(video + i) = 0x2000;
@@ -201,7 +202,7 @@ sys_write(int fildes, const void *buf, size_t nbyte)
 
     s = "write";
 
-    video = (u16 *)0xb8000;
+    video = (u16 *)0xc00b8000;
     for ( i = 0; i < 80 * 25; i++ ) {
         *(video + i) = 0xe000;
         //*(video + i) = 0x2000;
@@ -254,7 +255,7 @@ sys_write(int fildes, const void *buf, size_t nbyte)
 int
 sys_open(const char *path, int oflag, ...)
 {
-    u64 *initramfs = (u64 *)INITRAMFS_BASE;
+    u64 *initramfs = (u64 *)(INITRAMFS_BASE + 0xc0000000);
     u64 offset = 0;
     u64 size;
     struct ktask *t;
@@ -335,7 +336,7 @@ sys_wait4(pid_t pid, int *stat_loc, int options, struct rusage *rusage)
     int i;
     char *s = "sys_wait4";
 
-    video = (u16 *)0xb8000;
+    video = (u16 *)0xc00b8000;
     for ( i = 0; i < 80 * 25; i++ ) {
         *(video + i) = 0xe000;
     }
@@ -558,7 +559,7 @@ int arch_exec(void *, void (*)(void), size_t, int, char *const [],
 int
 sys_execve(const char *path, char *const argv[], char *const envp[])
 {
-    u64 *initramfs = (u64 *)INITRAMFS_BASE;
+    u64 *initramfs = (u64 *)(INITRAMFS_BASE + 0xc0000000);
     u64 offset = 0;
     u64 size;
     struct ktask *t;
@@ -578,7 +579,7 @@ sys_execve(const char *path, char *const argv[], char *const envp[])
     }
 
     t = this_ktask();
-    arch_exec(t->arch, (void *)(INITRAMFS_BASE + offset), size,
+    arch_exec(t->arch, (void *)(INITRAMFS_BASE + 0xc0000000 + offset), size,
               KTASK_POLICY_USER, argv, envp);
 
     /* On failure */

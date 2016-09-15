@@ -27,7 +27,7 @@
 #include "memory.h"
 
 /* Kernel memory */
-extern struct kmem *g_kmem;
+//extern struct kmem *g_kmem;
 
 /*
  * Create a new task
@@ -42,9 +42,18 @@ task_new(void)
     if ( NULL == t ) {
         return NULL;
     }
+    /* Create a space for FPU/SSE registers */
+    t->xregs = kmalloc(4096);
+    if ( NULL == t->xregs ) {
+        kfree(t);
+        return NULL;
+    }
+    kmemset(t->xregs, 0, 4096);
+    xsave(t->xregs, 5, 0);
     /* Allocate the kernel task structure of a new task */
     t->kstack = kmalloc(KSTACK_SIZE);
     if ( NULL == t->kstack ) {
+        kfree(t->xregs);
         kfree(t);
         return NULL;
     }
@@ -52,6 +61,7 @@ task_new(void)
     t->ustack = kmalloc(USTACK_SIZE);
     if ( NULL == t->ustack ) {
         kfree(t->kstack);
+        kfree(t->xregs);
         kfree(t);
         return NULL;
     }
@@ -60,6 +70,7 @@ task_new(void)
     if ( NULL == t->ktask ) {
         kfree(t->ustack);
         kfree(t->kstack);
+        kfree(t->xregs);
         kfree(t);
         return NULL;
     }
@@ -101,9 +112,19 @@ proc_fork(struct proc *op, struct ktask *ot, struct ktask **ntp)
         kfree(np);
         return NULL;
     }
+    /* Create a space for FPU/SSE registers */
+    t->xregs = kmalloc(4096);
+    if ( NULL == t->xregs ) {
+        kfree(t);
+        kfree(np);
+        return NULL;
+    }
+    kmemset(t->xregs, 0, 4096);
+    xsave(t->xregs, 5, 0);
     /* Allocate the kernel task structure of a new task */
     t->kstack = kmalloc(KSTACK_SIZE);
     if ( NULL == t->kstack ) {
+        kfree(t->xregs);
         kfree(t);
         kfree(np);
         return NULL;
@@ -112,6 +133,7 @@ proc_fork(struct proc *op, struct ktask *ot, struct ktask **ntp)
     t->ktask = kmalloc(sizeof(struct ktask));
     if ( NULL == t->ktask ) {
         kfree(t->kstack);
+        kfree(t->xregs);
         kfree(t);
         kfree(np);
         return NULL;
@@ -123,10 +145,11 @@ proc_fork(struct proc *op, struct ktask *ot, struct ktask **ntp)
     t->ktask->next = NULL;
     /* Allocate the user stack of a new task */
     paddr1 = pmem_alloc_pages(PMEM_ZONE_LOWMEM,
-                              bitwidth(USTACK_SIZE / PAGESIZE));
+                              bitwidth(USTACK_SIZE / PHYS_PAGESIZE));
     if ( NULL == paddr1 ) {
         kfree(t->ktask);
         kfree(t->kstack);
+        kfree(t->xregs);
         kfree(t);
         kfree(np);
         return NULL;
@@ -138,16 +161,18 @@ proc_fork(struct proc *op, struct ktask *ot, struct ktask **ntp)
         pmem_free_pages(paddr1);
         kfree(t->ktask);
         kfree(t->kstack);
+        kfree(t->xregs);
         kfree(t);
         kfree(np);
         return NULL;
     }
     paddr2 = pmem_alloc_pages(PMEM_ZONE_LOWMEM,
-                              bitwidth(DIV_CEIL(size, PAGESIZE)));
+                              bitwidth(DIV_CEIL(size, PHYS_PAGESIZE)));
     if ( NULL == paddr2 ) {
         pmem_free_pages(paddr1);
         kfree(t->ktask);
         kfree(t->kstack);
+        kfree(t->xregs);
         kfree(t);
         kfree(np);
         return NULL;
@@ -155,12 +180,13 @@ proc_fork(struct proc *op, struct ktask *ot, struct ktask **ntp)
     np->code_paddr = paddr2;
 
     t->ustack = ((struct arch_task *)ot->arch)->ustack;
-    exec = kmalloc(CEIL(size, PAGESIZE));
+    exec = kmalloc(CEIL(size, SUPERPAGESIZE));
     if ( NULL == exec ) {
         pmem_free_pages(paddr2);
         pmem_free_pages(paddr1);
         kfree(t->ktask);
         kfree(t->kstack);
+        kfree(t->xregs);
         kfree(t);
         kfree(np);
         return NULL;
@@ -180,23 +206,26 @@ proc_fork(struct proc *op, struct ktask *ot, struct ktask **ntp)
         pmem_free_pages(paddr1);
         kfree(t->ktask);
         kfree(t->kstack);
+        kfree(t->xregs);
         kfree(t);
         kfree(np);
         return NULL;
     }
 
     /* FIXME: Tempoary... */
-    for ( i = 0; i < (ssize_t)(USTACK_SIZE / PAGESIZE); i++ ) {
-        ret = arch_vmem_map(np->vmem, t->ustack + PAGE_ADDR(i),
-                            paddr1 + PAGE_ADDR(i), VMEM_USABLE | VMEM_USED);
+    for ( i = 0; i < (ssize_t)(USTACK_SIZE / SUPERPAGESIZE); i++ ) {
+        ret = arch_vmem_map(np->vmem, t->ustack + SUPERPAGE_ADDR(i),
+                            paddr1 + SUPERPAGE_ADDR(i),
+                            VMEM_USABLE | VMEM_USED | VMEM_SUPERPAGE);
         if ( ret < 0 ) {
             /* FIXME: Handle this error */
             panic("FIXME a");
         }
     }
-    for ( i = 0; i < (ssize_t)DIV_CEIL(size, PAGESIZE); i++ ) {
-        ret = arch_vmem_map(np->vmem, (void *)(CODE_INIT + PAGESIZE * i),
-                            paddr2 + PAGESIZE * i, VMEM_USABLE | VMEM_USED);
+    for ( i = 0; i < (ssize_t)DIV_CEIL(size, SUPERPAGESIZE); i++ ) {
+        ret = arch_vmem_map(np->vmem, (void *)(CODE_INIT + SUPERPAGESIZE * i),
+                            paddr2 + SUPERPAGESIZE * i,
+                            VMEM_USABLE | VMEM_USED | VMEM_SUPERPAGE);
         if ( ret < 0 ) {
             /* FIXME: Handle this error */
             panic("FIXME b");
@@ -213,9 +242,10 @@ proc_fork(struct proc *op, struct ktask *ot, struct ktask **ntp)
        pages of the user stack of new process to a certain virtual memory space,
        and copies the stack there. */
     void *ustack2copy = (void *)0x90000000ULL;
-    for ( i = 0; i < (ssize_t)(USTACK_SIZE / PAGESIZE); i++ ) {
-        ret = arch_vmem_map(op->vmem, ustack2copy + PAGE_ADDR(i),
-                            paddr1 + PAGE_ADDR(i), VMEM_USABLE | VMEM_USED);
+    for ( i = 0; i < (ssize_t)(USTACK_SIZE / SUPERPAGESIZE); i++ ) {
+        ret = arch_vmem_map(op->vmem, ustack2copy + SUPERPAGE_ADDR(i),
+                            paddr1 + SUPERPAGE_ADDR(i),
+                            VMEM_USABLE | VMEM_USED | VMEM_SUPERPAGE);
         if ( ret < 0 ) {
             /* FIXME: Handle this error */
             panic("FIXME c");
@@ -263,11 +293,21 @@ task_create_idle(void)
     kmemset(t, 0, sizeof(struct arch_task));
 
     /* Page table for the kernel */
-    t->cr3 = ((struct arch_vmem_space *)g_kmem->space->arch)->pgt;
+    t->cr3 = ((struct arch_kmem_space *)g_kmem->space->arch)->cr3;
+
+    /* Create a space for FPU/SSE registers */
+    t->xregs = kmalloc(4096);
+    if ( NULL == t->xregs ) {
+        kfree(t);
+        return NULL;
+    }
+    kmemset(t->xregs, 0, 4096);
+    xsave(t->xregs, 5, 0);
 
     /* Kernel stack */
     t->kstack = kmalloc(KSTACK_SIZE);
     if ( NULL == t->kstack ) {
+        kfree(t->xregs);
         kfree(t);
         return NULL;
     }
@@ -277,6 +317,7 @@ task_create_idle(void)
     t->ustack = kmalloc(USTACK_SIZE);
     if ( NULL == t->ustack ) {
         kfree(t->kstack);
+        kfree(t->xregs);
         kfree(t);
         return NULL;
     }
@@ -287,6 +328,7 @@ task_create_idle(void)
     if ( NULL == t->ktask ) {
         kfree(t->ustack);
         kfree(t->kstack);
+        kfree(t->xregs);
         kfree(t);
         return NULL;
     }
@@ -323,7 +365,7 @@ task_create_idle(void)
 int
 proc_create(const char *path, const char *name, pid_t pid)
 {
-    u64 *initramfs = (u64 *)INITRAMFS_BASE;
+    u64 *initramfs = (u64 *)KMEM_P2V(INITRAMFS_BASE);
     u64 offset = 0;
     u64 size;
     struct arch_task *t;
@@ -341,7 +383,7 @@ proc_create(const char *path, const char *name, pid_t pid)
     ssize_t i;
 
     /* Check the process table first */
-    if ( NULL != proc_table->procs[pid] ) {
+    if ( NULL != g_proc_table->procs[pid] ) {
         /* The process is already exists */
         return -1;
     }
@@ -381,8 +423,8 @@ proc_create(const char *path, const char *name, pid_t pid)
     proc->code_size = size;
 
     /* Process table */
-    proc_table->procs[pid] = proc;
-    proc_table->lastpid = pid;
+    g_proc_table->procs[pid] = proc;
+    g_proc_table->lastpid = pid;
 
     /* Create an architecture-specific task data structure */
     t = kmalloc(sizeof(struct arch_task));
@@ -391,10 +433,18 @@ proc_create(const char *path, const char *name, pid_t pid)
     }
     kmemset(t, 0, sizeof(struct arch_task));
 
+    /* Create a space for FPU/SSE registers */
+    t->xregs = kmalloc(4096);
+    if ( NULL == t->xregs ) {
+        goto error_task;
+    }
+    kmemset(t->xregs, 0, 4096);
+    xsave(t->xregs, 5, 0);
+
     /* Create a task */
     t->ktask = kmalloc(sizeof(struct ktask));
     if ( NULL == t->ktask ) {
-        goto error_task;
+        goto error_xregs;
     }
     kmemset(t->ktask, 0, sizeof(struct ktask));
     t->ktask->arch = t;
@@ -410,14 +460,14 @@ proc_create(const char *path, const char *name, pid_t pid)
 
     /* Prepare the user stack */
     ppage1 = pmem_alloc_pages(PMEM_ZONE_LOWMEM,
-                              bitwidth(USTACK_SIZE / PAGESIZE));
+                              bitwidth(USTACK_SIZE / PHYS_PAGESIZE));
     if ( NULL == ppage1 ) {
         goto error_ustack;
     }
 
     /* Prepare exec */
     ppage2 = pmem_alloc_pages(PMEM_ZONE_LOWMEM,
-                              bitwidth(DIV_CEIL(size, PAGESIZE)));
+                              bitwidth(DIV_CEIL(size, PHYS_PAGESIZE)));
     if ( NULL == ppage2 ) {
         goto error_exec;
         return -1;
@@ -426,18 +476,20 @@ proc_create(const char *path, const char *name, pid_t pid)
 
     /* Set user stack */
     t->ustack = (void *)USTACK_INIT;
-    for ( i = 0; i < (ssize_t)(USTACK_SIZE / PAGESIZE); i++ ) {
-        ret = arch_vmem_map(proc->vmem, t->ustack + PAGE_ADDR(i),
-                            ppage1 + PAGE_ADDR(i), VMEM_USABLE | VMEM_USED);
+    for ( i = 0; i < (ssize_t)(USTACK_SIZE / SUPERPAGESIZE); i++ ) {
+        ret = arch_vmem_map(proc->vmem, t->ustack + SUPERPAGE_ADDR(i),
+                            ppage1 + SUPERPAGE_ADDR(i),
+                            VMEM_USABLE | VMEM_USED | VMEM_SUPERPAGE);
         if ( ret < 0 ) {
             /* FIXME: Handle this error */
             panic("FIXME 1");
         }
     }
     exec = (void *)CODE_INIT;
-    for ( i = 0; i < (ssize_t)DIV_CEIL(size, PAGESIZE); i++ ) {
-        ret = arch_vmem_map(proc->vmem, exec + PAGESIZE * i,
-                            ppage2 + PAGESIZE * i, VMEM_USABLE | VMEM_USED);
+    for ( i = 0; i < (ssize_t)DIV_CEIL(size, SUPERPAGESIZE); i++ ) {
+        ret = arch_vmem_map(proc->vmem, exec + SUPERPAGESIZE * i,
+                            ppage2 + SUPERPAGESIZE * i,
+                            VMEM_USABLE | VMEM_USED | VMEM_SUPERPAGE);
         if ( ret < 0 ) {
             /* FIXME: Handle this error */
             panic("FIXME 2");
@@ -450,7 +502,7 @@ proc_create(const char *path, const char *name, pid_t pid)
     set_cr3(((struct arch_vmem_space *)proc->vmem->arch)->pgt);
 
     /* Copy the program from the initramfs to user space */
-    (void)kmemcpy(exec, (void *)(INITRAMFS_BASE + offset), size);
+    (void)kmemcpy(exec, (void *)(KMEM_P2V(INITRAMFS_BASE) + offset), size);
 
     /* Restore CR3 */
     set_cr3(saved_cr3);
@@ -468,12 +520,12 @@ proc_create(const char *path, const char *name, pid_t pid)
     l->ktask = t->ktask;
     l->next = NULL;
     /* Push */
-    if ( NULL == ktask_root->r.head ) {
-        ktask_root->r.head = l;
-        ktask_root->r.tail = l;
+    if ( NULL == g_ktask_root->r.head ) {
+        g_ktask_root->r.head = l;
+        g_ktask_root->r.tail = l;
     } else {
-        ktask_root->r.tail->next = l;
-        ktask_root->r.tail = l;
+        g_ktask_root->r.tail->next = l;
+        g_ktask_root->r.tail = l;
     }
 
     /* Configure the ring protection by the policy */
@@ -488,7 +540,7 @@ proc_create(const char *path, const char *name, pid_t pid)
     case KTASK_POLICY_USER:
     default:
         cs = GDT_RING3_CODE64_SEL + 3;
-        ss = GDT_RING3_DATA_SEL + 3;
+        ss = GDT_RING3_DATA64_SEL + 3;
         flags = 0x3200;
         break;
     }
@@ -513,6 +565,8 @@ error_ustack:
     kfree(t->kstack);
 error_kstack:
     kfree(t->ktask);
+error_xregs:
+    kfree(t->xregs);
 error_task:
     kfree(t);
 error_arch_task:

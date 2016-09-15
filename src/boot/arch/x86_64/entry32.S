@@ -88,9 +88,10 @@ entry32:
 
 3:
 	/* Enable PAE and SSE */
-	movl	$0x00000220,%eax	/* CR4[bit 5] = PAE */
+	movl	$0x00040220,%eax	/* CR4[bit 5] = PAE */
 	movl	%eax,%cr4		/* CR4[bit 9] = OSFXSR */
-/* Create 64bit page table */
+					/* CR4[bit 18] = OSXSAVE */
+/* Create 64-bit page table */
 pg_setup:
 	movl	$KERNEL_PGT,%ebx	/* Low 12 bit must be zero */
 	movl	%ebx,%edi
@@ -120,6 +121,16 @@ pg_setup.2:
 	addl	$0x00200000,%eax
 	loop	pg_setup.2
 
+	/* Relocate the kernel to the first 32 MiB starting at 3 GiB */
+	movl	$0x083,%eax
+	leal	0x5000(%ebx),%edi
+	movl	$16,%ecx
+pg_kernel:
+	movl	%eax,(%edi)
+	addl	$8,%edi
+	addl	$0x00200000,%eax
+	loop	pg_kernel
+
 	/* Set page table register */
 	movl	%ebx,%cr3
 
@@ -135,7 +146,7 @@ pg_setup.2:
 	movl	%eax,%cr0
 
 	/* Load code64 descriptor */
-	pushl	$0x08
+	pushl	$GDT_CODE64
 	pushl	$entry64
 	lret
 

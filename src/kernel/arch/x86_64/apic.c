@@ -40,16 +40,15 @@
 #define ICR_DEST_ALL_INC_SELF   0x00080000
 #define ICR_DEST_ALL_EX_SELF    0x000c0000
 
-u64 apic_base;
-
 /*
- * Initialize the local APIC
+ * Return the APIC_BASE address
  */
-void
-lapic_init(void)
+u64
+lapic_base_addr(void)
 {
     u32 reg;
     u64 msr;
+    u64 apic_base;
 
     /* Get the IA32_APIC_BASE */
     msr = rdmsr(APIC_MSR);
@@ -59,14 +58,7 @@ lapic_init(void)
     reg = mfread32(apic_base + APIC_SIVR);
     reg |= 0x100;       /* Bit 8: APIC Software Enable/Disable */
     mfwrite32(apic_base + APIC_SIVR, reg);
-}
 
-/*
- * Return the APIC_BASE address
- */
-u64
-lapic_base_addr(void)
-{
     return apic_base;
 }
 
@@ -78,6 +70,9 @@ lapic_send_init_ipi(void)
 {
     u32 icrl;
     u32 icrh;
+    u64 apic_base;
+
+    apic_base = lapic_base_addr();
 
     icrl = mfread32(apic_base + APIC_ICR_LOW);
     icrh = mfread32(apic_base + APIC_ICR_HIGH);
@@ -97,6 +92,9 @@ lapic_send_startup_ipi(u8 vector)
 {
     u32 icrl;
     u32 icrh;
+    u64 apic_base;
+
+    apic_base = lapic_base_addr();
 
     do {
         icrl = mfread32(apic_base + APIC_ICR_LOW);
@@ -119,6 +117,9 @@ lapic_send_fixed_ipi(u8 vector)
 {
     u32 icrl;
     u32 icrh;
+    u64 apic_base;
+
+    apic_base = lapic_base_addr();
 
     icrl = mfread32(apic_base + APIC_ICR_LOW);
     icrh = mfread32(apic_base + APIC_ICR_HIGH);
@@ -137,7 +138,9 @@ int
 lapic_id(void)
 {
     u32 reg;
+    u64 apic_base;
 
+    apic_base = lapic_base_addr();
     reg = *(u32 *)(apic_base + APIC_LAPIC_ID);
 
     return reg >> 24;
@@ -153,6 +156,9 @@ lapic_estimate_freq(void)
     u32 t1;
     u32 probe;
     u64 ret;
+    u64 apic_base;
+
+    apic_base = lapic_base_addr();
 
     /* Set probe timer */
     probe = APIC_FREQ_PROBE;
@@ -195,6 +201,9 @@ lapic_start_timer(u64 freq, u8 vec)
     /* Estimate frequency first */
     u64 busfreq;
     struct cpu_data *pdata;
+    u64 apic_base;
+
+    apic_base = lapic_base_addr();
 
     /* Get CPU frequency to this CPU data area */
     pdata = this_cpu();
@@ -212,6 +221,10 @@ lapic_start_timer(u64 freq, u8 vec)
 void
 lapic_stop_timer(void)
 {
+    u64 apic_base;
+
+    apic_base = lapic_base_addr();
+
     /* Disable timer */
     mfwrite32(apic_base + APIC_LVT_TMR, APIC_LVT_DISABLE);
 }
