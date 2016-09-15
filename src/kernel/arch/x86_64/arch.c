@@ -362,12 +362,10 @@ bsp_init(void)
         panic("Fatal: Cannot create the `pm' server.");
         return;
     }
-#if 0
     if ( proc_create("/servers/init", "init", 1) < 0 ) {
         panic("Fatal: Cannot create the `init' server.");
         return;
     }
-#endif
 
     /* Schedule the idle task */
     this_cpu()->cur_task = NULL;
@@ -502,16 +500,17 @@ arch_exec(struct arch_task *t, void (*entry)(void), size_t size, int policy,
     /* For exec */
     void *paddr;
     paddr = pmem_alloc_pages(PMEM_ZONE_LOWMEM,
-                             bitwidth(DIV_CEIL(size, PAGESIZE)));
+                             bitwidth(DIV_CEIL(size, PHYS_PAGESIZE)));
     if ( NULL == paddr ) {
         return -1;
     }
     ssize_t i;
     int ret;
-    for ( i = 0; i < (ssize_t)DIV_CEIL(size, PAGESIZE); i++ ) {
+    for ( i = 0; i < (ssize_t)DIV_CEIL(size, SUPERPAGESIZE); i++ ) {
         ret = arch_vmem_map(t->ktask->proc->vmem,
-                            (void *)(CODE_INIT + PAGESIZE * i),
-                            paddr + PAGESIZE * i, VMEM_USABLE | VMEM_USED);
+                            (void *)(CODE_INIT + SUPERPAGESIZE * i),
+                            paddr + SUPERPAGESIZE * i,
+                            VMEM_USABLE | VMEM_USED | VMEM_SUPERPAGE);
         if ( ret < 0 ) {
             /* FIXME: Handle this error */
             return -1;

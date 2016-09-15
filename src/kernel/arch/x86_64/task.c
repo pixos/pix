@@ -145,7 +145,7 @@ proc_fork(struct proc *op, struct ktask *ot, struct ktask **ntp)
     t->ktask->next = NULL;
     /* Allocate the user stack of a new task */
     paddr1 = pmem_alloc_pages(PMEM_ZONE_LOWMEM,
-                              bitwidth(USTACK_SIZE / PAGESIZE));
+                              bitwidth(USTACK_SIZE / PHYS_PAGESIZE));
     if ( NULL == paddr1 ) {
         kfree(t->ktask);
         kfree(t->kstack);
@@ -167,7 +167,7 @@ proc_fork(struct proc *op, struct ktask *ot, struct ktask **ntp)
         return NULL;
     }
     paddr2 = pmem_alloc_pages(PMEM_ZONE_LOWMEM,
-                              bitwidth(DIV_CEIL(size, PAGESIZE)));
+                              bitwidth(DIV_CEIL(size, PHYS_PAGESIZE)));
     if ( NULL == paddr2 ) {
         pmem_free_pages(paddr1);
         kfree(t->ktask);
@@ -180,7 +180,7 @@ proc_fork(struct proc *op, struct ktask *ot, struct ktask **ntp)
     np->code_paddr = paddr2;
 
     t->ustack = ((struct arch_task *)ot->arch)->ustack;
-    exec = kmalloc(CEIL(size, PAGESIZE));
+    exec = kmalloc(CEIL(size, SUPERPAGESIZE));
     if ( NULL == exec ) {
         pmem_free_pages(paddr2);
         pmem_free_pages(paddr1);
@@ -213,17 +213,19 @@ proc_fork(struct proc *op, struct ktask *ot, struct ktask **ntp)
     }
 
     /* FIXME: Tempoary... */
-    for ( i = 0; i < (ssize_t)(USTACK_SIZE / PAGESIZE); i++ ) {
-        ret = arch_vmem_map(np->vmem, t->ustack + PAGE_ADDR(i),
-                            paddr1 + PAGE_ADDR(i), VMEM_USABLE | VMEM_USED);
+    for ( i = 0; i < (ssize_t)(USTACK_SIZE / SUPERPAGESIZE); i++ ) {
+        ret = arch_vmem_map(np->vmem, t->ustack + SUPERPAGE_ADDR(i),
+                            paddr1 + SUPERPAGE_ADDR(i),
+                            VMEM_USABLE | VMEM_USED | VMEM_SUPERPAGE);
         if ( ret < 0 ) {
             /* FIXME: Handle this error */
             panic("FIXME a");
         }
     }
-    for ( i = 0; i < (ssize_t)DIV_CEIL(size, PAGESIZE); i++ ) {
-        ret = arch_vmem_map(np->vmem, (void *)(CODE_INIT + PAGESIZE * i),
-                            paddr2 + PAGESIZE * i, VMEM_USABLE | VMEM_USED);
+    for ( i = 0; i < (ssize_t)DIV_CEIL(size, SUPERPAGESIZE); i++ ) {
+        ret = arch_vmem_map(np->vmem, (void *)(CODE_INIT + SUPERPAGESIZE * i),
+                            paddr2 + SUPERPAGESIZE * i,
+                            VMEM_USABLE | VMEM_USED | VMEM_SUPERPAGE);
         if ( ret < 0 ) {
             /* FIXME: Handle this error */
             panic("FIXME b");
@@ -240,9 +242,10 @@ proc_fork(struct proc *op, struct ktask *ot, struct ktask **ntp)
        pages of the user stack of new process to a certain virtual memory space,
        and copies the stack there. */
     void *ustack2copy = (void *)0x90000000ULL;
-    for ( i = 0; i < (ssize_t)(USTACK_SIZE / PAGESIZE); i++ ) {
-        ret = arch_vmem_map(op->vmem, ustack2copy + PAGE_ADDR(i),
-                            paddr1 + PAGE_ADDR(i), VMEM_USABLE | VMEM_USED);
+    for ( i = 0; i < (ssize_t)(USTACK_SIZE / SUPERPAGESIZE); i++ ) {
+        ret = arch_vmem_map(op->vmem, ustack2copy + SUPERPAGE_ADDR(i),
+                            paddr1 + SUPERPAGE_ADDR(i),
+                            VMEM_USABLE | VMEM_USED | VMEM_SUPERPAGE);
         if ( ret < 0 ) {
             /* FIXME: Handle this error */
             panic("FIXME c");

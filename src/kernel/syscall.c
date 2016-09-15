@@ -255,7 +255,7 @@ sys_write(int fildes, const void *buf, size_t nbyte)
 int
 sys_open(const char *path, int oflag, ...)
 {
-    u64 *initramfs = (u64 *)INITRAMFS_BASE + 0xc0000000;
+    u64 *initramfs = (u64 *)(INITRAMFS_BASE + 0xc0000000);
     u64 offset = 0;
     u64 size;
     struct ktask *t;
@@ -559,7 +559,7 @@ int arch_exec(void *, void (*)(void), size_t, int, char *const [],
 int
 sys_execve(const char *path, char *const argv[], char *const envp[])
 {
-    u64 *initramfs = (u64 *)INITRAMFS_BASE;
+    u64 *initramfs = (u64 *)(INITRAMFS_BASE + 0xc0000000);
     u64 offset = 0;
     u64 size;
     struct ktask *t;
@@ -579,7 +579,7 @@ sys_execve(const char *path, char *const argv[], char *const envp[])
     }
 
     t = this_ktask();
-    arch_exec(t->arch, (void *)(INITRAMFS_BASE + offset), size,
+    arch_exec(t->arch, (void *)(INITRAMFS_BASE + 0xc0000000 + offset), size,
               KTASK_POLICY_USER, argv, envp);
 
     /* On failure */

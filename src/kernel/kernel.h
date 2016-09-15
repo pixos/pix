@@ -126,7 +126,7 @@
 #define INITRAMFS_BASE          0x30000ULL
 #define USTACK_INIT             0xbfe00000ULL
 #define CODE_INIT               0x40000000ULL
-#define KSTACK_SIZE             4096
+#define KSTACK_SIZE             (4096 * 512)
 #define USTACK_SIZE             (4096 * 512)
 
 /* Process table size */
