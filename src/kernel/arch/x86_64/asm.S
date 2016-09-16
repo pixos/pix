@@ -95,6 +95,7 @@
 	.globl	_intr_vef
 	.globl	_intr_se
 	.globl	_intr_apic_loc_tmr
+	.globl	_intr_apic_loc_tmr_xp
 	.globl	_intr_crash
 	.globl	_sys_fork
 	.globl	_vmx_vm_exit_handler
@@ -918,6 +919,26 @@ _intr_driver_\vec:
 _intr_apic_loc_tmr:
 	intr_lapic_isr 0x40
 	jmp	_task_restart
+
+/* Null interrupt handler (do nothing) */
+_intr_apic_loc_tmr_xp:
+	pushq	%rax
+	pushq	%rcx
+	pushq	%rdx
+	/* APIC EOI */
+	movq	$MSR_APIC_BASE,%rcx
+	rdmsr			/* Read APIC info to [%edx:%eax]; N.B., higer */
+				/*  32 bits of %rax and %rdx are cleared */
+				/*  bit [35:12]: APIC Base, [11]: EN */
+				/*  [10]: EXTD, and [8]:BSP */
+	shlq	$32,%rdx
+	addq	%rax,%rdx
+	andq	$0xfffffffffffff000,%rdx	/* APIC Base */
+	movl	$0,APIC_EOI(%rdx)	/* EOI */
+	popq	%rdx
+	popq	%rcx
+	popq	%rax
+	iretq
 
 /* For driver use */
 	intr_lapic_isr_generic 0x50

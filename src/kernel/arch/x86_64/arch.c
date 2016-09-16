@@ -111,6 +111,7 @@ intr_setup(void)
     idt_setup_trap_gate(30, intr_se);
     /* Interrupts */
     idt_setup_intr_gate(IV_LOC_TMR, intr_apic_loc_tmr);
+    idt_setup_intr_gate(IV_LOC_TMR_XP, intr_apic_loc_tmr_xp);
     idt_setup_intr_gate(IV_CRASH, intr_crash);
 
     /* For driver use */
@@ -353,7 +354,7 @@ bsp_init(void)
     acpi_busy_usleep(&arch_acpi, 200);
 
     /* Initialize local APIC counter */
-    lapic_start_timer(HZ, IV_LOC_TMR);
+    lapic_start_timer(HZ, IV_LOC_TMR_XP);
 
     /* Launch the `init' server */
     cli();
@@ -370,6 +371,8 @@ bsp_init(void)
     /* Schedule the idle task */
     this_cpu()->cur_task = NULL;
     this_cpu()->next_task = this_cpu()->idle_task;
+
+    set_next_ktask(g_ktask_root->r.head->ktask);
 
     /* Start the idle task */
     task_restart();

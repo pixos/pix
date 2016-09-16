@@ -147,6 +147,7 @@
 /* Tick */
 #define HZ                      100
 #define IV_LOC_TMR              0x40
+#define IV_LOC_TMR_XP           0x41 /* Exclusive processor */
 #define IV_CRASH                0xfe
 #define NR_IV                   0x100
 #define IV_IRQ(n)               (0x20 + (n))
@@ -659,6 +660,7 @@ int sys_execve(const char *, char *const [], char *const []);
 void * sys_mmap(void *, size_t, int, int, int, off_t);
 int sys_munmap(void *, size_t);
 off_t sys_lseek(int, off_t, int);
+void sys_xpsleep(void);
 int sys_sysarch(int, void *);
 
 /* The followings are mandatory functions for the kernel and should be

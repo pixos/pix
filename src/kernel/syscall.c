@@ -686,6 +686,12 @@ sys_lseek(int fildes, off_t offset, int whence)
     return -1;
 }
 
+void
+sys_xpsleep(void)
+{
+    __asm__ __volatile__ ("sti;hlt;");
+}
+
 /*
  * Architecture specific system call
  */

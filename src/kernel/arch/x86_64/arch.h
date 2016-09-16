@@ -294,7 +294,7 @@ struct cpu_data {
     u32 flags;          /* bit 0: enabled (working); bit 1- reserved */
     u32 cpu_id;
     u64 freq;           /* Frequency */
-    int prox_domain;
+    u32 prox_domain;
     u32 reserved[3];
     u64 stats[IDT_NR];  /* Interrupt counter */
     /* P_TSS_OFFSET */
@@ -372,6 +372,7 @@ void intr_driver_0x5f(void);
 
 
 void intr_apic_loc_tmr(void);
+void intr_apic_loc_tmr_xp(void);
 void intr_crash(void);
 void task_restart(void);
 void task_replace(void *);
