@@ -200,6 +200,16 @@ sys_write(int fildes, const void *buf, size_t nbyte)
     int i;
     char *s;
 
+    if ( 1 == fildes && NULL != buf ) {
+        video = (u16 *)0xc00b8000;
+        for ( i = 0; i < nbyte; i++ ) {
+            *video = 0x0f00 | (u16)((char *)buf)[i];
+            //*video = 0x2f00 | (u16)*s;
+            video++;
+        }
+        return i;
+    }
+
     s = "write";
 
     video = (u16 *)0xc00b8000;
@@ -692,7 +702,7 @@ sys_lseek(int fildes, off_t offset, int whence)
 void
 sys_xpsleep(void)
 {
-    __asm__ __volatile__ ("sti;hlt");
+    __asm__ __volatile__ ("sti;hlt;cli");
 }
 
 /*

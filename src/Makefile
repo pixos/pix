@@ -93,6 +93,10 @@ init: servers/init/init.o lib/arch/$(ARCH)/libc.o lib/arch/$(ARCH)/libcasm.o
 pm: servers/pm/pm.o lib/arch/$(ARCH)/libc.o lib/arch/$(ARCH)/libcasm.o
 	$(LD) -N -e _entry -Ttext=$(ORG) --oformat binary -o $@ $^
 
+## forwarding engine
+fe: servers/fe/fe.o servers/fe/pci.o lib/arch/$(ARCH)/libc.o lib/arch/$(ARCH)/libcasm.o
+	$(LD) -N -e _entry -Ttext=$(ORG) --oformat binary -o $@ $^
+
 ## file system
 fs: servers/fs/fs.o lib/arch/$(ARCH)/libc.o lib/arch/$(ARCH)/libcasm.o
 	$(LD) -N -e _entry -Ttext=$(ORG) --oformat binary -o $@ $^
