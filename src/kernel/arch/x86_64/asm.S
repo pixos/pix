@@ -401,6 +401,12 @@ _syscall_setup:
 	movq	%rdi,(%rax)
 	movabs	$SYSCALL_NR,%rax
 	movq	%rsi,(%rax)
+	/* Write syscall flag mask */
+	movq	$0xc0000084,%rcx	/* IA32_FMASK */
+	movq	$0x3200,%rax
+	movq	%rax,%rdx
+	shrq	$32,%rdx
+	wrmsr
 	/* Write syscall entry point */
 	movq	$0xc0000082,%rcx	/* IA32_LSTAR */
 	movabs	$syscall_entry,%rax
@@ -410,6 +416,8 @@ _syscall_setup:
 	/* Segment register */
 	movq	$0xc0000081,%rcx
 	movq	$0x0,%rax
+	/* IA32_STAR: syscall; cs=[47:32], ss=[47:32]+8 */
+	/* sysret; 32-bit cs=[63:48], 64-bit cs=[63:48]+16, ss=[63:48]+8 */
 	movq	$(GDT_RING0_CODE_SEL | ((GDT_RING3_CODE32_SEL + 3) << 16)),%rdx
 	wrmsr
 	/* Enable syscall */
@@ -422,7 +430,6 @@ _syscall_setup:
 
 /* Entry point to a syscall */
 syscall_entry:
-	cli
 	/* rip and rflags are stored in rcx and r11, respectively. */
 	pushq	%rbp
 	movq	%rsp,%rbp
@@ -448,7 +455,6 @@ syscall_entry:
 	popq	%rbx
 	popq	%r11
 	popq	%rcx
-	movq	%rbp,%rsp
 	popq	%rbp
 	sysretq
 

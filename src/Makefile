@@ -21,7 +21,7 @@ bootmon: CFLAGS=-I./include \
 
 pxeboot: ASFLAGS=-nostdlib -I./boot/arch/$(ARCH)/
 
-kpack: ASFLAGS=-mcmodel=large -nostdlib -I./kernel/arch/$(ARCH)/
+kpack: ASFLAGS=-nostdlib -I./kernel/arch/$(ARCH)/
 kpack: CFLAGS=-I./include \
 	-Wall -fleading-underscore -mcmodel=large -nostdlib -nodefaultlibs -fno-builtin -O0 -m64 \
 	-DARCH_X86_64=1

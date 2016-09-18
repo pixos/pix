@@ -354,7 +354,7 @@ bsp_init(void)
     acpi_busy_usleep(&arch_acpi, 200);
 
     /* Initialize local APIC counter */
-    lapic_start_timer(HZ, IV_LOC_TMR_XP);
+    lapic_start_timer(HZ, IV_LOC_TMR);
 
     /* Launch the `init' server */
     cli();

@@ -533,7 +533,7 @@ proc_create(const char *path, const char *name, pid_t pid)
     case KTASK_POLICY_KERNEL:
         cs = GDT_RING0_CODE_SEL;
         ss = GDT_RING0_DATA_SEL;
-        flags = 0x0200;
+        flags = 0x0202;
         break;
     case KTASK_POLICY_DRIVER:
     case KTASK_POLICY_SERVER:
@@ -541,7 +541,7 @@ proc_create(const char *path, const char *name, pid_t pid)
     default:
         cs = GDT_RING3_CODE64_SEL + 3;
         ss = GDT_RING3_DATA64_SEL + 3;
-        flags = 0x3200;
+        flags = 0x3202;
         break;
     }
 

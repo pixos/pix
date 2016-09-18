@@ -686,10 +686,13 @@ sys_lseek(int fildes, off_t offset, int whence)
     return -1;
 }
 
+/*
+ * Sleep this exclusive processor
+ */
 void
 sys_xpsleep(void)
 {
-    __asm__ __volatile__ ("sti;hlt;");
+    __asm__ __volatile__ ("sti;hlt");
 }
 
 /*
