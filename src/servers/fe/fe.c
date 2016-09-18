@@ -43,7 +43,7 @@ main(int argc, char *argv[])
 {
     char buf[512];
     int ret;
-    uint8_t *mem;
+    char *mem;
 
     /* Map */
     mem = mmap(NULL, 4096, PROT_READ | PROT_WRITE, MAP_ANON | MAP_PRIVATE, -1,
@@ -52,7 +52,7 @@ main(int argc, char *argv[])
 
     while ( 1 ) {
         ret = pci_read_config(0, 0, 0, 0);
-        snprintf(buf, 512, "xxx %s %x %x %s", "abcd", ret, mem, mem);
+        snprintf(buf, 512, "xxx %s %x %p %s", "abcd", ret, mem, mem);
         write(1, buf, strlen(buf));
         sysxpsleep();
     }

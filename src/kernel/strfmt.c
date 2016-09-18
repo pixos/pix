@@ -47,6 +47,7 @@ static off_t _output_char(char *, size_t, struct strfmt_format *, va_list);
 static off_t _output_decimal(char *, size_t, struct strfmt_format *, va_list);
 static off_t
 _output_hexdecimal(char *, size_t, struct strfmt_format *, va_list, int);
+static off_t _output_pointer(char *, size_t, struct strfmt_format *, va_list);
 static off_t _output_string(char *, size_t, struct strfmt_format *, va_list);
 
 /*
@@ -175,6 +176,10 @@ _output(char *str, size_t size, struct strfmt_format *strfmt, va_list ap)
     case 'X':
         /* Hexdecimal (upper case) */
         ret += _output_hexdecimal(str, size, strfmt, ap, 1);
+        break;
+    case 'p':
+        /* Pointer */
+        ret += _output_pointer(str, size, strfmt, ap);
         break;
     default:
         /* To implement */
@@ -342,6 +347,83 @@ _output_hexdecimal(char *str, size_t size, struct strfmt_format *strfmt,
             buf[ptr] = r + '0';
         } else if ( cap ) {
             buf[ptr] = r + 'A' - 10;
+        } else {
+            buf[ptr] = r + 'a' - 10;
+        }
+        ptr++;
+    }
+    if ( !ptr ) {
+        buf[ptr] = '0';
+        ptr++;
+    }
+
+    /* Output the formatted string */
+    pos = 0;
+
+    /* Padding */
+    if ( strfmt->pad > strfmt->prec && strfmt->pad > ptr ) {
+        for ( i = 0; i < strfmt->pad - strfmt->prec && i < strfmt->pad - ptr;
+              i++ ) {
+            if ( (size_t)pos + 1 < size ) {
+                if ( strfmt->zero ) {
+                    str[pos] = '0';
+                } else {
+                    str[pos] = ' ';
+                }
+            }
+            pos++;
+        }
+    }
+
+    /* Precision */
+    if ( strfmt->prec > ptr ) {
+        for ( i = 0; i < strfmt->prec - ptr; i++ ) {
+            if ( (size_t)pos + 1 < size ) {
+                str[pos] = '0';
+            }
+            pos++;
+        }
+    }
+
+    /* Value */
+    for ( i = 0; i < ptr; i++ ) {
+        if ( (size_t)pos + 1 < size ) {
+            str[pos] = buf[ptr - i - 1];
+        }
+        pos++;
+    }
+
+    return pos;
+}
+static off_t
+_output_pointer(char *str, size_t size, struct strfmt_format *strfmt,
+                va_list ap)
+{
+    unsigned long long int val;
+    unsigned long long int q;
+    unsigned long long int r;
+    off_t pos;
+    off_t ptr;
+    int sz;
+    int i;
+    char *buf;
+
+    /* Get the value from an argument */
+    val = (unsigned long long int)va_arg(ap, unsigned long long int);
+
+    /* Calculate the maximum buffer size, and allocate a buffer to store a
+       decimal string */
+    sz = 2 * sizeof(val);       /* max. 3 chars per byte (rough approx.) */
+    buf = alloca(sz);
+    ptr = 0;
+
+    /* Store the decimal string to the buffer */
+    q = val;
+    while ( q ) {
+        r = q & 0xf;
+        q = q >> 4;
+        if ( r < 10 ) {
+            buf[ptr] = r + '0';
         } else {
             buf[ptr] = r + 'a' - 10;
         }
