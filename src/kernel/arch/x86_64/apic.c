@@ -193,6 +193,29 @@ lapic_estimate_freq(void)
 }
 
 /*
+ * Start local APIC timer (oneshot)
+ */
+void
+lapic_oneshot_timer(u64 msec, u8 vec)
+{
+    /* Estimate frequency first */
+    u64 busfreq;
+    struct cpu_data *pdata;
+    u64 apic_base;
+
+    apic_base = lapic_base_addr();
+
+    /* Get CPU frequency to this CPU data area */
+    pdata = this_cpu();
+    busfreq = pdata->freq;
+
+    /* Set counter */
+    mfwrite32(apic_base + APIC_LVT_TMR, APIC_LVT_ONESHOT | (u32)vec);
+    mfwrite32(apic_base + APIC_TMRDIV, APIC_TMRDIV_X16);
+    mfwrite32(apic_base + APIC_INITTMR, msec * (busfreq >> 4) / 1000);
+}
+
+/*
  * Start local APIC timer
  */
 void
