@@ -224,7 +224,8 @@ vmem_region_create(void)
         return NULL;
     }
     kmemset(reg, 0, sizeof(struct vmem_region));
-    reg->start = (void *)(1ULL << 30);
+    //reg->start = (void *)(1ULL << 30);
+    reg->start = (void *)(2ULL << 30);
     reg->len = SUPERPAGESIZE * 512; /* 1 GiB */
     reg->next = NULL;
 
@@ -495,11 +496,15 @@ _vmem_buddy_spg_split(struct vmem_region *reg, int o)
     p0->next = p1;
     p1->prev = p0;
     p1->next = reg->spgheads[o];
-    reg->spgheads[o]->prev = p1;
+    if ( NULL != reg->spgheads[o] ) {
+        reg->spgheads[o]->prev = p1;
+    }
     reg->spgheads[o] = p0;
     /* Remove the split one from the upper order */
     reg->spgheads[o + 1] = next;
-    next->prev = NULL;
+    if ( NULL != next ) {
+        next->prev = NULL;
+    }
 
     return 0;
 }

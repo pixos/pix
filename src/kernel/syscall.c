@@ -27,6 +27,20 @@
 #include <machine/sysarch.h>
 #include "kernel.h"
 
+/* Copied from sys/mman.h */
+#define PROT_NONE       0x00
+#define PROT_READ       0x01
+#define PROT_WRITE      0x02
+#define PROT_EXEC       0x04
+
+#define MAP_FILE                0x0000
+#define MAP_SHARED              0x0001
+#define MAP_PRIVATE             0x0002
+#define MAP_FIXED               0x0010
+#define MAP_HASSEMAPHORE        0x0200
+#define MAP_NOCACHE             0x0400
+#define MAP_ANON                0x1000
+
 typedef __builtin_va_list va_list;
 #define va_start(ap, last)      __builtin_va_start((ap), (last))
 #define va_arg                  __builtin_va_arg
@@ -625,7 +639,7 @@ sys_execve(const char *path, char *const argv[], char *const envp[])
  *      space.  In all cases, the actual starting address of the region is
  *      returned.  If MAP_FIXED is specified, a successful mmap deletes any
  *      previous mapping in the allocated address range.  Previous mappings are
- *      never  deleted if MAP_FIXED is not specified.
+ *      never deleted if MAP_FIXED is not specified.
  *
  * RETURN VALUES
  *      Upon successful completion, mmap() returns a pointer to the mapped
@@ -634,7 +648,57 @@ sys_execve(const char *path, char *const argv[], char *const envp[])
 void *
 sys_mmap(void *addr, size_t len, int prot, int flags, int fd, off_t offset)
 {
-    return NULL;
+    struct ktask *t;
+    struct proc *proc;
+    void *paddr;
+    void *vaddr;
+    int ret;
+    ssize_t i;
+    int order;
+
+    /* Get the current task information */
+    t = this_ktask();
+    proc = t->proc;
+
+    if ( flags & MAP_FIXED ) {
+        /* Place the mapping at the address specified by addr */
+        return NULL;
+    } else {
+        /* Find address */
+    }
+
+    /* Allocate virtual memory region */
+    order = bitwidth(DIV_CEIL(len, PHYS_PAGESIZE));
+    vaddr = vmem_buddy_alloc_superpages(proc->vmem, order);
+    if ( NULL == vaddr ) {
+        return NULL;
+    }
+
+    /* Allocate physical memory */
+    paddr = pmem_alloc_pages(PMEM_ZONE_LOWMEM, order);
+    if ( NULL == paddr ) {
+        /* Could not allocate physical memory */
+        vmem_free_pages(proc->vmem, vaddr);
+        return NULL;
+    }
+
+    for ( i = 0; i < (ssize_t)DIV_CEIL(len, SUPERPAGESIZE); i++ ) {
+        ret = arch_vmem_map(proc->vmem,
+                            (void *)(vaddr + SUPERPAGESIZE * i),
+                            paddr + SUPERPAGESIZE * i,
+                            VMEM_USABLE | VMEM_USED | VMEM_SUPERPAGE);
+        if ( ret < 0 ) {
+            /* FIXME: Handle this error */
+            pmem_free_pages(paddr);
+            vmem_free_pages(proc->vmem, vaddr);
+            return NULL;
+        }
+    }
+    //char buf[512];
+    //ksnprintf(buf, 512, "%x", vaddr);
+    //panic(buf);
+
+    return vaddr;
 }
 
 /*
