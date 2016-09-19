@@ -694,9 +694,6 @@ sys_mmap(void *addr, size_t len, int prot, int flags, int fd, off_t offset)
             return NULL;
         }
     }
-    //char buf[512];
-    //ksnprintf(buf, 512, "%x", vaddr);
-    //panic(buf);
 
     return vaddr;
 }

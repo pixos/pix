@@ -46,8 +46,7 @@ main(int argc, char *argv[])
     char *mem;
 
     /* Map */
-    mem = mmap(NULL, 4096, PROT_READ | PROT_WRITE, MAP_ANON | MAP_PRIVATE, -1,
-               0);
+    mem = malloc(4096);;
     strcpy(mem, "abcd efgh");
 
     while ( 1 ) {

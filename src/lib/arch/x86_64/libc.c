@@ -188,9 +188,11 @@ void *
 malloc(size_t size)
 {
     void *ptr;
+    size_t aligned_size;
 
-    ptr = NULL;
-    //ptr = mmap(NULL, size, PROT_READ | PROT_WRITE, MAP_ANON, -1, 0);
+    aligned_size = ((((size) - 1) / (1ULL << 21) + 1) * (1ULL << 21));
+    ptr = mmap(NULL, aligned_size, PROT_READ | PROT_WRITE,
+               MAP_ANON | MAP_PRIVATE, -1, 0);
 
     return ptr;
 }

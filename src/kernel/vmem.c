@@ -38,6 +38,15 @@ static struct vmem_region * _vmem_search_region(struct vmem_space *, void *);
  * Allocate virtual pages
  */
 void *
+vmem_alloc_pages2(struct vmem_space *space, int size)
+{
+    return NULL;
+}
+
+/*
+ * Allocate virtual pages
+ */
+void *
 vmem_alloc_pages(struct vmem_space *space, int order)
 {
     void *paddr;

@@ -296,6 +296,29 @@ struct kmem_space {
     void *arch;
 };
 
+
+/*
+ * The management data structure of physical pages (2-MiB pages) are ensured to
+ * be mapped in the kernel memory region so that the kernel memory allocator
+ * does not recursively depend on any memory allocator.  4-KiB sub-pages can be
+ * allocated another interface that uses the kernel memory allocator.
+ */
+
+/*
+ * Physical subpage
+ */
+struct pmem_subpage {
+    /* Parent page */
+    struct pmem_page *page;
+    /* Order */
+    int order;
+    /* Flags */
+    int flags;
+    /* Buddy system */
+    struct pmem_subpage *prev;
+    struct pmem_subpage *next;
+};
+
 /*
  * Physical page
  */
@@ -305,6 +328,8 @@ struct pmem_page {
     /* Buddy system */
     u8 order;
     u32 next;
+    /* Sub-pages */
+    void *subpages;
 } __attribute__((packed));
 
 /*
