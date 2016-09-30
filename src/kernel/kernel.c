@@ -109,6 +109,23 @@ kintr_isr(u64 vec)
     case IV_LOC_TMR:
         isr_loc_tmr();
         break;
+    case IV_IRQ(0):
+    case IV_IRQ(1):
+    case IV_IRQ(2):
+    case IV_IRQ(3):
+    case IV_IRQ(4):
+    case IV_IRQ(5):
+    case IV_IRQ(6):
+    case IV_IRQ(7):
+    case IV_IRQ(8):
+    case IV_IRQ(9):
+    case IV_IRQ(10):
+    case IV_IRQ(11):
+    case IV_IRQ(12):
+    case IV_IRQ(13):
+    case IV_IRQ(14):
+    case IV_IRQ(15):
+        break;
     default:
         ;
     }
