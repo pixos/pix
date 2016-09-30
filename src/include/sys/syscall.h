@@ -44,7 +44,7 @@
 #define SYS_getuid      24
 //#define SYS_access    33
 //#define SYS_sync      36
-#define SYS_kill      37
+#define SYS_kill        37
 #define SYS_getppid     39
 //#define SYS_dup       41
 //#define SYS_pipe      42
@@ -71,7 +71,7 @@
 //#define SYS_sigreturn 417
 #define SYS_mmap        477
 #define SYS_lseek       478
-#define SYS_xpsleep	1022
+#define SYS_xpsleep     1022
 #define SYS_sysarch     1023
 #define SYS_MAXSYSCALL  1024
 
