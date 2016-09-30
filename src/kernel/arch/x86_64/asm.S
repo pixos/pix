@@ -946,6 +946,23 @@ _intr_apic_loc_tmr_xp:
 	popq	%rax
 	iretq
 
+/* IRQn */
+	intr_lapic_isr_generic 0x20
+	intr_lapic_isr_generic 0x21
+	intr_lapic_isr_generic 0x22
+	intr_lapic_isr_generic 0x23
+	intr_lapic_isr_generic 0x24
+	intr_lapic_isr_generic 0x25
+	intr_lapic_isr_generic 0x26
+	intr_lapic_isr_generic 0x27
+	intr_lapic_isr_generic 0x28
+	intr_lapic_isr_generic 0x29
+	intr_lapic_isr_generic 0x2a
+	intr_lapic_isr_generic 0x2b
+	intr_lapic_isr_generic 0x2c
+	intr_lapic_isr_generic 0x2d
+	intr_lapic_isr_generic 0x2e
+	intr_lapic_isr_generic 0x2f
 /* For driver use */
 	intr_lapic_isr_generic 0x50
 	intr_lapic_isr_generic 0x51

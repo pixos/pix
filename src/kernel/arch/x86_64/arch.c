@@ -41,6 +41,7 @@ struct acpi arch_acpi;
 /* Multiprocessor enabled */
 int mp_enabled;
 
+
 /*
  * Relocate the trampoline code to a 4 KiB page alined space
  */
@@ -113,6 +114,24 @@ intr_setup(void)
     idt_setup_intr_gate(IV_LOC_TMR, intr_apic_loc_tmr);
     idt_setup_intr_gate(IV_LOC_TMR_XP, intr_apic_loc_tmr_xp);
     idt_setup_intr_gate(IV_CRASH, intr_crash);
+
+    /* IRQs */
+    idt_setup_intr_gate(IV_IRQ(0), intr_driver_0x20);
+    idt_setup_intr_gate(IV_IRQ(1), intr_driver_0x21);
+    idt_setup_intr_gate(IV_IRQ(2), intr_driver_0x22);
+    idt_setup_intr_gate(IV_IRQ(3), intr_driver_0x23);
+    idt_setup_intr_gate(IV_IRQ(4), intr_driver_0x24);
+    idt_setup_intr_gate(IV_IRQ(5), intr_driver_0x25);
+    idt_setup_intr_gate(IV_IRQ(6), intr_driver_0x26);
+    idt_setup_intr_gate(IV_IRQ(7), intr_driver_0x27);
+    idt_setup_intr_gate(IV_IRQ(8), intr_driver_0x28);
+    idt_setup_intr_gate(IV_IRQ(9), intr_driver_0x29);
+    idt_setup_intr_gate(IV_IRQ(10), intr_driver_0x2a);
+    idt_setup_intr_gate(IV_IRQ(11), intr_driver_0x2b);
+    idt_setup_intr_gate(IV_IRQ(12), intr_driver_0x2c);
+    idt_setup_intr_gate(IV_IRQ(13), intr_driver_0x2d);
+    idt_setup_intr_gate(IV_IRQ(14), intr_driver_0x2e);
+    idt_setup_intr_gate(IV_IRQ(15), intr_driver_0x2f);
 
     /* For driver use */
     idt_setup_intr_gate(0x50, intr_driver_0x50);

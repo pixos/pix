@@ -352,6 +352,23 @@ void intr_simd_fpe(void);
 void intr_vef(void);
 void intr_se(void);
 
+void intr_driver_0x20(void);
+void intr_driver_0x21(void);
+void intr_driver_0x22(void);
+void intr_driver_0x23(void);
+void intr_driver_0x24(void);
+void intr_driver_0x25(void);
+void intr_driver_0x26(void);
+void intr_driver_0x27(void);
+void intr_driver_0x28(void);
+void intr_driver_0x29(void);
+void intr_driver_0x2a(void);
+void intr_driver_0x2b(void);
+void intr_driver_0x2c(void);
+void intr_driver_0x2d(void);
+void intr_driver_0x2e(void);
+void intr_driver_0x2f(void);
+
 void intr_driver_0x50(void);
 void intr_driver_0x51(void);
 void intr_driver_0x52(void);
