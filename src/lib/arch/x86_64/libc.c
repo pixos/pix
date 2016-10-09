@@ -198,6 +198,22 @@ malloc(size_t size)
 }
 
 /*
+ * calloc
+ */
+void *
+calloc(size_t count, size_t size)
+{
+    void *ptr;
+    ssize_t i;
+
+    ptr = malloc(count * size);
+    for ( i = 0; i < (ssize_t)(count * size); i++ ) {
+        *(uint8_t *)(ptr + i) = 0;
+    }
+    return ptr;
+}
+
+/*
  * free
  */
 void

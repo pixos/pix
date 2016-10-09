@@ -36,6 +36,7 @@
 void exit(int) __attribute__ ((__noreturn__));
 void * memset(void *, int, size_t);
 void * malloc(size_t);
+void * calloc(size_t, size_t);
 void free(void *);
 
 #endif /* _STDLIB_H */

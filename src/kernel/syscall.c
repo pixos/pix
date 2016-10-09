@@ -775,9 +775,9 @@ void outl(u16, u32);
 u64 rdmsr(u64);
 void wrmsr(u64, u64);
 u64 get_cr0(void);
-void set_cr0(u64);
+#define set_cr0(cr0)    __asm__ __volatile__ ("movq %%rax,%%cr0" :: "a"((cr0)))
 u64 get_cr4(void);
-void set_cr4(u64);
+#define set_cr4(cr4)    __asm__ __volatile__ ("movq %%rax,%%cr4" :: "a"((cr4)))
 int
 sys_sysarch(int number, void *args)
 {

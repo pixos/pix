@@ -43,8 +43,8 @@ vmx_enable(void)
     uint64_t rcx;
     uint64_t rdx;
     uint64_t vmx;
-    uint64_t fixled0;
-    uint64_t fixled1;
+    uint64_t fixed0;
+    uint64_t fixed1;
     struct sysarch_msr msr;
     uint64_t reg;
     uint32_t *vmcs;
@@ -63,7 +63,7 @@ vmx_enable(void)
     if ( NULL == vmcs ) {
         return -1;
     }
-    kmemset(vmcs, 0, 4096);
+    memset(vmcs, 0, 4096);
 
     /* Read VMX basic information
      * [30:0]  : Revision
