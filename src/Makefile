@@ -117,6 +117,10 @@ pci: drivers/pci/pci.o lib/arch/$(ARCH)/libc.o lib/arch/$(ARCH)/libcasm.o
 e1000: drivers/e1000/e1000.o lib/arch/$(ARCH)/libc.o lib/arch/$(ARCH)/libcasm.o
 	$(LD) -N -e _entry -Ttext=$(ORG) --oformat binary -o $@ $^
 
+## VMX driver
+vmx: drivers/vmx/vmx.o lib/arch/$(ARCH)/libc.o lib/arch/$(ARCH)/libcasm.o
+	$(LD) -N -e _entry -Ttext=$(ORG) --oformat binary -o $@ $^
+
 ## Clean
 clean:
 	find . -name "*.o" | xargs rm -f

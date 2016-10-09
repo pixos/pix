@@ -768,13 +768,22 @@ sys_xpsleep(void)
 
 /*
  * Architecture specific system call
+ * FIXME: Must check the caller's authority and implement protection mechanisms
  */
 u32 inl(u16);
 void outl(u16, u32);
+u64 rdmsr(u64);
+void wrmsr(u64, u64);
+u64 get_cr0(void);
+void set_cr0(u64);
+u64 get_cr4(void);
+void set_cr4(u64);
 int
 sys_sysarch(int number, void *args)
 {
     struct sysarch_io *io;
+    struct sysarch_msr *msr;
+    u64 reg;
 
     switch ( number ) {
     case SYSARCH_INL:
@@ -784,6 +793,26 @@ sys_sysarch(int number, void *args)
     case SYSARCH_OUTL:
         io = (struct sysarch_io *)args;
         outl(io->port, io->data);
+        return 0;
+    case SYSARCH_RDMSR:
+        msr = (struct sysarch_msr *)args;
+        msr->value = rdmsr(msr->key);
+        return 0;
+    case SYSARCH_WRMSR:
+        msr = (struct sysarch_msr *)args;
+        wrmsr(msr->key, msr->value);
+        return 0;
+    case SYSARCH_GETCR0:
+        *(u64 *)args = get_cr0();
+        return 0;
+    case SYSARCH_SETCR0:
+        set_cr0((u64)args);
+        return 0;
+    case SYSARCH_GETCR4:
+        *(u64 *)args = get_cr4();
+        return 0;
+    case SYSARCH_SETCR4:
+        set_cr4((u64)args);
         return 0;
     default:
         ;

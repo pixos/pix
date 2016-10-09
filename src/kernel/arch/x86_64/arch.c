@@ -381,12 +381,18 @@ bsp_init(void)
     /* Launch the `init' server */
     cli();
 
+#if 0
     if ( proc_create("/servers/pm", "pm", 0) < 0 ) {
         panic("Fatal: Cannot create the `pm' server.");
         return;
     }
     if ( proc_create("/servers/init", "init", 1) < 0 ) {
         panic("Fatal: Cannot create the `init' server.");
+        return;
+    }
+#endif
+    if ( proc_create("/drivers/vmx", "vmx", 0) < 0 ) {
+        panic("Fatal: Cannot create the `vmx' server.");
         return;
     }
 

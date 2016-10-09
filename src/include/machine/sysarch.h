@@ -1,5 +1,5 @@
 /*_
- * Copyright (c) 2015 Hirochika Asai <asai@jar.jp>
+ * Copyright (c) 2015-2016 Hirochika Asai <asai@jar.jp>
  * All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -27,6 +27,12 @@
 #define SYSARCH_INL     1
 #define SYSARCH_OUTL    2
 #define SYSARCH_CPUMAP  11
+#define SYSARCH_RDMSR   32
+#define SYSARCH_WRMSR   33
+#define SYSARCH_GETCR0  34
+#define SYSARCH_SETCR0  35
+#define SYSARCH_GETCR4  36
+#define SYSARCH_SETCR4  37
 
 struct sysarch_io {
     long long port;
@@ -34,6 +40,10 @@ struct sysarch_io {
 };
 struct sysarch_cpumap {
     int id;
+};
+struct sysarch_msr {
+    unsigned long long key;
+    unsigned long long value;
 };
 
 int sysarch(int, void *);
