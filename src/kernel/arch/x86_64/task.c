@@ -144,8 +144,8 @@ proc_fork(struct proc *op, struct ktask *ot, struct ktask **ntp)
     t->ktask->state = KTASK_STATE_READY;
     t->ktask->next = NULL;
     /* Allocate the user stack of a new task */
-    paddr1 = pmem_alloc_pages(PMEM_ZONE_LOWMEM,
-                              bitwidth(USTACK_SIZE / PHYS_PAGESIZE));
+    paddr1 = pmem_prim_alloc_pages(PMEM_ZONE_LOWMEM,
+                                   bitwidth(USTACK_SIZE / SUPERPAGESIZE));
     if ( NULL == paddr1 ) {
         kfree(t->ktask);
         kfree(t->kstack);
@@ -158,7 +158,7 @@ proc_fork(struct proc *op, struct ktask *ot, struct ktask **ntp)
     size = t->ktask->proc->code_size;
     if ( size <= 0 ) {
         /* Invald code */
-        pmem_free_pages(paddr1);
+        pmem_prim_free_pages(paddr1);
         kfree(t->ktask);
         kfree(t->kstack);
         kfree(t->xregs);
@@ -166,10 +166,10 @@ proc_fork(struct proc *op, struct ktask *ot, struct ktask **ntp)
         kfree(np);
         return NULL;
     }
-    paddr2 = pmem_alloc_pages(PMEM_ZONE_LOWMEM,
-                              bitwidth(DIV_CEIL(size, PHYS_PAGESIZE)));
+    paddr2 = pmem_prim_alloc_pages(PMEM_ZONE_LOWMEM,
+                                   bitwidth(DIV_CEIL(size, SUPERPAGESIZE)));
     if ( NULL == paddr2 ) {
-        pmem_free_pages(paddr1);
+        pmem_prim_free_pages(paddr1);
         kfree(t->ktask);
         kfree(t->kstack);
         kfree(t->xregs);
@@ -182,8 +182,8 @@ proc_fork(struct proc *op, struct ktask *ot, struct ktask **ntp)
     t->ustack = ((struct arch_task *)ot->arch)->ustack;
     exec = kmalloc(CEIL(size, SUPERPAGESIZE));
     if ( NULL == exec ) {
-        pmem_free_pages(paddr2);
-        pmem_free_pages(paddr1);
+        pmem_prim_free_pages(paddr2);
+        pmem_prim_free_pages(paddr1);
         kfree(t->ktask);
         kfree(t->kstack);
         kfree(t->xregs);
@@ -202,8 +202,8 @@ proc_fork(struct proc *op, struct ktask *ot, struct ktask **ntp)
     np->vmem = vmem_space_create();
     if ( NULL == np->vmem ) {
         kfree(exec);
-        pmem_free_pages(paddr2);
-        pmem_free_pages(paddr1);
+        pmem_prim_free_pages(paddr2);
+        pmem_prim_free_pages(paddr1);
         kfree(t->ktask);
         kfree(t->kstack);
         kfree(t->xregs);
@@ -459,15 +459,15 @@ proc_create(const char *path, const char *name, pid_t pid)
     }
 
     /* Prepare the user stack */
-    ppage1 = pmem_alloc_pages(PMEM_ZONE_LOWMEM,
-                              bitwidth(USTACK_SIZE / PHYS_PAGESIZE));
+    ppage1 = pmem_prim_alloc_pages(PMEM_ZONE_LOWMEM,
+                                   bitwidth(USTACK_SIZE / SUPERPAGESIZE));
     if ( NULL == ppage1 ) {
         goto error_ustack;
     }
 
     /* Prepare exec */
-    ppage2 = pmem_alloc_pages(PMEM_ZONE_LOWMEM,
-                              bitwidth(DIV_CEIL(size, PHYS_PAGESIZE)));
+    ppage2 = pmem_prim_alloc_pages(PMEM_ZONE_LOWMEM,
+                                   bitwidth(DIV_CEIL(size, SUPERPAGESIZE)));
     if ( NULL == ppage2 ) {
         goto error_exec;
         return -1;
@@ -558,9 +558,9 @@ proc_create(const char *path, const char *name, pid_t pid)
     return 0;
 
 error_tl:
-    pmem_free_pages(ppage2);
+    pmem_prim_free_pages(ppage2);
 error_exec:
-    pmem_free_pages(ppage1);
+    pmem_prim_free_pages(ppage1);
 error_ustack:
     kfree(t->kstack);
 error_kstack:

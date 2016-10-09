@@ -35,19 +35,20 @@ _pmem_buddy_merge(struct pmem *, struct pmem_buddy *, struct pmem_page *, int);
  *
  * SYNOPSIS
  *      void *
- *      pmem_alloc_pages(int zone, int order);
+ *      pmem_prim_alloc_pages(int zone, int order);
  *
  * DESCRIPTION
- *      The pmem_alloc_pages() function allocates 2^order pages of physical
+ *      The pmem_prim_alloc_pages() function allocates 2^order pages of physical
  *      memory from the zone of a physical memory region specified by the zone
- *      argument.
+ *      argument.  This function is also called from the kernel memory
+ *      management module, so this does not dependent on kmem_ functions.
  *
  * RETURN VALUES
- *      The pmem_alloc_pages() function returns a pointer to allocated physical
- *      memory.  If there is an error, it returns NULL.
+ *      The pmem_prim_alloc_pages() function returns a pointer to allocated
+ *      physical memory.  If there is an error, it returns NULL.
  */
 void *
-pmem_alloc_pages(int zone, int order)
+pmem_prim_alloc_pages(int zone, int order)
 {
     int ret;
     u32 idx;
@@ -87,7 +88,7 @@ pmem_alloc_pages(int zone, int order)
         pmem->pages[idx + i].flags |= PMEM_USED;
     }
 
-    return (void *)PHYS_PAGE_ADDR(idx);
+    return (void *)SUPERPAGE_ADDR(idx);
 }
 
 /*
@@ -95,42 +96,21 @@ pmem_alloc_pages(int zone, int order)
  *
  * SYNOPSIS
  *      void *
- *      pmem_alloc_page(int zone);
+ *      pmem_prim_alloc_page(int zone);
  *
  * DESCRIPTION
- *      The pmem_alloc_page() function allocates a pages of physical memory from
- *      the zone of a physical memory region specified by the zone argument.
- *
- * RETURN VALUES
- *      The pmem_alloc_page() function returns a pointer to allocated physical
- *      memory.  If there is an error, it returns NULL.
- */
-void *
-pmem_alloc_page(int zone)
-{
-    return pmem_alloc_pages(zone, 0);
-}
-
-/*
- * Allocate a superpage from the specified zone of a physical memory region
- *
- * SYNOPSIS
- *      void *
- *      pmem_alloc_superpage(int zone);
- *
- * DESCRIPTION
- *      The pmem_alloc_superpage() function allocates a superpages of physical
- *      memory from the zone of a physical memory region specified by the zone
+ *      The pmem_prim_alloc_page() function allocates a pages of physical memory
+ *      from the zone of a physical memory region specified by the zone
  *      argument.
  *
  * RETURN VALUES
- *      The pmem_alloc_superpage() function returns a pointer to allocated
+ *      The pmem_prim_alloc_page() function returns a pointer to allocated
  *      physical memory.  If there is an error, it returns NULL.
  */
 void *
-pmem_alloc_superpage(int zone)
+pmem_prim_alloc_page(int zone)
 {
-    return pmem_alloc_pages(zone, SP_SHIFT);
+    return pmem_prim_alloc_pages(zone, 0);
 }
 
 /*
@@ -138,17 +118,17 @@ pmem_alloc_superpage(int zone)
  *
  * SYNOPSIS
  *      void
- *      pmem_free_pages(void *a);
+ *      pmem_prim_free_pages(void *a);
  *
  * DESCRIPTION
- *      The pmem_free_pages() function deallocates the physical memory
+ *      The pmem_prim_free_pages() function deallocates the physical memory
  *      allocation pointed by a.
  *
  * RETURN VALUES
- *      The pmem_free_pages() function does not return a value.
+ *      The pmem_prim_free_pages() function does not return a value.
  */
 void
-pmem_free_pages(void *a)
+pmem_prim_free_pages(void *a)
 {
     struct pmem *pmem;
     int order;
@@ -160,7 +140,7 @@ pmem_free_pages(void *a)
     pmem = g_kmem->pmem;
 
     /* Get the index of the first page of the memory space to be released */
-    idx = PHYS_PAGE_INDEX(a);
+    idx = SUPERPAGE_INDEX(a);
 
     /* Check if the page index is within the physical memory space */
     if ( (size_t)idx >= pmem->nr ) {
@@ -277,7 +257,7 @@ _pmem_buddy_merge(struct pmem *pmem, struct pmem_buddy *buddy,
     }
 
     /* Get the first page of the buddy at the upper order */
-    p0 = &pmem->pages[FLOOR(pi, PHYS_PAGESIZE)];
+    p0 = &pmem->pages[FLOOR(pi, SUPERPAGESIZE)];
 
     /* Get the neighboring buddy */
     p1 = p0 + (1ULL << o);

@@ -336,6 +336,9 @@ bsp_init(void)
     /* Initialize the kernel */
     kinit();
 
+    void *test = kmalloc(64);
+    kfree(test);
+
 #if 0
     if ( vmx_enable() < 0 ) {
         panic("Failed to initialize VMX.");
@@ -521,8 +524,8 @@ arch_exec(struct arch_task *t, void (*entry)(void), size_t size, int policy,
 
     /* For exec */
     void *paddr;
-    paddr = pmem_alloc_pages(PMEM_ZONE_LOWMEM,
-                             bitwidth(DIV_CEIL(size, PHYS_PAGESIZE)));
+    paddr = pmem_prim_alloc_pages(PMEM_ZONE_LOWMEM,
+                                  bitwidth(DIV_CEIL(size, SUPERPAGESIZE)));
     if ( NULL == paddr ) {
         return -1;
     }
@@ -540,7 +543,7 @@ arch_exec(struct arch_task *t, void (*entry)(void), size_t size, int policy,
     }
 
     /* Release the original one */
-    pmem_free_pages(t->ktask->proc->code_paddr);
+    pmem_prim_free_pages(t->ktask->proc->code_paddr);
     t->ktask->proc->code_paddr = paddr;
 
     kmemcpy((void *)CODE_INIT, entry, size);

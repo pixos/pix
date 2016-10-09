@@ -24,42 +24,49 @@
 #include <aos/const.h>
 #include "kernel.h"
 
-/* ToDo: Implement segregated fit */
+/* ToDo: Implement segregated fit to allocate smaller size of memory than
+   superpages */
 
 
 /* Prototype declarations */
-static void * _kmem_alloc_pages(struct kmem *, int);
-static void * _kmem_alloc_pages_from_new_region(struct kmem *, int);
+static void * _kmem_alloc_pages(struct kmem *, int, int);
+static void _kmem_free_pages(struct kmem *, void *);
+static struct kmem_page * _kmem_grab_pages(struct kmem *, int);
+static void _kmem_return_pages(struct kmem *, struct kmem_page *);
 
 /*
  * Allocate pages
  */
 void *
-kmem_alloc_pages(struct kmem *kmem, size_t npg)
+kmem_alloc_pages(struct kmem *kmem, size_t npg, int zone)
 {
     int order;
     void *vaddr;
 
-    /* Calculate the order in the buddy system from the number of pages */
+    /* Calculate the corresponding order of the buddy system from the number
+       of pages requested to allocate */
     order = bitwidth(npg);
 
-    /* Check the order */
-    vaddr = _kmem_alloc_pages(kmem, order);
+    /* Allocate 2^order pages */
+    vaddr = _kmem_alloc_pages(kmem, order, zone);
 
     return vaddr;
 }
 
+/*
+ * Free pages
+ */
 void
 kmem_free_pages(struct kmem *kmem, void *ptr)
 {
-    panic("FIXME: kmem_free_pages()");
+    _kmem_free_pages(kmem, ptr);
 }
 
 /*
- * Allocate pages
+ * Allocate physically and virtually contiguous 2^order pages (superpage-size)
  */
 static void *
-_kmem_alloc_pages(struct kmem *kmem, int order)
+_kmem_alloc_pages(struct kmem *kmem, int order, int zone)
 {
     struct kmem_page *pg;
     void *vaddr;
@@ -67,39 +74,82 @@ _kmem_alloc_pages(struct kmem *kmem, int order)
     ssize_t i;
     int ret;
 
-    /* Try to grab pages from the kernel memory space */
-    pg = kmem_grab_pages(kmem, order);
+    /* Try to grab virtual pages from the kernel memory space */
+    pg = _kmem_grab_pages(kmem, order);
     if ( NULL == pg ) {
-        /* No available pages, then try to grab from superpage  */
-        panic("FIXME 12");
+        /* No available pages found, then return NULL */
         return NULL;
-        //return _kmem_alloc_pages_from_new_superpage(kmem, order);
     }
 
-    /* Found */
-    vaddr = kmem->space->start + KERN_PAGE_ADDR(pg - kmem->space->pages);
+    /* Resolve the virtual address from the index of the found pages */
+    vaddr = kmem->space->start + SUPERPAGE_ADDR(pg - kmem->space->pages);
 
-    /* Allocate physical memory */
-    paddr = pmem_alloc_pages(PMEM_ZONE_LOWMEM, order);
+    /* Allocate contiguous 2^order physical pages */
+    paddr = pmem_prim_alloc_pages(zone, order);
     if ( NULL == paddr ) {
         /* Release the virtual memory */
-        kmem_return_pages(kmem, pg);
+        _kmem_return_pages(kmem, pg);
         return NULL;
     }
 
     /* Map the physical and virtual memory */
     for ( i = 0; i < (1LL << order); i++ ) {
-        ret = arch_kmem_map(kmem, vaddr + KERN_PAGE_ADDR(i),
-                            paddr + KERN_PAGE_ADDR(i), pg->flags);
+        ret = arch_kmem_map(kmem, vaddr + SUPERPAGE_ADDR(i),
+                            paddr + SUPERPAGE_ADDR(i), pg->flags);
         if ( ret < 0 ) {
+            /* Unmap */
+            for ( i = i - 1; i >= 0; i-- ) {
+                arch_kmem_unmap(kmem, vaddr + SUPERPAGE_ADDR(i));
+            }
             /* Release the virtual and physical memory */
-            kmem_return_pages(kmem, pg);
-            pmem_free_pages(paddr);
+            _kmem_return_pages(kmem, pg);
+            pmem_prim_free_pages(paddr);
             return NULL;
         }
     }
+    pg->addr = (reg_t)paddr;
+    pg->zone = zone;
 
     return vaddr;
+}
+
+/*
+ * Free physically and virtually contiguous pages (superpage-size) pointed from
+ * the ptr argument
+ */
+static void
+_kmem_free_pages(struct kmem *kmem, void *ptr)
+{
+    struct kmem_page *pg;
+    ssize_t i;
+    int idx;
+    void *paddr;
+
+    /* Resolve the corresponding index of the kernel page to release */
+    idx = SUPERPAGE_INDEX(ptr - kmem->space->start);
+
+    /* Get the starting page to release */
+    pg = &kmem->space->pages[idx];
+
+    /* Resolve the physical address */
+    paddr = (void *)pg->addr;
+
+    /* Check the order */
+    if ( pg->order < 0 ) {
+        panic("Invalid order in _kmem_free_pages()");
+        return;
+    }
+
+    /* Unmap the virtual memory */
+    for ( i = 0; i < (1LL << pg->order); i++ ) {
+        arch_kmem_unmap(kmem, ptr + SUPERPAGE_ADDR(i));
+    }
+
+    /* Free physical pages */
+    pmem_prim_free_pages(paddr);
+
+    /* Return the pages to the buddy system */
+    _kmem_return_pages(kmem, pg);
 }
 
 /*
@@ -113,7 +163,7 @@ _kmem_buddy_order(struct kmem *kmem, size_t pg)
     size_t npg;
 
     /* Calculate the number of pages */
-    npg = kmem->space->len / KERN_PAGESIZE;
+    npg = kmem->space->len / SUPERPAGESIZE;
 
     /* Check the order for contiguous usable pages */
     for ( o = 0; o <= KMEM_MAX_BUDDY_ORDER; o++ ) {
@@ -152,7 +202,7 @@ kmem_buddy_init(struct kmem *kmem)
     }
 
     /* Look through all the pages */
-    for ( i = 0; i < (ssize_t)(kmem->space->len / KERN_PAGESIZE);
+    for ( i = 0; i < (ssize_t)(kmem->space->len / SUPERPAGESIZE);
           i += (1ULL << o) ) {
         o = _kmem_buddy_order(kmem, i);
         if ( o < 0 ) {
@@ -175,12 +225,6 @@ kmem_buddy_init(struct kmem *kmem)
 
     return 0;
 }
-
-
-
-
-
-
 
 
 /*
@@ -262,7 +306,7 @@ _kmem_buddy_pg_merge(struct kmem *kmem, struct kmem_page *off, int o)
 
     /* Check the region */
     pi = off - kmem->space->pages;
-    if ( pi >= kmem->space->len / KERN_PAGESIZE ) {
+    if ( pi >= kmem->space->len / SUPERPAGESIZE ) {
         /* Out of this region */
         return;
     }
@@ -324,8 +368,8 @@ _kmem_buddy_pg_merge(struct kmem *kmem, struct kmem_page *off, int o)
 /*
  * Find available virtual pages
  */
-struct kmem_page *
-kmem_grab_pages(struct kmem *kmem, int order)
+static struct kmem_page *
+_kmem_grab_pages(struct kmem *kmem, int order)
 {
     struct kmem_page *pg;
     int ret;
@@ -368,8 +412,8 @@ kmem_grab_pages(struct kmem *kmem, int order)
 /*
  * Release pages
  */
-void
-kmem_return_pages(struct kmem *kmem, struct kmem_page *pg)
+static void
+_kmem_return_pages(struct kmem *kmem, struct kmem_page *pg)
 {
     int order;
     ssize_t i;

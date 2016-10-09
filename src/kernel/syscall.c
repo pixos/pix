@@ -668,14 +668,14 @@ sys_mmap(void *addr, size_t len, int prot, int flags, int fd, off_t offset)
     }
 
     /* Allocate virtual memory region */
-    order = bitwidth(DIV_CEIL(len, PHYS_PAGESIZE));
+    order = bitwidth(DIV_CEIL(len, SUPERPAGESIZE));
     vaddr = vmem_buddy_alloc_superpages(proc->vmem, order);
     if ( NULL == vaddr ) {
         return NULL;
     }
 
     /* Allocate physical memory */
-    paddr = pmem_alloc_pages(PMEM_ZONE_LOWMEM, order);
+    paddr = pmem_prim_alloc_pages(PMEM_ZONE_LOWMEM, order);
     if ( NULL == paddr ) {
         /* Could not allocate physical memory */
         vmem_free_pages(proc->vmem, vaddr);
@@ -689,7 +689,7 @@ sys_mmap(void *addr, size_t len, int prot, int flags, int fd, off_t offset)
                             VMEM_USABLE | VMEM_USED | VMEM_SUPERPAGE);
         if ( ret < 0 ) {
             /* FIXME: Handle this error */
-            pmem_free_pages(paddr);
+            pmem_prim_free_pages(paddr);
             vmem_free_pages(proc->vmem, vaddr);
             return NULL;
         }

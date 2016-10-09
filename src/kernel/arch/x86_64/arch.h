@@ -217,12 +217,17 @@ struct arch_page_dir {
 };
 
 /*
- * Kernel memory space (i.e., page table)
+ * Kernel memory space (i.e., page table).  In this architecture, the kernel
+ * memory region is mapped from 3 to 4 GiB.
  */
 struct arch_kmem_space {
-    /* The root of the 4-level page table (virtual address) */
+    /* The root of the 4-level page table (virtual address); the physical
+       address of the next member variable, pdpt, is set to pml4->entries[0]
+       with flags (i.e., for the region of 0-512 GiB). */
     struct arch_page_dir *pml4;
-    /* The pointer to page directory pointer table */
+    /* The pointer to page directory pointer table; the physical address of the
+       next member variable, pd, is set to pdpt->entries[3] with flags (i.e.,
+       for the region of 3-4 GiB). */
     struct arch_page_dir *pdpt;
     /* The pointer to the page directory */
     struct arch_page_dir *pd;
@@ -442,7 +447,6 @@ int proc_create(const char *, const char *, pid_t);
     __asm__ __volatile__ ("xsave64 (%%rdi)" :: "D"(mem), "a"(a), "d"(d));
 #define xgetbv(a, b)                                                    \
     __asm__ __volatile__ ("xgetbv; movq %%rax,%%dr1" : "=a"(a), "=d"(b));
-
 
 #define interrupt_handler_begin(handler)        \
     void handler(void) {                        \

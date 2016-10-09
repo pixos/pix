@@ -51,7 +51,7 @@ main(int argc, char *argv[])
 
     while ( 1 ) {
         ret = pci_read_config(0, 0, 0, 0);
-        snprintf(buf, 512, "xxx %s %x %p %s", "abcd", ret, mem, mem);
+        snprintf(buf, 512, "xxx %s %x %p %s\r\n", "abcd", ret, mem, mem);
         write(1, buf, strlen(buf));
         sysxpsleep();
     }
