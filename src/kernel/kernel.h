@@ -150,7 +150,7 @@
 #define KTASK_POLICY_USER       3
 
 /* Tick */
-#define HZ                      1
+#define HZ                      100
 #define IV_LOC_TMR              0x40
 #define IV_LOC_TMR_XP           0x41 /* Exclusive processor */
 #define IV_CRASH                0xfe
