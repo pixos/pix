@@ -48,6 +48,7 @@
 #define g_proc_table    g_kvar->proc_table
 #define g_ktask_root    g_kvar->ktask_root
 #define g_syscall_table g_kvar->syscall_table
+#define g_intr_table    g_kvar->intr_table
 
 #define FLOOR(val, base)        (((val) / (base)) * (base))
 #define CEIL(val, base)         ((((val) - 1) / (base) + 1) * (base))
@@ -586,12 +587,25 @@ struct kevent_handlers {
     kevent_handler_f ivt[NR_IV];
 };
 
+/* Interrupt handler */
+typedef void (*interrupt_handler_f)(void);
+struct interrupt_handler {
+    /* Interrupt handler */
+    interrupt_handler_f f;
+    /* Process to set an appropriate page table before call it */
+    struct proc *proc;
+};
+struct interrupt_handler_table {
+    struct interrupt_handler ivt[NR_IV];
+};
+
 /* Global variables */
 struct kernel_variables {
     struct kmem *kmem;
     struct proc_table *proc_table;
     struct ktask_root *ktask_root;
     void *syscall_table[SYS_MAXSYSCALL];
+    struct interrupt_handler_table *intr_table;
 };
 
 /* for variable-length arguments */
@@ -682,6 +696,7 @@ void * sys_mmap(void *, size_t, int, int, int, off_t);
 int sys_munmap(void *, size_t);
 off_t sys_lseek(int, off_t, int);
 void sys_xpsleep(void);
+int sys_driver(int, void *);
 int sys_sysarch(int, void *);
 
 /* The followings are mandatory functions for the kernel and should be

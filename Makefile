@@ -24,6 +24,8 @@ initrd:
 	ORG=0x40000000 make -C src init
 	ORG=0x40000000 make -C src pm
 	ORG=0x40000000 make -C src fs
+	ORG=0x40000000 make -C src video
+	ORG=0x40000000 make -C src kbd
 	ORG=0x40000000 make -C src tty
 	ORG=0x40000000 make -C src pash
 	ORG=0x40000000 make -C src pci
@@ -33,6 +35,7 @@ initrd:
 
 #       Create an image
 	@./create_initrd.sh init:/servers/init pm:/servers/pm fs:/servers/fs \
+		video:/drivers/video kbd:/drivers/kbd \
 		tty:/drivers/tty pash:/bin/pash pci:/drivers/pci \
 		e1000:/drivers/e1000 fe:/servers/fe vmx:/drivers/vmx
 

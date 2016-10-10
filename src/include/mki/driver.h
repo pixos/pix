@@ -21,34 +21,20 @@
  * SOFTWARE.
  */
 
-#include <stdlib.h>
-#include <unistd.h>
-#include <sys/syscall.h>
+#ifndef _MKI_DRIVER_H
+#define _MKI_DRIVER_H
 
-#define VIDEO_RAM       0x000b8000
-#define DEV_CHAR
-#define DEV_BLOCK
+#define SYSDRIVER_REG_IRQ       1
+#define SYSDRIVER_UNREG_IRQ     2
 
-void
-sysxpsleep(void)
-{
-    __asm__ __volatile__ ("syscall" :: "a"(SYS_xpsleep));
-}
+struct sysdriver_handler {
+    int nr;
+    void *handler;
+};
 
-/*
- * Entry point for the process manager program
- */
-int
-main(int argc, char *argv[])
-{
-    ("/dev/video", 0);
+int driver_register_irq_handler(int, void *);
 
-
-    while ( 1 ) {
-        sysxpsleep();
-    }
-    exit(0);
-}
+#endif /* _MKI_DRIVER_H */
 
 /*
  * Local variables:

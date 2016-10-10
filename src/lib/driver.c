@@ -22,32 +22,25 @@
  */
 
 #include <stdlib.h>
-#include <unistd.h>
+#include <string.h>
 #include <sys/syscall.h>
+#include <mki/driver.h>
 
-#define VIDEO_RAM       0x000b8000
-#define DEV_CHAR
-#define DEV_BLOCK
-
-void
-sysxpsleep(void)
-{
-    __asm__ __volatile__ ("syscall" :: "a"(SYS_xpsleep));
-}
+/* in libcasm.s */
+unsigned long long syscall(int, ...);
 
 /*
- * Entry point for the process manager program
+ * Request IRQ and register an interrupt handler
  */
 int
-main(int argc, char *argv[])
+driver_register_irq_handler(int irq, void *func)
 {
-    ("/dev/video", 0);
+    struct sysdriver_handler handler;
 
+    handler.nr = irq;
+    handler.handler = func;
 
-    while ( 1 ) {
-        sysxpsleep();
-    }
-    exit(0);
+    return syscall(SYS_driver, SYSDRIVER_REG_IRQ, &handler);
 }
 
 /*

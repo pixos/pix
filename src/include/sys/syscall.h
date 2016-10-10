@@ -1,5 +1,5 @@
 /*_
- * Copyright (c) 2015 Hirochika Asai <asai@jar.jp>
+ * Copyright (c) 2015-2016 Hirochika Asai <asai@jar.jp>
  * All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -71,7 +71,8 @@
 //#define SYS_sigreturn 417
 #define SYS_mmap        477
 #define SYS_lseek       478
-#define SYS_xpsleep     1022
+#define SYS_xpsleep     1021
+#define SYS_driver      1022
 #define SYS_sysarch     1023
 #define SYS_MAXSYSCALL  1024
 

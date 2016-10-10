@@ -300,6 +300,17 @@ bsp_init(void)
     }
     g_proc_table->lastpid = -1;
 
+    /* Set up the interrupt handler table */
+    g_intr_table = kmalloc(sizeof(struct interrupt_handler_table));
+    if ( NULL == g_intr_table ) {
+        panic("Fatal: Could not initialize the interrupt handler table.");
+        return;
+    }
+    for ( i = 0; i < NR_IV; i++ ) {
+        g_intr_table->ivt[i].f = NULL;
+        g_intr_table->ivt[i].proc = NULL;
+    }
+
     /* Initialize the task lists */
     g_ktask_root = kmalloc(sizeof(struct ktask_root));
     if ( NULL == g_ktask_root ) {

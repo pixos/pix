@@ -25,13 +25,14 @@
 #include <unistd.h>
 #include <sys/syscall.h>
 #include <machine/sysarch.h>
+#include <mki/driver.h>
 #include "kernel.h"
 
 /* Copied from sys/mman.h */
-#define PROT_NONE       0x00
-#define PROT_READ       0x01
-#define PROT_WRITE      0x02
-#define PROT_EXEC       0x04
+#define PROT_NONE               0x00
+#define PROT_READ               0x01
+#define PROT_WRITE              0x02
+#define PROT_EXEC               0x04
 
 #define MAP_FILE                0x0000
 #define MAP_SHARED              0x0001
@@ -764,6 +765,33 @@ void
 sys_xpsleep(void)
 {
     __asm__ __volatile__ ("sti;hlt;cli");
+}
+
+/*
+ * Driver-related system call
+ */
+int
+sys_driver(int number, void *args)
+{
+    struct ktask *t;
+    struct proc *proc;
+    struct sysdriver_handler *s;
+
+    /* Get the current task information */
+    t = this_ktask();
+    proc = t->proc;
+
+    switch ( number ) {
+    case SYSDRIVER_REG_IRQ:
+        /* Register an IRQ handler */
+        s = (struct sysdriver_handler *)args;
+        g_intr_table->ivt[IV_IRQ(s->nr)].f = s->handler;
+        g_intr_table->ivt[IV_IRQ(s->nr)].proc = proc;
+        return 0;
+    default:
+        ;
+    }
+    return -1;
 }
 
 /*

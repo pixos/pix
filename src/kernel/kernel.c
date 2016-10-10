@@ -56,6 +56,7 @@ kinit(void)
     g_syscall_table[SYS_munmap] = sys_munmap;
     g_syscall_table[SYS_lseek] = sys_lseek;
     g_syscall_table[SYS_xpsleep] = sys_xpsleep;
+    g_syscall_table[SYS_driver] = sys_driver;
     g_syscall_table[SYS_sysarch] = sys_sysarch;
 
     syscall_setup(g_syscall_table, SYS_MAXSYSCALL);
@@ -102,6 +103,12 @@ isr_loc_tmr(void)
 /*
  * Interrupt service routine
  */
+#define set_cr3(cr3)    __asm__ __volatile__ ("movq %%rax,%%cr3" :: "a"((cr3)))
+void *get_cr3(void);
+struct arch_vmem_space {
+    /* The root of the page table */
+    void *pgt;
+};
 void
 kintr_isr(u64 vec)
 {
@@ -110,7 +117,15 @@ kintr_isr(u64 vec)
         isr_loc_tmr();
         break;
     case IV_IRQ(0):
+        break;
     case IV_IRQ(1):
+        if ( NULL != g_intr_table->ivt[IV_IRQ(1)].f ) {
+            void *cr3 = get_cr3();
+            set_cr3(((struct arch_vmem_space *)(g_intr_table->ivt[IV_IRQ(1)].proc->vmem->arch))->pgt);
+            g_intr_table->ivt[IV_IRQ(1)].f();
+            set_cr3(cr3);
+        }
+        break;
     case IV_IRQ(2):
     case IV_IRQ(3):
     case IV_IRQ(4):

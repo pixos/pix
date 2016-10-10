@@ -22,8 +22,10 @@
  */
 
 #include <stdlib.h>
+#include <string.h>
 #include <unistd.h>
 #include <sys/syscall.h>
+#include <mki/driver.h>
 
 void
 sysxpsleep(void)
@@ -32,11 +34,35 @@ sysxpsleep(void)
 }
 
 /*
+ * Keyboard interrupt handler (ring 0...)
+ */
+void
+kbd_intr(void)
+{
+    char buf[512];
+    uint16_t *video;
+    ssize_t i;
+
+    snprintf(buf, 512, "kbd %s", "input");
+    video = (uint16_t *)0xc00b8000;
+    for ( i = 0; i < (ssize_t)strlen(buf); i++ ) {
+        *video = 0x0f00 | (uint16_t)((char *)buf)[i];
+        video++;
+    }
+}
+
+/*
  * Entry point for the process manager program
  */
 int
 main(int argc, char *argv[])
 {
+    char buf[512];
+
+    driver_register_irq_handler(1, kbd_intr);
+    snprintf(buf, 512, "Registered an interrupt handler of %s driver.", "abcd");
+    write(1, buf, strlen(buf));
+
     while ( 1 ) {
         sysxpsleep();
     }
