@@ -43,8 +43,11 @@ kbd_intr(void)
     uint16_t *video;
     ssize_t i;
 
-    snprintf(buf, 512, "kbd %s", "input");
     video = (uint16_t *)0xc00b8000;
+    for ( i = 0; i < 80 * 25; i++ ) {
+        *(video + i) = 0x0f00;
+    }
+    snprintf(buf, 512, "kbd %s", "input");
     for ( i = 0; i < (ssize_t)strlen(buf); i++ ) {
         *video = 0x0f00 | (uint16_t)((char *)buf)[i];
         video++;

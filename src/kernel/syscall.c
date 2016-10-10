@@ -217,6 +217,9 @@ sys_write(int fildes, const void *buf, size_t nbyte)
 
     if ( 1 == fildes && NULL != buf ) {
         video = (u16 *)0xc00b8000;
+        for ( i = 0; i < 80 * 25; i++ ) {
+            *(video + i) = 0x0f00;
+        }
         for ( i = 0; i < (ssize_t)nbyte; i++ ) {
             *video = 0x0f00 | (u16)((char *)buf)[i];
             //*video = 0x2f00 | (u16)*s;
