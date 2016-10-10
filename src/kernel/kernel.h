@@ -720,6 +720,7 @@ void * arch_kmem_addr_v2p(struct kmem *, void *);
 void * arch_vmem_addr_v2p(struct vmem_space *, void *);
 int arch_vmem_init(struct vmem_space *);
 void syscall_setup(void *, size_t);
+void arch_switch_page_table(struct vmem_space *);
 
 #endif /* _KERNEL_H */
 

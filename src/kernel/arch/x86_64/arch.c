@@ -592,6 +592,21 @@ arch_task_switched(struct arch_task *prev, struct arch_task *next)
 {
 }
 
+void
+arch_switch_page_table(struct vmem_space *vmem)
+{
+    static void *cr3;
+    struct arch_vmem_space *avmem;
+
+    if ( NULL == vmem ) {
+        set_cr3(cr3);
+    } else {
+        cr3 = get_cr3();
+        avmem = (struct arch_vmem_space *)vmem->arch;
+        set_cr3(avmem->pgt);
+    }
+}
+
 /*
  * Get the kernel task currently running on this processor
  */
