@@ -103,12 +103,6 @@ isr_loc_tmr(void)
 /*
  * Interrupt service routine
  */
-#define set_cr3(cr3)    __asm__ __volatile__ ("movq %%rax,%%cr3" :: "a"((cr3)))
-void *get_cr3(void);
-struct arch_vmem_space {
-    /* The root of the page table */
-    void *pgt;
-};
 void
 kintr_isr(u64 vec)
 {
