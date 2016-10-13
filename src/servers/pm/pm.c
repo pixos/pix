@@ -24,6 +24,7 @@
 #include <stdlib.h>
 #include <unistd.h>
 #include <sys/syscall.h>
+#include <time.h>
 
 void
 sysxpsleep(void)
@@ -37,12 +38,17 @@ sysxpsleep(void)
 int
 main(int argc, char *argv[])
 {
+    struct timespec tm;
+    tm.tv_sec = 1;
+    tm.tv_nsec = 0;
+
     while ( 1 ) {
         //write(0, NULL, 0);
         //sysxpsleep();
         //read(0, NULL, 0);
         //__asm__ ("hlt");
-        sysxpsleep();
+        //sysxpsleep();
+        nanosleep(&tm, NULL);
     }
     exit(0);
 }

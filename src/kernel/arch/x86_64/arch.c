@@ -640,6 +640,7 @@ set_next_ktask(struct ktask *ktask)
  */
 void set_next_idle(void)
 {
+    this_cpu()->idle_task->ktask->credit = 0;
     this_cpu()->next_task = this_cpu()->idle_task;
 }
 

@@ -427,6 +427,8 @@ int vmresume(void);
 void spin_lock_intr(u32 *);
 void spin_unlock_intr(u32 *);
 
+void sys_task_switch(void);
+
 /* in trampoline.s */
 void trampoline(void);
 void trampoline_end(void);

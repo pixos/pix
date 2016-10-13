@@ -35,6 +35,10 @@ kinit(void)
         panic("Invalid struct kernel_variable size.");
     }
 
+    /* Initialize kernel timer */
+    g_timer.head = NULL;
+    g_jiffies = 0;
+
     /* Setup system calls */
     for ( i = 0; i < SYS_MAXSYSCALL; i++ ) {
         g_syscall_table[i] = NULL;
@@ -83,6 +87,26 @@ void
 isr_loc_tmr(void)
 {
     struct ktask *ktask;
+    struct ktimer_event *e;
+    struct ktimer_event *etmp;
+
+    /* FIXME: This variable should be CPU-specific value (i.e., one variable per
+       CPU core). */
+    g_jiffies++;
+
+    e = g_timer.head;
+    while ( NULL != e && e->jiffies < g_jiffies ) {
+        /* Fire the event */
+        ktask = e->proc->tasks;
+        while ( NULL != ktask ) {
+            ktask->state = KTASK_STATE_READY;
+            ktask = ktask->proc_task_next;
+        }
+        etmp = e;
+        e = e->next;
+        kfree(etmp);
+    }
+    g_timer.head = e;
 
     ktask = this_ktask();
     if ( ktask ) {
@@ -129,6 +153,16 @@ kintr_isr(u64 vec)
     case IV_IRQ(15):
         /* Check whether the interrupt handler is registered */
         if ( NULL != g_intr_table->ivt[vec].f ) {
+            struct ktask *t;
+            struct ktask *tmp;
+            //g_intr_table->ivt[vec].proc->
+            t = this_ktask();
+            tmp = g_intr_table->ivt[vec].proc->tasks;
+            while ( NULL != tmp ) {
+                tmp->state = KTASK_STATE_READY;
+                tmp = tmp->proc_task_next;
+            }
+
             /* Replace the page table with the driver's */
             arch_switch_page_table(g_intr_table->ivt[vec].proc->vmem);
             g_intr_table->ivt[vec].f();

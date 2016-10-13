@@ -37,6 +37,15 @@ sched_high(void)
     /* Schedule from running tasks */
     l = g_ktask_root->r.head;
 
+    /* Search a ready-state task */
+    while ( NULL != l ) {
+        if ( l->ktask->state == KTASK_STATE_READY ) {
+            break;
+        } else {
+            l = l->next;
+        }
+    }
+
     if ( NULL == l ) {
         /* The idle task is to be scheduled */
         set_next_idle();

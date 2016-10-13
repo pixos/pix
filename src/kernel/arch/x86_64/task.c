@@ -75,6 +75,7 @@ task_new(void)
         return NULL;
     }
     t->ktask->arch = t;
+    t->ktask->proc_task_next = NULL;
 
     t->sp0 = (u64)t->kstack + KSTACK_SIZE - 16;
 
@@ -142,6 +143,8 @@ proc_fork(struct proc *op, struct ktask *ot, struct ktask **ntp)
     t->ktask->arch = t;
     t->ktask->proc = np;
     t->ktask->state = KTASK_STATE_READY;
+    t->ktask->proc_task_next = NULL;
+    t->ktask->proc->tasks = t->ktask;
     t->ktask->next = NULL;
     /* Allocate the user stack of a new task */
     paddr1 = pmem_prim_alloc_pages(PMEM_ZONE_LOWMEM,
@@ -353,7 +356,7 @@ task_create_idle(void)
     /* Entry point, user/kernel stack, and flags of the idle task */
     t->rp->ip = (u64)arch_idle;
     t->rp->sp = (u64)t->ustack + USTACK_SIZE - 16;
-    t->rp->flags = 0x0200;
+    t->rp->flags = 0x0202;
     t->sp0 = (u64)t->kstack + KSTACK_SIZE - 16;
 
     return t;
@@ -448,9 +451,11 @@ proc_create(const char *path, const char *name, pid_t pid)
     }
     kmemset(t->ktask, 0, sizeof(struct ktask));
     t->ktask->arch = t;
+    t->ktask->proc_task_next = NULL;
 
     /* Associate the task with a process */
     t->ktask->proc = proc;
+    t->ktask->proc->tasks = t->ktask;
 
     /* Prepare the kernel stack */
     t->kstack = kmalloc(KSTACK_SIZE);

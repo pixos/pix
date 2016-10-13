@@ -98,7 +98,7 @@
 	.globl	_intr_apic_loc_tmr_xp
 	.globl	_intr_crash
 	.globl	_sys_fork
-	.globl	_sys_nanosleep
+	.globl	_sys_task_switch
 	.globl	_vmx_vm_exit_handler
 	.globl	_vmx_vm_exit_handler_resume
 
@@ -539,8 +539,8 @@ sys_fork_restart:
 	popq	%rbp
 	sysretq
 
-/* int sys_nanosleep(const struct timespec *rqtp, struct timespec *rmtp) */
-_sys_nanosleep:
+/* int sys_task_switch(const struct timespec *rqtp, struct timespec *rmtp) */
+_sys_task_switch:
 	pushq	%rbp
 	movq	%rsp,%rbp
 	pushq	%rbx
@@ -556,10 +556,6 @@ _sys_nanosleep:
 	pushq	%r13
 	pushq	%r14
 	pushq	%r15
-
-	/* Save the arguments */
-	movq	%rdi,%r8
-	movq	%rsi,%r9
 
 	/* Get the APIC ID */
 	movq	$MSR_APIC_BASE,%rcx
@@ -578,14 +574,11 @@ _sys_nanosleep:
 
 	/* If the current task is null, then do nothing. */
 	cmpq	$0,CPU_CUR_TASK_OFFSET(%rbx)
-	jz	4f
+	jz	3f
 
-	/* Call an entry C function to disable this task */
-	call	_sys_nanosleep_c1
-
-	/* Save the stack frame */
+	/* Save the stack frame for the currnt task */
 	movq	%rsp,%rdx
-	movabs	$3f,%rax		/* for rip to be returned */
+	movabs	$3f,%rax		/* for rip to restart */
 	pushq	$GDT_RING0_DATA_SEL	/* ss */
 	pushq	%rdx			/* rsp */
 	pushf				/* rflags */
@@ -669,11 +662,6 @@ _sys_nanosleep:
 	popq	%rax
 	iretq
 3:
-	/* Call C function to leave from this system call */
-	movq	%r8,%rdi
-	movq	%r9,%rsi
-	call	_sys_nanosleep_c2
-4:
 	popq	%r15
 	popq	%r14
 	popq	%r13

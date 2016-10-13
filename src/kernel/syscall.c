@@ -789,20 +789,41 @@ sys_lseek(int fildes, off_t offset, int whence)
  *      minus the time actually slept).
  */
 int
-sys_nanosleep_c1(const struct timespec *rqtp, struct timespec *rmtp)
+sys_nanosleep(const struct timespec *rqtp, struct timespec *rmtp)
 {
     struct ktask *t;
+    struct ktimer_event *e;
+    struct ktimer_event **eptr;
+    reg_t fire;
 
     /* Get the current task information */
     t = this_ktask();
+
+    fire = rqtp->tv_sec * HZ + (rqtp->tv_nsec * HZ / 1000000000) + g_jiffies;
+
+    /* Allocate an event */
+    e = kmalloc(sizeof(struct ktimer_event));
+    if ( NULL == e ) {
+        return -1;
+    }
+    e->jiffies = fire;
+    e->proc = t->proc;
+    e->next = NULL;
+
+    /* Search the appropriate position in the timer list to set the event */
+    eptr = &g_timer.head;
+    while ( NULL != *eptr && fire < (*eptr)->jiffies  ) {
+        eptr = &(*eptr)->next;
+    }
+    *eptr = e;;
+
+    /* Set the state of this task to blocked to sleep */
     t->state = KTASK_STATE_BLOCKED;
 
+    /* Switch this task to another */
+    sys_task_switch();
+
     return -1;
-}
-int
-sys_nanosleep_c2(const struct timespec *rqtp, struct timespec *rmtp)
-{
-    return 0;
 }
 
 

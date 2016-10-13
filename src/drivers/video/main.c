@@ -24,6 +24,7 @@
 #include <stdlib.h>
 #include <unistd.h>
 #include <sys/syscall.h>
+#include <time.h>
 
 #define VIDEO_RAM       0x000b8000
 #define DEV_CHAR
@@ -43,6 +44,12 @@ main(int argc, char *argv[])
 {
     ("/dev/video", 0);
 
+    struct timespec tm;
+    tm.tv_sec = 1;
+    tm.tv_nsec = 0;
+    while ( 1 ) {
+        nanosleep(&tm, NULL);
+    }
 
     while ( 1 ) {
         sysxpsleep();

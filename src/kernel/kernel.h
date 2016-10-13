@@ -50,6 +50,8 @@
 #define g_ktask_root    g_kvar->ktask_root
 #define g_syscall_table g_kvar->syscall_table
 #define g_intr_table    g_kvar->intr_table
+#define g_timer         g_kvar->timer
+#define g_jiffies       g_kvar->jiffies
 
 #define FLOOR(val, base)        (((val) / (base)) * (base))
 #define CEIL(val, base)         ((((val) - 1) / (base) + 1) * (base))
@@ -497,6 +499,9 @@ struct proc {
     /* Parent process */
     struct proc *parent;
 
+    /* Tasks */
+    struct ktask *tasks;
+
     /* User information */
     uid_t uid;
     gid_t gid;
@@ -556,6 +561,10 @@ struct ktask {
 
     /* Task type: Tick-full or tickless */
     int type;
+
+    /* Linked list of tasks in the same process */
+    struct ktask *proc_task_next;
+
     /* Pointers for scheduler (runqueue) */
     struct ktask *next;
     int credit;                 /* quantum */
@@ -579,6 +588,19 @@ struct ktask_root {
         struct ktask_list *head;
         struct ktask_list *tail;
     } b;
+};
+
+/*
+ * Kernel timer
+ */
+struct ktimer_event {
+    reg_t jiffies;
+    struct proc *proc;
+    struct ktimer_event *next;
+};
+struct ktimer {
+    /* Head of timer list */
+    struct ktimer_event *head;
 };
 
 /* Kernel event handler */
@@ -607,6 +629,8 @@ struct kernel_variables {
     struct ktask_root *ktask_root;
     void *syscall_table[SYS_MAXSYSCALL];
     struct interrupt_handler_table *intr_table;
+    struct ktimer timer;
+    reg_t jiffies;
 };
 
 /* for variable-length arguments */

@@ -323,6 +323,7 @@ main(int argc, char *argv[])
 {
     char buf[512];
     struct sysarch_io io;
+    int i;
 
     kbd_init();
 
@@ -330,20 +331,29 @@ main(int argc, char *argv[])
     snprintf(buf, 512, "Registered an interrupt handler of %s driver.", "abcd");
     write(1, buf, strlen(buf));
 
+    i = 0;
     while ( 1 ) {
+        i++;
         struct timespec tm;
         tm.tv_sec = 1;
         tm.tv_nsec = 0;
         nanosleep(&tm, NULL);
 
-        io.port = KBD_CTRL_STAT;
-        sysarch(SYSARCH_INB, &io);
-        if ( io.data & 1 ) {
-            kbd_scan_code = kbd_enc_read_buf();
-            snprintf(buf, 512, "Input: %x 0x%x.", io.data, kbd_scan_code);
-            write(1, buf, strlen(buf));
+        snprintf(buf, 512, "@%d.", i);
+        write(1, buf, strlen(buf));
+
+        for ( ;; ) {
+            io.port = KBD_CTRL_STAT;
+            sysarch(SYSARCH_INB, &io);
+            if ( io.data & 1 ) {
+                kbd_scan_code = kbd_enc_read_buf();
+                snprintf(buf, 512, "Input: %x 0x%x.", io.data, kbd_scan_code);
+                write(1, buf, strlen(buf));
+            } else {
+                break;
+            }
         }
-        sysxpsleep();
+        //sysxpsleep();
     }
     exit(0);
 }
