@@ -27,6 +27,7 @@
 #include <sys/syscall.h>
 #include <sys/mman.h>
 #include <unistd.h>
+#include <time.h>
 
 typedef __builtin_va_list va_list;
 #define va_start(ap, last)      __builtin_va_start((ap), (last))
@@ -222,6 +223,14 @@ free(void *ptr)
     //munmap(ptr, len);
 }
 
+/*
+ * nanosleep
+ */
+int
+nanosleep(const struct timespec *rqtp, struct timespec *rmtp)
+{
+    return syscall(SYS_nanosleep, rqtp, rmtp);
+}
 
 
 #define STRFMT_MOD_NONE         0

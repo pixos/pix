@@ -28,6 +28,7 @@
 #include <aos/types.h>
 #include <sys/resource.h>
 #include <sys/syscall.h>
+#include <time.h>
 
 /* Architecture-specific configuration */
 #if defined(ARCH_X86_64) && ARCH_X86_64
@@ -695,6 +696,7 @@ int sys_execve(const char *, char *const [], char *const []);
 void * sys_mmap(void *, size_t, int, int, int, off_t);
 int sys_munmap(void *, size_t);
 off_t sys_lseek(int, off_t, int);
+int sys_nanosleep(const struct timespec *, struct timespec *);
 void sys_xpsleep(void);
 int sys_driver(int, void *);
 int sys_sysarch(int, void *);

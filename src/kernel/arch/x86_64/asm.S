@@ -98,6 +98,7 @@
 	.globl	_intr_apic_loc_tmr_xp
 	.globl	_intr_crash
 	.globl	_sys_fork
+	.globl	_sys_nanosleep
 	.globl	_vmx_vm_exit_handler
 	.globl	_vmx_vm_exit_handler_resume
 
@@ -519,7 +520,7 @@ sys_fork_restart:
 	movq	-40(%rbp),%rcx
 	movq	%rcx,-152(%rdx)	/* rdi */
 	movq	0(%rbp),%rcx
-	movq	$0xabcd,%rcx
+	//movq	$0xabcd,%rcx
 	movq	%rcx,-160(%rdx)	/* rbp */
 	movw	$(GDT_RING3_DATA64_SEL+3),%cx
 	movw	%cx,-162(%rdx)	/* fs */
@@ -537,6 +538,157 @@ sys_fork_restart:
 1:
 	popq	%rbp
 	sysretq
+
+/* int sys_nanosleep(const struct timespec *rqtp, struct timespec *rmtp) */
+_sys_nanosleep:
+	pushq	%rbp
+	movq	%rsp,%rbp
+	pushq	%rbx
+	pushq	%rcx
+	pushq	%rdx
+	pushq	%rdi
+	pushq	%rsi
+	pushq	%r8
+	pushq	%r9
+	pushq	%r10
+	pushq	%r11
+	pushq	%r12
+	pushq	%r13
+	pushq	%r14
+	pushq	%r15
+
+	/* Save the arguments */
+	movq	%rdi,%r8
+	movq	%rsi,%r9
+
+	/* Get the APIC ID */
+	movq	$MSR_APIC_BASE,%rcx
+	rdmsr
+	shlq	$32,%rdx
+	addq	%rax,%rdx
+	andq	$0xfffffffffffff000,%rdx	/* APIC Base */
+	xorq	%rax,%rax
+	movl	APIC_LAPIC_ID(%rdx),%eax
+	/* Calculate the processor data space from the APIC ID */
+	movq	$CPU_DATA_SIZE,%rbx
+	mulq	%rbx		/* [%rdx:%rax] = %rax * %rbx */
+	movabs	$CPU_DATA_BASE,%rdx
+	addq	%rdx,%rax
+	movq	%rax,%rbx
+
+	/* If the current task is null, then do nothing. */
+	cmpq	$0,CPU_CUR_TASK_OFFSET(%rbx)
+	jz	4f
+
+	/* Call an entry C function to disable this task */
+	call	_sys_nanosleep_c1
+
+	/* Save the stack frame */
+	movq	%rsp,%rdx
+	movabs	$3f,%rax		/* for rip to be returned */
+	pushq	$GDT_RING0_DATA_SEL	/* ss */
+	pushq	%rdx			/* rsp */
+	pushf				/* rflags */
+	pushq	$GDT_RING0_CODE_SEL	/* cs */
+	pushq	%rax			/* rip */
+	pushq	$0			/* rax */
+	pushq	%rbx
+	pushq	%rcx
+	pushq	$0			/* rdx */
+	pushq	%r8
+	pushq	%r9
+	pushq	%r10
+	pushq	%r11
+	pushq	%r12
+	pushq	%r13
+	pushq	%r14
+	pushq	%r15
+	pushq	%rsi
+	pushq	%rdi
+	pushq	%rbp
+	pushw	%fs
+	pushw	%gs
+
+	/* If the next task is not scheduled, idle task should be scheduled. */
+	cmpq	$0,CPU_NEXT_TASK_OFFSET(%rbx)
+	jnz	1f
+	movq	CPU_IDLE_TASK_OFFSET(%rbx),%rcx	/* idle task */
+	jmp	2f
+1:
+	movq	CPU_NEXT_TASK_OFFSET(%rbx),%rcx /* next task */
+2:
+	/* Save the stack pointer (restart point) */
+	movq	CPU_CUR_TASK_OFFSET(%rbx),%rax
+	movq	%rsp,TASK_RP(%rax)
+	/* Save the FPU/SSE registers */
+	movq	TASK_XREGS(%rax),%rdi
+	movq	$5,%rax
+	movq	$0,%rdx
+	xsave64	(%rdi)
+	clts
+
+	/* Notify that the current task is switched (to the kernel) */
+	movq	CPU_CUR_TASK_OFFSET(%rbx),%rdi
+	movq	%rcx,%rsi	/* next task */
+	callq	_arch_task_switched
+	/* Task switch (set the stack frame of the new task) */
+	movq	%rcx,CPU_CUR_TASK_OFFSET(%rbx)
+	movq	TASK_RP(%rcx),%rsp
+	movq	$0,CPU_NEXT_TASK_OFFSET(%rbx)
+	/* Change page table */
+	movq	TASK_CR3(%rcx),%rdx
+	movq	%rdx,%cr3
+	/* Restore FPU/SSE registers */
+	movq	TASK_XREGS(%rcx),%rdi
+	movq	$5,%rax
+	movq	$0,%rdx
+	xrstor64	(%rdi)
+	/* Setup sp0 in TSS */
+	movq	CPU_CUR_TASK_OFFSET(%rbx),%rax
+	movq	TASK_SP0(%rax),%rdx
+	leaq	CPU_TSS_OFFSET(%rbx),%rax
+	movq	%rdx,TSS_SP0(%rax)
+
+	/* Pop all registers from the stackframe */
+	popw	%gs
+	popw	%fs
+	popq	%rbp
+	popq	%rdi
+	popq	%rsi
+	popq	%r15
+	popq	%r14
+	popq	%r13
+	popq	%r12
+	popq	%r11
+	popq	%r10
+	popq	%r9
+	popq	%r8
+	popq	%rdx
+	popq	%rcx
+	popq	%rbx
+	popq	%rax
+	iretq
+3:
+	/* Call C function to leave from this system call */
+	movq	%r8,%rdi
+	movq	%r9,%rsi
+	call	_sys_nanosleep_c2
+4:
+	popq	%r15
+	popq	%r14
+	popq	%r13
+	popq	%r12
+	popq	%r11
+	popq	%r10
+	popq	%r9
+	popq	%r8
+	popq	%rsi
+	popq	%rdi
+	popq	%rdx
+	popq	%rcx
+	popq	%rbx
+	leaveq
+	ret
 
 
 /* void asm_ioapic_map_intr(u64 val, u64 tbldst, u64 ioapic_base) */
@@ -1133,11 +1285,11 @@ _task_restart:
 	movabs	$CPU_DATA_BASE,%rdx
 	addq	%rdx,%rax
 	movq	%rax,%rbp
-	/* If the next task is not scheduled, immediately restart this task */
+	/* If the next task is not scheduled, immediately restart this task. */
 	cmpq	$0,CPU_NEXT_TASK_OFFSET(%rbp)
 	jz	2f
 	movq	CPU_NEXT_TASK_OFFSET(%rbp),%rax
-	/* If the current task is null, then do not need to save anything */
+	/* If the current task is null, then do not need to save anything. */
 	cmpq	$0,CPU_CUR_TASK_OFFSET(%rbp)
 	jz	1f
 	/* Save the stack pointer (restart point) */

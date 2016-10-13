@@ -1,5 +1,5 @@
 /*_
- * Copyright (c) 2015 Hirochika Asai <asai@jar.jp>
+ * Copyright (c) 2016 Hirochika Asai <asai@jar.jp>
  * All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -21,46 +21,19 @@
  * SOFTWARE.
  */
 
-#include <aos/const.h>
-#include "kernel.h"
+#ifndef _TIME_H
+#define _TIME_H
 
-/*
- * High-level scheduler
- */
-void
-sched_high(void)
-{
-    struct ktask *ktask;
-    struct ktask *pt;
-    struct ktask_list *l;
+#include <sys/types.h>
 
-    /* Schedule from running tasks */
-    l = g_ktask_root->r.head;
+struct timespec {
+    time_t tv_sec;
+    long tv_nsec;
+};
 
-    if ( NULL == l ) {
-        /* The idle task is to be scheduled */
-        set_next_idle();
-        return;
-    }
+int nanosleep(const struct timespec *, struct timespec *);
 
-    /* Setup a run queue for the low-level scheduler */
-    ktask = l->ktask;
-    pt = ktask;
-    pt->credit = 10;
-    l = l->next;
-    while ( NULL != l ) {
-        if ( l->ktask->state == KTASK_STATE_READY ) {
-            pt->next = l->ktask;
-            pt = l->ktask;
-            pt->credit = 10;
-        }
-        l = l->next;
-    }
-    pt->next = NULL;
-
-    /* Schedule the next task */
-    set_next_ktask(ktask);
-}
+#endif /* _TIME_H */
 
 /*
  * Local variables:

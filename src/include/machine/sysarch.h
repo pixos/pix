@@ -24,8 +24,12 @@
 #ifndef _MACHINE_SYSARCH_H
 #define _MACHINE_SYSARCH_H
 
-#define SYSARCH_INL     1
-#define SYSARCH_OUTL    2
+#define SYSARCH_INB     1
+#define SYSARCH_INW     2
+#define SYSARCH_INL     3
+#define SYSARCH_OUTB    5
+#define SYSARCH_OUTW    6
+#define SYSARCH_OUTL    7
 #define SYSARCH_CPUMAP  11
 #define SYSARCH_RDMSR   32
 #define SYSARCH_WRMSR   33

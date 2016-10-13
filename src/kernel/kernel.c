@@ -55,6 +55,7 @@ kinit(void)
     g_syscall_table[SYS_mmap] = sys_mmap;
     g_syscall_table[SYS_munmap] = sys_munmap;
     g_syscall_table[SYS_lseek] = sys_lseek;
+    g_syscall_table[SYS_nanosleep] = sys_nanosleep;
     g_syscall_table[SYS_xpsleep] = sys_xpsleep;
     g_syscall_table[SYS_driver] = sys_driver;
     g_syscall_table[SYS_sysarch] = sys_sysarch;

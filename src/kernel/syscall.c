@@ -24,6 +24,7 @@
 #include <aos/const.h>
 #include <unistd.h>
 #include <sys/syscall.h>
+#include <time.h>
 #include <machine/sysarch.h>
 #include <mki/driver.h>
 #include "kernel.h"
@@ -761,6 +762,50 @@ sys_lseek(int fildes, off_t offset, int whence)
     return -1;
 }
 
+
+/*
+ * Suspend thread execution for an interval measured in nanoseconds
+ *
+ * SYNOPSIS
+ *      int
+ *      sys_nanosleep(const struct timespec *rqtp, struct timespec *rmtp);
+ *
+ * DESCRIPTION
+ *      The nanosleep() function causes the calling thread to sleep for the
+ *      amount of time specified in ratp (the actual time slept may be longer,
+ *      due to system latencies and possible limitations in the timer resolution
+ *      of the hardware).  An unmasked signal will cause nanosleep() to
+ *      terminate the sleep early, regardless of the SA_RESTART value on the
+ *      interrupting signal.
+ *
+ * RETURN VALUES
+ *      If nanosleep() returns because the requested time has elapsed, the value
+ *      returned will be zero.
+ *
+ *      If nanosleep() returns due to the delivery of a signal, the value
+ *      returned will be the -1, and the global variable errno will be set to
+ *      indicate the interruption.  If rmtp is non-NULL, the timespec structure
+ *      it references is updated to contain the unslept amount (the request time
+ *      minus the time actually slept).
+ */
+int
+sys_nanosleep_c1(const struct timespec *rqtp, struct timespec *rmtp)
+{
+    struct ktask *t;
+
+    /* Get the current task information */
+    t = this_ktask();
+    t->state = KTASK_STATE_BLOCKED;
+
+    return -1;
+}
+int
+sys_nanosleep_c2(const struct timespec *rqtp, struct timespec *rmtp)
+{
+    return 0;
+}
+
+
 /*
  * Sleep this exclusive processor
  */
@@ -801,7 +846,11 @@ sys_driver(int number, void *args)
  * Architecture specific system call
  * FIXME: Must check the caller's authority and implement protection mechanisms
  */
+u8 inb(u16);
+u16 inw(u16);
 u32 inl(u16);
+void outb(u16, u8);
+void outw(u16, u16);
 void outl(u16, u32);
 u64 rdmsr(u64);
 void wrmsr(u64, u64);
@@ -817,9 +866,25 @@ sys_sysarch(int number, void *args)
     u64 reg;
 
     switch ( number ) {
+    case SYSARCH_INB:
+        io = (struct sysarch_io *)args;
+        io->data = inb(io->port);
+        return 0;
+    case SYSARCH_INW:
+        io = (struct sysarch_io *)args;
+        io->data = inw(io->port);
+        return 0;
     case SYSARCH_INL:
         io = (struct sysarch_io *)args;
         io->data = inl(io->port);
+        return 0;
+    case SYSARCH_OUTB:
+        io = (struct sysarch_io *)args;
+        outb(io->port, io->data);
+        return 0;
+    case SYSARCH_OUTW:
+        io = (struct sysarch_io *)args;
+        outw(io->port, io->data);
         return 0;
     case SYSARCH_OUTL:
         io = (struct sysarch_io *)args;

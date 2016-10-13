@@ -64,6 +64,7 @@
 //#define SYS_setgid    181
 //#define SYS_stat      188
 //#define SYS_fstat     189
+#define SYS_nanosleep   240
 //#define SYS_sigprocmask 340
 //#define SYS_sigsuspend 341
 //#define SYS_sigpending 343

@@ -302,13 +302,13 @@ struct cpu_data {
     u32 prox_domain;
     u32 reserved[3];
     u64 stats[IDT_NR];  /* Interrupt counter */
-    /* P_TSS_OFFSET */
+    /* CPU_TSS_OFFSET */
     struct tss tss;
-    /* P_CUR_TASK_OFFSET */
+    /* CPU_CUR_TASK_OFFSET */
     struct arch_task *cur_task;
-    /* P_NEXT_TASK_OFFSET */
+    /* CPU_NEXT_TASK_OFFSET */
     struct arch_task *next_task;
-    /* Idle task */
+    /* Idle task (CPU_IDLE_TASK_OFFSET) */
     struct arch_task *idle_task;
     /* Stack and stack guard follow */
 } __attribute__ ((packed));
