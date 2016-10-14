@@ -95,8 +95,10 @@
 	.globl	_intr_vef
 	.globl	_intr_se
 	.globl	_intr_apic_loc_tmr
+	.globl	_intr_apic_loc_tmr_xp
 	.globl	_intr_crash
 	.globl	_sys_fork
+	.globl	_sys_task_switch
 	.globl	_vmx_vm_exit_handler
 	.globl	_vmx_vm_exit_handler_resume
 
@@ -400,6 +402,12 @@ _syscall_setup:
 	movq	%rdi,(%rax)
 	movabs	$SYSCALL_NR,%rax
 	movq	%rsi,(%rax)
+	/* Write syscall flag mask */
+	movq	$0xc0000084,%rcx	/* IA32_FMASK */
+	movq	$0x3200,%rax
+	movq	%rax,%rdx
+	shrq	$32,%rdx
+	wrmsr
 	/* Write syscall entry point */
 	movq	$0xc0000082,%rcx	/* IA32_LSTAR */
 	movabs	$syscall_entry,%rax
@@ -409,6 +417,8 @@ _syscall_setup:
 	/* Segment register */
 	movq	$0xc0000081,%rcx
 	movq	$0x0,%rax
+	/* IA32_STAR: syscall; cs=[47:32], ss=[47:32]+8 */
+	/* sysret; 32-bit cs=[63:48], 64-bit cs=[63:48]+16, ss=[63:48]+8 */
 	movq	$(GDT_RING0_CODE_SEL | ((GDT_RING3_CODE32_SEL + 3) << 16)),%rdx
 	wrmsr
 	/* Enable syscall */
@@ -421,7 +431,6 @@ _syscall_setup:
 
 /* Entry point to a syscall */
 syscall_entry:
-	cli
 	/* rip and rflags are stored in rcx and r11, respectively. */
 	pushq	%rbp
 	movq	%rsp,%rbp
@@ -447,7 +456,6 @@ syscall_entry:
 	popq	%rbx
 	popq	%r11
 	popq	%rcx
-	movq	%rbp,%rsp
 	popq	%rbp
 	sysretq
 
@@ -512,7 +520,7 @@ sys_fork_restart:
 	movq	-40(%rbp),%rcx
 	movq	%rcx,-152(%rdx)	/* rdi */
 	movq	0(%rbp),%rcx
-	movq	$0xabcd,%rcx
+	//movq	$0xabcd,%rcx
 	movq	%rcx,-160(%rdx)	/* rbp */
 	movw	$(GDT_RING3_DATA64_SEL+3),%cx
 	movw	%cx,-162(%rdx)	/* fs */
@@ -530,6 +538,145 @@ sys_fork_restart:
 1:
 	popq	%rbp
 	sysretq
+
+/* int sys_task_switch(const struct timespec *rqtp, struct timespec *rmtp) */
+_sys_task_switch:
+	pushq	%rbp
+	movq	%rsp,%rbp
+	pushq	%rbx
+	pushq	%rcx
+	pushq	%rdx
+	pushq	%rdi
+	pushq	%rsi
+	pushq	%r8
+	pushq	%r9
+	pushq	%r10
+	pushq	%r11
+	pushq	%r12
+	pushq	%r13
+	pushq	%r14
+	pushq	%r15
+
+	/* Get the APIC ID */
+	movq	$MSR_APIC_BASE,%rcx
+	rdmsr
+	shlq	$32,%rdx
+	addq	%rax,%rdx
+	andq	$0xfffffffffffff000,%rdx	/* APIC Base */
+	xorq	%rax,%rax
+	movl	APIC_LAPIC_ID(%rdx),%eax
+	/* Calculate the processor data space from the APIC ID */
+	movq	$CPU_DATA_SIZE,%rbx
+	mulq	%rbx		/* [%rdx:%rax] = %rax * %rbx */
+	movabs	$CPU_DATA_BASE,%rdx
+	addq	%rdx,%rax
+	movq	%rax,%rbx
+
+	/* If the current task is null, then do nothing. */
+	cmpq	$0,CPU_CUR_TASK_OFFSET(%rbx)
+	jz	3f
+
+	/* Save the stack frame for the currnt task */
+	movq	%rsp,%rdx
+	movabs	$3f,%rax		/* for rip to restart */
+	pushq	$GDT_RING0_DATA_SEL	/* ss */
+	pushq	%rdx			/* rsp */
+	pushf				/* rflags */
+	pushq	$GDT_RING0_CODE_SEL	/* cs */
+	pushq	%rax			/* rip */
+	pushq	$0			/* rax */
+	pushq	%rbx
+	pushq	%rcx
+	pushq	$0			/* rdx */
+	pushq	%r8
+	pushq	%r9
+	pushq	%r10
+	pushq	%r11
+	pushq	%r12
+	pushq	%r13
+	pushq	%r14
+	pushq	%r15
+	pushq	%rsi
+	pushq	%rdi
+	pushq	%rbp
+	pushw	%fs
+	pushw	%gs
+
+	/* If the next task is not scheduled, idle task should be scheduled. */
+	cmpq	$0,CPU_NEXT_TASK_OFFSET(%rbx)
+	jnz	1f
+	movq	CPU_IDLE_TASK_OFFSET(%rbx),%rcx	/* idle task */
+	jmp	2f
+1:
+	movq	CPU_NEXT_TASK_OFFSET(%rbx),%rcx /* next task */
+2:
+	/* Save the stack pointer (restart point) */
+	movq	CPU_CUR_TASK_OFFSET(%rbx),%rax
+	movq	%rsp,TASK_RP(%rax)
+	/* Save the FPU/SSE registers */
+	movq	TASK_XREGS(%rax),%rdi
+	movq	$5,%rax
+	movq	$0,%rdx
+	xsave64	(%rdi)
+	clts
+
+	/* Notify that the current task is switched (to the kernel) */
+	movq	CPU_CUR_TASK_OFFSET(%rbx),%rdi
+	movq	%rcx,%rsi	/* next task */
+	callq	_arch_task_switched
+	/* Task switch (set the stack frame of the new task) */
+	movq	%rcx,CPU_CUR_TASK_OFFSET(%rbx)
+	movq	TASK_RP(%rcx),%rsp
+	movq	$0,CPU_NEXT_TASK_OFFSET(%rbx)
+	/* Change page table */
+	movq	TASK_CR3(%rcx),%rdx
+	movq	%rdx,%cr3
+	/* Restore FPU/SSE registers */
+	movq	TASK_XREGS(%rcx),%rdi
+	movq	$5,%rax
+	movq	$0,%rdx
+	xrstor64	(%rdi)
+	/* Setup sp0 in TSS */
+	movq	CPU_CUR_TASK_OFFSET(%rbx),%rax
+	movq	TASK_SP0(%rax),%rdx
+	leaq	CPU_TSS_OFFSET(%rbx),%rax
+	movq	%rdx,TSS_SP0(%rax)
+
+	/* Pop all registers from the stackframe */
+	popw	%gs
+	popw	%fs
+	popq	%rbp
+	popq	%rdi
+	popq	%rsi
+	popq	%r15
+	popq	%r14
+	popq	%r13
+	popq	%r12
+	popq	%r11
+	popq	%r10
+	popq	%r9
+	popq	%r8
+	popq	%rdx
+	popq	%rcx
+	popq	%rbx
+	popq	%rax
+	iretq
+3:
+	popq	%r15
+	popq	%r14
+	popq	%r13
+	popq	%r12
+	popq	%r11
+	popq	%r10
+	popq	%r9
+	popq	%r8
+	popq	%rsi
+	popq	%rdi
+	popq	%rdx
+	popq	%rcx
+	popq	%rbx
+	leaveq
+	ret
 
 
 /* void asm_ioapic_map_intr(u64 val, u64 tbldst, u64 ioapic_base) */
@@ -919,6 +1066,43 @@ _intr_apic_loc_tmr:
 	intr_lapic_isr 0x40
 	jmp	_task_restart
 
+/* Null interrupt handler (do nothing) */
+_intr_apic_loc_tmr_xp:
+	pushq	%rax
+	pushq	%rcx
+	pushq	%rdx
+	/* APIC EOI */
+	movq	$MSR_APIC_BASE,%rcx
+	rdmsr			/* Read APIC info to [%edx:%eax]; N.B., higer */
+				/*  32 bits of %rax and %rdx are cleared */
+				/*  bit [35:12]: APIC Base, [11]: EN */
+				/*  [10]: EXTD, and [8]:BSP */
+	shlq	$32,%rdx
+	addq	%rax,%rdx
+	andq	$0xfffffffffffff000,%rdx	/* APIC Base */
+	movl	$0,APIC_EOI(%rdx)	/* EOI */
+	popq	%rdx
+	popq	%rcx
+	popq	%rax
+	iretq
+
+/* IRQn */
+	intr_lapic_isr_generic 0x20
+	intr_lapic_isr_generic 0x21
+	intr_lapic_isr_generic 0x22
+	intr_lapic_isr_generic 0x23
+	intr_lapic_isr_generic 0x24
+	intr_lapic_isr_generic 0x25
+	intr_lapic_isr_generic 0x26
+	intr_lapic_isr_generic 0x27
+	intr_lapic_isr_generic 0x28
+	intr_lapic_isr_generic 0x29
+	intr_lapic_isr_generic 0x2a
+	intr_lapic_isr_generic 0x2b
+	intr_lapic_isr_generic 0x2c
+	intr_lapic_isr_generic 0x2d
+	intr_lapic_isr_generic 0x2e
+	intr_lapic_isr_generic 0x2f
 /* For driver use */
 	intr_lapic_isr_generic 0x50
 	intr_lapic_isr_generic 0x51
@@ -1089,11 +1273,11 @@ _task_restart:
 	movabs	$CPU_DATA_BASE,%rdx
 	addq	%rdx,%rax
 	movq	%rax,%rbp
-	/* If the next task is not scheduled, immediately restart this task */
+	/* If the next task is not scheduled, immediately restart this task. */
 	cmpq	$0,CPU_NEXT_TASK_OFFSET(%rbp)
 	jz	2f
 	movq	CPU_NEXT_TASK_OFFSET(%rbp),%rax
-	/* If the current task is null, then do not need to save anything */
+	/* If the current task is null, then do not need to save anything. */
 	cmpq	$0,CPU_CUR_TASK_OFFSET(%rbp)
 	jz	1f
 	/* Save the stack pointer (restart point) */

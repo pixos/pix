@@ -1,5 +1,5 @@
 /*_
- * Copyright (c) 2015 Hirochika Asai <asai@jar.jp>
+ * Copyright (c) 2015-2016 Hirochika Asai <asai@jar.jp>
  * All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -44,7 +44,7 @@
 #define SYS_getuid      24
 //#define SYS_access    33
 //#define SYS_sync      36
-#define SYS_kill      37
+#define SYS_kill        37
 #define SYS_getppid     39
 //#define SYS_dup       41
 //#define SYS_pipe      42
@@ -64,6 +64,7 @@
 //#define SYS_setgid    181
 //#define SYS_stat      188
 //#define SYS_fstat     189
+#define SYS_nanosleep   240
 //#define SYS_sigprocmask 340
 //#define SYS_sigsuspend 341
 //#define SYS_sigpending 343
@@ -71,6 +72,8 @@
 //#define SYS_sigreturn 417
 #define SYS_mmap        477
 #define SYS_lseek       478
+#define SYS_xpsleep     1021
+#define SYS_driver      1022
 #define SYS_sysarch     1023
 #define SYS_MAXSYSCALL  1024
 

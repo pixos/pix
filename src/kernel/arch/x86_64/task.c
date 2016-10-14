@@ -75,6 +75,7 @@ task_new(void)
         return NULL;
     }
     t->ktask->arch = t;
+    t->ktask->proc_task_next = NULL;
 
     t->sp0 = (u64)t->kstack + KSTACK_SIZE - 16;
 
@@ -142,10 +143,12 @@ proc_fork(struct proc *op, struct ktask *ot, struct ktask **ntp)
     t->ktask->arch = t;
     t->ktask->proc = np;
     t->ktask->state = KTASK_STATE_READY;
+    t->ktask->proc_task_next = NULL;
+    t->ktask->proc->tasks = t->ktask;
     t->ktask->next = NULL;
     /* Allocate the user stack of a new task */
-    paddr1 = pmem_alloc_pages(PMEM_ZONE_LOWMEM,
-                              bitwidth(USTACK_SIZE / PHYS_PAGESIZE));
+    paddr1 = pmem_prim_alloc_pages(PMEM_ZONE_LOWMEM,
+                                   bitwidth(USTACK_SIZE / SUPERPAGESIZE));
     if ( NULL == paddr1 ) {
         kfree(t->ktask);
         kfree(t->kstack);
@@ -158,7 +161,7 @@ proc_fork(struct proc *op, struct ktask *ot, struct ktask **ntp)
     size = t->ktask->proc->code_size;
     if ( size <= 0 ) {
         /* Invald code */
-        pmem_free_pages(paddr1);
+        pmem_prim_free_pages(paddr1);
         kfree(t->ktask);
         kfree(t->kstack);
         kfree(t->xregs);
@@ -166,10 +169,10 @@ proc_fork(struct proc *op, struct ktask *ot, struct ktask **ntp)
         kfree(np);
         return NULL;
     }
-    paddr2 = pmem_alloc_pages(PMEM_ZONE_LOWMEM,
-                              bitwidth(DIV_CEIL(size, PHYS_PAGESIZE)));
+    paddr2 = pmem_prim_alloc_pages(PMEM_ZONE_LOWMEM,
+                                   bitwidth(DIV_CEIL(size, SUPERPAGESIZE)));
     if ( NULL == paddr2 ) {
-        pmem_free_pages(paddr1);
+        pmem_prim_free_pages(paddr1);
         kfree(t->ktask);
         kfree(t->kstack);
         kfree(t->xregs);
@@ -182,8 +185,8 @@ proc_fork(struct proc *op, struct ktask *ot, struct ktask **ntp)
     t->ustack = ((struct arch_task *)ot->arch)->ustack;
     exec = kmalloc(CEIL(size, SUPERPAGESIZE));
     if ( NULL == exec ) {
-        pmem_free_pages(paddr2);
-        pmem_free_pages(paddr1);
+        pmem_prim_free_pages(paddr2);
+        pmem_prim_free_pages(paddr1);
         kfree(t->ktask);
         kfree(t->kstack);
         kfree(t->xregs);
@@ -202,8 +205,8 @@ proc_fork(struct proc *op, struct ktask *ot, struct ktask **ntp)
     np->vmem = vmem_space_create();
     if ( NULL == np->vmem ) {
         kfree(exec);
-        pmem_free_pages(paddr2);
-        pmem_free_pages(paddr1);
+        pmem_prim_free_pages(paddr2);
+        pmem_prim_free_pages(paddr1);
         kfree(t->ktask);
         kfree(t->kstack);
         kfree(t->xregs);
@@ -353,7 +356,7 @@ task_create_idle(void)
     /* Entry point, user/kernel stack, and flags of the idle task */
     t->rp->ip = (u64)arch_idle;
     t->rp->sp = (u64)t->ustack + USTACK_SIZE - 16;
-    t->rp->flags = 0x0200;
+    t->rp->flags = 0x0202;
     t->sp0 = (u64)t->kstack + KSTACK_SIZE - 16;
 
     return t;
@@ -448,9 +451,11 @@ proc_create(const char *path, const char *name, pid_t pid)
     }
     kmemset(t->ktask, 0, sizeof(struct ktask));
     t->ktask->arch = t;
+    t->ktask->proc_task_next = NULL;
 
     /* Associate the task with a process */
     t->ktask->proc = proc;
+    t->ktask->proc->tasks = t->ktask;
 
     /* Prepare the kernel stack */
     t->kstack = kmalloc(KSTACK_SIZE);
@@ -459,15 +464,15 @@ proc_create(const char *path, const char *name, pid_t pid)
     }
 
     /* Prepare the user stack */
-    ppage1 = pmem_alloc_pages(PMEM_ZONE_LOWMEM,
-                              bitwidth(USTACK_SIZE / PHYS_PAGESIZE));
+    ppage1 = pmem_prim_alloc_pages(PMEM_ZONE_LOWMEM,
+                                   bitwidth(USTACK_SIZE / SUPERPAGESIZE));
     if ( NULL == ppage1 ) {
         goto error_ustack;
     }
 
     /* Prepare exec */
-    ppage2 = pmem_alloc_pages(PMEM_ZONE_LOWMEM,
-                              bitwidth(DIV_CEIL(size, PHYS_PAGESIZE)));
+    ppage2 = pmem_prim_alloc_pages(PMEM_ZONE_LOWMEM,
+                                   bitwidth(DIV_CEIL(size, SUPERPAGESIZE)));
     if ( NULL == ppage2 ) {
         goto error_exec;
         return -1;
@@ -533,7 +538,7 @@ proc_create(const char *path, const char *name, pid_t pid)
     case KTASK_POLICY_KERNEL:
         cs = GDT_RING0_CODE_SEL;
         ss = GDT_RING0_DATA_SEL;
-        flags = 0x0200;
+        flags = 0x0202;
         break;
     case KTASK_POLICY_DRIVER:
     case KTASK_POLICY_SERVER:
@@ -541,7 +546,7 @@ proc_create(const char *path, const char *name, pid_t pid)
     default:
         cs = GDT_RING3_CODE64_SEL + 3;
         ss = GDT_RING3_DATA64_SEL + 3;
-        flags = 0x3200;
+        flags = 0x3202;
         break;
     }
 
@@ -558,9 +563,9 @@ proc_create(const char *path, const char *name, pid_t pid)
     return 0;
 
 error_tl:
-    pmem_free_pages(ppage2);
+    pmem_prim_free_pages(ppage2);
 error_exec:
-    pmem_free_pages(ppage1);
+    pmem_prim_free_pages(ppage1);
 error_ustack:
     kfree(t->kstack);
 error_kstack:

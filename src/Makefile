@@ -21,9 +21,9 @@ bootmon: CFLAGS=-I./include \
 
 pxeboot: ASFLAGS=-nostdlib -I./boot/arch/$(ARCH)/
 
-kpack: ASFLAGS=-mcmodel=large -nostdlib -I./kernel/arch/$(ARCH)/
+kpack: ASFLAGS=-nostdlib -I./kernel/arch/$(ARCH)/
 kpack: CFLAGS=-I./include \
-	-Wall -fleading-underscore -mcmodel=large -nostdlib -nodefaultlibs -fno-builtin -O0 -m64 \
+	-Wall -fleading-underscore -mcmodel=large -nostdlib -nodefaultlibs -fno-builtin -O3 -m64 \
 	-DARCH_X86_64=1
 
 ## IPL
@@ -93,6 +93,10 @@ init: servers/init/init.o lib/arch/$(ARCH)/libc.o lib/arch/$(ARCH)/libcasm.o
 pm: servers/pm/pm.o lib/arch/$(ARCH)/libc.o lib/arch/$(ARCH)/libcasm.o
 	$(LD) -N -e _entry -Ttext=$(ORG) --oformat binary -o $@ $^
 
+## forwarding engine
+fe: servers/fe/fe.o servers/fe/pci.o lib/arch/$(ARCH)/libc.o lib/arch/$(ARCH)/libcasm.o
+	$(LD) -N -e _entry -Ttext=$(ORG) --oformat binary -o $@ $^
+
 ## file system
 fs: servers/fs/fs.o lib/arch/$(ARCH)/libc.o lib/arch/$(ARCH)/libcasm.o
 	$(LD) -N -e _entry -Ttext=$(ORG) --oformat binary -o $@ $^
@@ -111,6 +115,20 @@ pci: drivers/pci/pci.o lib/arch/$(ARCH)/libc.o lib/arch/$(ARCH)/libcasm.o
 
 ## e1000 driver
 e1000: drivers/e1000/e1000.o lib/arch/$(ARCH)/libc.o lib/arch/$(ARCH)/libcasm.o
+	$(LD) -N -e _entry -Ttext=$(ORG) --oformat binary -o $@ $^
+
+## video driver
+video: drivers/video/main.o lib/arch/$(ARCH)/libc.o lib/arch/$(ARCH)/libcasm.o \
+	lib/driver.o
+	$(LD) -N -e _entry -Ttext=$(ORG) --oformat binary -o $@ $^
+
+## keyboard driver
+kbd: drivers/kbd/main.o lib/arch/$(ARCH)/libc.o lib/arch/$(ARCH)/libcasm.o \
+	lib/driver.o
+	$(LD) -N -e _entry -Ttext=$(ORG) --oformat binary -o $@ $^
+
+## VMX driver
+vmx: drivers/vmx/vmx.o lib/arch/$(ARCH)/libc.o lib/arch/$(ARCH)/libcasm.o
 	$(LD) -N -e _entry -Ttext=$(ORG) --oformat binary -o $@ $^
 
 ## Clean

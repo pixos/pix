@@ -59,7 +59,7 @@ vmem_alloc_pages(struct vmem_space *space, int order)
     }
 
     /* Allocate physical pages */
-    paddr = pmem_alloc_pages(PMEM_ZONE_LOWMEM, order);
+    paddr = pmem_prim_alloc_pages(PMEM_ZONE_LOWMEM, order);
     if ( NULL == paddr ) {
         return NULL;
     }
@@ -78,7 +78,7 @@ vmem_alloc_pages(struct vmem_space *space, int order)
             + PAGE_ADDR(pg - pg->superpage->u.page.pages);
 
         /* Allocate physical memory */
-        paddr = pmem_alloc_pages(PMEM_ZONE_LOWMEM, order);
+        paddr = pmem_prim_alloc_pages(PMEM_ZONE_LOWMEM, order);
         if ( NULL == paddr ) {
             /* Release the virtual memory */
             vmem_return_pages(pg);
@@ -90,7 +90,7 @@ vmem_alloc_pages(struct vmem_space *space, int order)
         if ( ret < 0 ) {
             /* Release the virtual and physical memory */
             vmem_return_pages(pg);
-            pmem_free_pages(paddr);
+            pmem_prim_free_pages(paddr);
             return NULL;
         }
 
@@ -106,7 +106,7 @@ vmem_alloc_pages(struct vmem_space *space, int order)
             + SUPERPAGE_ADDR(spg - spg->region->superpages);
 
         /* Allocate physical memory */
-        paddr = pmem_alloc_pages(PMEM_ZONE_LOWMEM, order);
+        paddr = pmem_prim_alloc_pages(PMEM_ZONE_LOWMEM, order);
         if ( NULL == paddr ) {
             /* Release the virtual memory */
             vmem_return_superpages(spg);
@@ -224,7 +224,8 @@ vmem_region_create(void)
         return NULL;
     }
     kmemset(reg, 0, sizeof(struct vmem_region));
-    reg->start = (void *)(1ULL << 30);
+    //reg->start = (void *)(1ULL << 30);
+    reg->start = (void *)(2ULL << 30);
     reg->len = SUPERPAGESIZE * 512; /* 1 GiB */
     reg->next = NULL;
 
@@ -495,11 +496,15 @@ _vmem_buddy_spg_split(struct vmem_region *reg, int o)
     p0->next = p1;
     p1->prev = p0;
     p1->next = reg->spgheads[o];
-    reg->spgheads[o]->prev = p1;
+    if ( NULL != reg->spgheads[o] ) {
+        reg->spgheads[o]->prev = p1;
+    }
     reg->spgheads[o] = p0;
     /* Remove the split one from the upper order */
     reg->spgheads[o + 1] = next;
-    next->prev = NULL;
+    if ( NULL != next ) {
+        next->prev = NULL;
+    }
 
     return 0;
 }
@@ -599,7 +604,7 @@ _vmem_buddy_pg_split(struct vmem_region *reg, int o)
     }
 
     /* Check the order */
-    if ( o + 1 >= SP_SHIFT ) {
+    if ( o + 1 > SP_SHIFT ) {
         /* No space available */
         return -1;
     }
@@ -630,11 +635,15 @@ _vmem_buddy_pg_split(struct vmem_region *reg, int o)
     p0->next = p1;
     p1->prev = p0;
     p1->next = reg->pgheads[o];
-    reg->pgheads[o]->prev = p1;
+    if ( NULL != reg->pgheads[o] ) {
+        reg->pgheads[o]->prev = p1;
+    }
     reg->pgheads[o] = p0;
     /* Remove the split one from the upper order */
     reg->pgheads[o + 1] = next;
-    next->prev = NULL;
+    if ( NULL != next ) {
+        next->prev = NULL;
+    }
 
     return 0;
 }
@@ -876,12 +885,31 @@ vmem_buddy_alloc_pages(struct vmem_space *space, int order)
             spg->u.page.pages = NULL;
 
             /* Add the pages to the list */
-            //reg->pgheads[order];
-            char buf[1024];
-            ksnprintf(buf, sizeof(buf), "xxx %016x", 1000);
-            panic(buf);
+            vpage = kmalloc(sizeof(struct vmem_page) * SUPERPAGESIZE
+                            / PAGESIZE);
+            if ( NULL == vpage ) {
+                /* Could not allocate pages in this superpage */
+                return NULL;
+            }
+            spg->u.page.pages = vpage;
 
-            /* FIXME: Make this superpage pages */
+            for ( i = 0; i < (1LL << SP_SHIFT); i++ ) {
+                vpage[i].order = SP_SHIFT;
+                vpage[i].flags = spg->flags;
+                vpage[i].superpage = spg;
+                vpage[i].prev = NULL;
+                vpage[i].next = NULL;
+            }
+            if ( NULL != reg->pgheads[SP_SHIFT] ) {
+                /* Must not be reached */
+                return NULL;
+            }
+            reg->pgheads[SP_SHIFT] = vpage;
+
+            ret = _vmem_buddy_pg_split(reg, order);
+            if ( ret < 0 ) {
+                return NULL;
+            }
         }
 
         if ( ret >= 0 ) {
@@ -994,7 +1022,7 @@ _vmem_superpage_to_pages(struct vmem_region *reg, struct vmem_superpage *spg)
     order = bitwidth(DIV_CEIL(sz, PAGESIZE));
 
     /* Allocate physical memory */
-    paddr = pmem_alloc_pages(PMEM_ZONE_LOWMEM, order);
+    paddr = pmem_prim_alloc_pages(PMEM_ZONE_LOWMEM, order);
 
     /* Allocate virtual memory */
 

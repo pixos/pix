@@ -26,11 +26,41 @@
 
 
 /* Prototype declarations of static functions */
-static void * _kmalloc_slab(struct kmem *, size_t);
-static void * _kmalloc_slab_partial(struct kmem *, size_t);
-static void * _kmalloc_slab_free(struct kmem *, size_t);
-static void * _kmalloc_slab_new(struct kmem *, size_t);
-static void * _kmalloc_pages(struct kmem *, size_t);
+static void * _kmalloc_slab(struct kmem *, size_t, int);
+static void * _kmalloc_slab_partial(struct kmem *, size_t, int);
+static void * _kmalloc_slab_free(struct kmem *, size_t, int);
+static void * _kmalloc_slab_new(struct kmem *, size_t, int);
+static void * _kmalloc_pages(struct kmem *, size_t, int);
+
+/*
+ * Allocate physical memory space
+ *
+ * SYNOPSIS
+ *      reg_t
+ *      pgalloc(int zone, size_t nr);
+ *
+ * DESCRIPTION
+ *      The pgalloc() function allocates nr pages of contiguous physical memory.
+ *
+ * RETURN VALUES
+ *      The pgalloc() function returns a physical address to allocated memory.
+ *      If there is an error, it returns 0.
+ */
+reg_t
+pgalloc(int zone, size_t nr)
+{
+    reg_t addr;
+
+    addr = 0;
+    if ( nr < (1 << SP_SHIFT) ) {
+        addr = (reg_t)pmem_prim_alloc_pages(zone, 0);
+    } else {
+        addr = (reg_t)pmem_prim_alloc_pages(zone, bitwidth(nr >> SP_SHIFT));
+    }
+
+    return addr;
+}
+
 
 /*
  * Allocate memory space.
@@ -63,10 +93,10 @@ kmalloc(size_t size)
         } else {
             o = o - KMEM_SLAB_BASE_ORDER;
         }
-        return _kmalloc_slab(g_kmem, o);
+        return _kmalloc_slab(g_kmem, o, PMEM_ZONE_LOWMEM);
     } else {
         /* Pages */
-        return _kmalloc_pages(g_kmem, size);
+        return _kmalloc_pages(g_kmem, size, PMEM_ZONE_LOWMEM);
     }
 }
 
@@ -74,7 +104,7 @@ kmalloc(size_t size)
  * Allocate memory from the slab allocator
  */
 static void *
-_kmalloc_slab(struct kmem *kmem, size_t o)
+_kmalloc_slab(struct kmem *kmem, size_t o, int zone)
 {
     void *ptr;
 
@@ -87,15 +117,15 @@ _kmalloc_slab(struct kmem *kmem, size_t o)
     spin_lock(&kmem->slab_lock);
 
     /* Small object: Slab allocator */
-    if ( NULL != kmem->slab.gslabs[o].partial ) {
+    if ( NULL != kmem->slab.gslabs[zone][o].partial ) {
         /* Partial list is available. */
-        ptr = _kmalloc_slab_partial(kmem, o);
-    } else if ( NULL != kmem->slab.gslabs[o].free ) {
+        ptr = _kmalloc_slab_partial(kmem, o, zone);
+    } else if ( NULL != kmem->slab.gslabs[zone][o].free ) {
         /* Partial list is empty, but free list is available. */
-        ptr = _kmalloc_slab_free(kmem, o);
+        ptr = _kmalloc_slab_free(kmem, o, zone);
     } else {
         /* No free space, then allocate new page for slab objects */
-        ptr = _kmalloc_slab_new(kmem, o);
+        ptr = _kmalloc_slab_new(kmem, o, zone);
      }
 
     /* Unlock */
@@ -108,14 +138,14 @@ _kmalloc_slab(struct kmem *kmem, size_t o)
  * Allocate memory from partial slab
  */
 static void *
-_kmalloc_slab_partial(struct kmem *kmem, size_t o)
+_kmalloc_slab_partial(struct kmem *kmem, size_t o, int zone)
 {
     struct kmem_slab *hdr;
     void *ptr;
     ssize_t i;
 
     /* Partial list is available. */
-    hdr = kmem->slab.gslabs[o].partial;
+    hdr = kmem->slab.gslabs[zone][o].partial;
     ptr = (void *)((reg_t)hdr->obj_head + hdr->free
                    * (1ULL << (o + KMEM_SLAB_BASE_ORDER)));
     hdr->marks[hdr->free] = 1;
@@ -123,10 +153,10 @@ _kmalloc_slab_partial(struct kmem *kmem, size_t o)
     if ( hdr->nr <= hdr->nused ) {
         /* Becomes full */
         hdr->free = -1;
-        kmem->slab.gslabs[o].partial = hdr->next;
+        kmem->slab.gslabs[zone][o].partial = hdr->next;
         /* Prepend to the full list */
-        hdr->next = kmem->slab.gslabs[o].full;
-        kmem->slab.gslabs[o].full = hdr;
+        hdr->next = kmem->slab.gslabs[zone][o].full;
+        kmem->slab.gslabs[zone][o].full = hdr;
     } else {
         /* Search free space for the next allocation */
         for ( i = 0; i < hdr->nr; i++ ) {
@@ -144,14 +174,14 @@ _kmalloc_slab_partial(struct kmem *kmem, size_t o)
  * Allocate memory from free slab list
  */
 static void *
-_kmalloc_slab_free(struct kmem *kmem, size_t o)
+_kmalloc_slab_free(struct kmem *kmem, size_t o, int zone)
 {
     struct kmem_slab *hdr;
     void *ptr;
     ssize_t i;
 
     /* Partial list is empty, but free list is available. */
-    hdr = kmem->slab.gslabs[o].free;
+    hdr = kmem->slab.gslabs[zone][o].free;
     ptr = (void *)((reg_t)hdr->obj_head + hdr->free
                    * (1ULL << (o + KMEM_SLAB_BASE_ORDER)));
     hdr->marks[hdr->free] = 1;
@@ -159,14 +189,14 @@ _kmalloc_slab_free(struct kmem *kmem, size_t o)
     if ( hdr->nr <= hdr->nused ) {
         /* Becomes full */
         hdr->free = -1;
-        kmem->slab.gslabs[o].partial = hdr->next;
+        kmem->slab.gslabs[zone][o].partial = hdr->next;
         /* Prepend to the full list */
-        hdr->next = kmem->slab.gslabs[o].full;
-        kmem->slab.gslabs[o].full = hdr;
+        hdr->next = kmem->slab.gslabs[zone][o].full;
+        kmem->slab.gslabs[zone][o].full = hdr;
     } else {
         /* Prepend to the partial list */
-        hdr->next = kmem->slab.gslabs[o].partial;
-        kmem->slab.gslabs[o].partial = hdr;
+        hdr->next = kmem->slab.gslabs[zone][o].partial;
+        kmem->slab.gslabs[zone][o].partial = hdr;
         /* Search free space for the next allocation */
         for ( i = 0; i < hdr->nr; i++ ) {
             if ( 0 == hdr->marks[i] ) {
@@ -183,33 +213,44 @@ _kmalloc_slab_free(struct kmem *kmem, size_t o)
  * Allocate memory from a new slab objects
  */
 static void *
-_kmalloc_slab_new(struct kmem *kmem, size_t o)
+_kmalloc_slab_new(struct kmem *kmem, size_t o, int zone)
 {
     struct kmem_slab *hdr;
+    struct kmem_page *page;
     void *ptr;
     ssize_t i;
     size_t s;
     size_t nr;
+    int idx;
 
     /* No free space, then allocate new page for slab objects */
     s = (1ULL << (o + KMEM_SLAB_BASE_ORDER + KMEM_SLAB_NR_OBJ_ORDER))
         + sizeof(struct kmem_slab);
     /* Align the page to fit to the buddy system, and get the order */
-    nr = DIV_CEIL(s, KERN_PAGESIZE);
+    nr = DIV_CEIL(s, SUPERPAGESIZE);
     /* Allocate pages */
-    hdr = kmem_alloc_pages(kmem, nr);
+    hdr = kmem_alloc_pages(kmem, nr, zone);
     if ( NULL == hdr ) {
         return NULL;
     }
+    /* Page */
+    idx = SUPERPAGE_INDEX((void *)hdr - kmem->space->start);
+    page = &kmem->space->pages[idx];
     /* Calculate the number of slab objects in this block; N.B., + 1 in the
        denominator is the `marks' for each objects. */
-    hdr->nr = (nr * KERN_PAGESIZE - sizeof(struct kmem_slab))
+    hdr->nr = (nr * SUPERPAGESIZE - sizeof(struct kmem_slab))
         / ((1ULL << (o + KMEM_SLAB_BASE_ORDER)) + 1);
+    /* Set the size of each object */
+    hdr->size = (1ULL << (o + KMEM_SLAB_BASE_ORDER));
+    /* Pointer to the free list */
+    hdr->free_list = &kmem->slab.gslabs[zone][o];
+    /* Set the name */
+    hdr->name = NULL;
     /* Reset counters */
     hdr->nused = 0;
     hdr->free = 0;
     /* Set the address of the first slab object */
-    hdr->obj_head = (void *)((u64)hdr + (nr * KERN_PAGESIZE)
+    hdr->obj_head = (void *)((u64)hdr + (nr * SUPERPAGESIZE)
                              - ((1ULL << (o + KMEM_SLAB_BASE_ORDER))
                                 * hdr->nr));
     /* Reset marks and next cache */
@@ -225,14 +266,14 @@ _kmalloc_slab_new(struct kmem *kmem, size_t o)
     if ( hdr->nr <= hdr->nused ) {
         /* Becomes full */
         hdr->free = -1;
-        kmem->slab.gslabs[o].partial = hdr->next;
+        kmem->slab.gslabs[zone][o].partial = hdr->next;
         /* Prepend to the full list */
-        hdr->next = kmem->slab.gslabs[o].full;
-        kmem->slab.gslabs[o].full = hdr;
+        hdr->next = kmem->slab.gslabs[zone][o].full;
+        kmem->slab.gslabs[zone][o].full = hdr;
     } else {
         /* Prepend to the partial list */
-        hdr->next = kmem->slab.gslabs[o].partial;
-        kmem->slab.gslabs[o].partial = hdr;
+        hdr->next = kmem->slab.gslabs[zone][o].partial;
+        kmem->slab.gslabs[zone][o].partial = hdr;
         /* Search free space for the next allocation */
         for ( i = 0; i < hdr->nr; i++ ) {
             if ( 0 == hdr->marks[i] ) {
@@ -242,6 +283,10 @@ _kmalloc_slab_new(struct kmem *kmem, size_t o)
         }
     }
 
+    /* Set the slab to page management data structure */
+    page->slab = hdr;
+    page->flags |= KMEM_SLAB;
+
     return ptr;
 }
 
@@ -249,7 +294,7 @@ _kmalloc_slab_new(struct kmem *kmem, size_t o)
  * Allocate memory from the slab allocator
  */
 static void *
-_kmalloc_pages(struct kmem *kmem, size_t size)
+_kmalloc_pages(struct kmem *kmem, size_t size, int zone)
 {
     void *ptr;
 
@@ -257,7 +302,7 @@ _kmalloc_pages(struct kmem *kmem, size_t size)
     spin_lock(&kmem->slab_lock);
 
     /* Large object: Page allocator */
-    ptr = kmem_alloc_pages(kmem, DIV_CEIL(size, KERN_PAGESIZE));
+    ptr = kmem_alloc_pages(kmem, DIV_CEIL(size, SUPERPAGESIZE), zone);
 
     /* Unlock */
     spin_unlock(&kmem->slab_lock);
@@ -281,90 +326,56 @@ _kmalloc_pages(struct kmem *kmem, size_t size)
 void
 kfree(void *ptr)
 {
-    int i;
-    int j;
+    ssize_t i;
     int found;
     u64 asz;
     struct kmem_slab *hdr;
     struct kmem_slab **hdrp;
+    struct kmem_page *page;
+    int zone;
+    int idx;
 
     /* Lock */
     spin_lock(&g_kmem->slab_lock);
 
-    if ( 0 == (u64)ptr % KERN_PAGESIZE ) {
+    if ( 0 == ((u64)ptr % SUPERPAGESIZE) ) {
         /* Free pages */
-        //kmem_free_pages(g_kmem, ptr);
+        kmem_free_pages(g_kmem, ptr);
     } else {
-        /* Search for each order */
-        for ( i = 0; i < KMEM_SLAB_BASE_ORDER; i++ ) {
-            asz = (1 << (i + KMEM_SLAB_BASE_ORDER));
+        /* Resolve the slab data structure from the given virtual address */
+        idx = SUPERPAGE_INDEX(ptr - g_kmem->space->start);
+        page = &g_kmem->space->pages[idx];
+        hdr = page->slab;
 
-            /* Search from partial */
-            hdrp = &g_kmem->slab.gslabs[i].partial;
+        /* Resolve the memory zone */
+        zone = page->zone;
 
-            /* Continue until the corresponding object found */
-            while ( NULL != *hdrp ) {
-                hdr = *hdrp;
+        /* The size of the object */
+        asz = hdr->size;
 
-                found = -1;
-                for ( j = 0; j < hdr->nr; j++ ) {
-                    if ( ptr == (void *)((u64)hdr->obj_head + j * asz) ) {
-                        /* Found */
-                        found = j;
-                        break;
-                    }
-                }
-                if ( found >= 0 ) {
-                    hdr->nused--;
-                    hdr->marks[found] = 0;
-                    hdr->free = found;
-                    if ( hdr->nused <= 0 ) {
-                        /* To free list */
-                        *hdrp = hdr->next;
-                        hdr->next = g_kmem->slab.gslabs[i].free;
-                        g_kmem->slab.gslabs[i].free = hdr;
-                    }
-                    spin_unlock(&g_kmem->slab_lock);
-                    return;
-                }
-                hdrp = &hdr->next;
+        found = -1;
+        for ( i = 0; i < hdr->nr; i++ ) {
+            if ( ptr == (void *)((u64)hdr->obj_head + i * asz) ) {
+                /* Found */
+                found = i;
+                break;
             }
-
-            /* Search from full */
-            hdrp = &g_kmem->slab.gslabs[i].full;
-
-            /* Continue until the corresponding object found */
-            while ( NULL != *hdrp ) {
-                hdr = *hdrp;
-
-                found = -1;
-                for ( j = 0; j < hdr->nr; j++ ) {
-                    if ( ptr == (void *)((u64)hdr->obj_head + j * asz) ) {
-                        /* Found */
-                        found = j;
-                        break;
-                    }
-                }
-                if ( found >= 0 ) {
-                    hdr->nused--;
-                    hdr->marks[found] = 0;
-                    hdr->free = found;
-                    if ( hdr->nused <= 0 ) {
-                        /* To free list */
-                        *hdrp = hdr->next;
-                        hdr->next = g_kmem->slab.gslabs[i].free;
-                        g_kmem->slab.gslabs[i].free = hdr;
-                    } else {
-                        /* To partial list */
-                        *hdrp = hdr->next;
-                        hdr->next = g_kmem->slab.gslabs[i].partial;
-                        g_kmem->slab.gslabs[i].partial = hdr;
-                    }
-                    spin_unlock(&g_kmem->slab_lock);
-                    return;
-                }
-                hdrp = &hdr->next;
+        }
+        if ( found >= 0 ) {
+            hdr->nused--;
+            /* Unmark the found object */
+            hdr->marks[found] = 0;
+            /* Update the last freed index */
+            hdr->free = found;
+            if ( hdr->nused <= 0 ) {
+                /* If all the objects in this slab becomes free, move it to the
+                   free list */
+                *hdrp = hdr->next;
+                hdr->next = hdr->free_list->free;
+                hdr->free_list->free = hdr;
             }
+            spin_unlock(&g_kmem->slab_lock);
+            return;
         }
     }
 

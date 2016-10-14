@@ -28,6 +28,7 @@
 
 size_t strlen(const char *);
 char * strncpy(char *__restrict__, const char *__restrict__, size_t);
+char * strcpy(char *, const char *);
 
 #endif /* _STRING_H */
 

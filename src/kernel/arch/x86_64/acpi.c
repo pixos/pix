@@ -33,11 +33,16 @@
 /* Prototype declarations */
 static int _validate_checksum(const u8 *, int);
 static int _parse_apic(struct acpi *, struct acpi_sdt_hdr *);
+static int _parse_dsdt(struct acpi *, struct acpi_sdt_hdr *);
 static int _parse_fadt(struct acpi *, struct acpi_sdt_hdr *);
 static int _parse_rsdt(struct acpi *, struct acpi_rsdp *);
 static int _rsdp_search_range(struct acpi *, u64, u64);
 
 static u64 acpi_pm_tmr_port;
+static u32 acpi_pm1a_ctrl_block;
+static u32 acpi_pm1b_ctrl_block;
+static u16 acpi_slp_typa;
+static u16 acpi_slp_typb;
 
 /*
  * Validate ACPI checksum: Since the ACPI checksum is a one-byte modular sum,
@@ -191,6 +196,94 @@ _parse_apic(struct acpi *acpi, struct acpi_sdt_hdr *sdt)
 }
 
 /*
+ * Parse DSDT
+ */
+static int
+_parse_dsdt(struct acpi *acpi, struct acpi_sdt_hdr *sdt)
+{
+    u32 len;
+    u8 *addr;
+    u8 sz;
+
+    len = sdt->length;
+    addr = (u8 *)((u64)sdt + sizeof(struct acpi_sdt_hdr));
+
+    /* Search \_S5 package in the DSDT (quick hack not to parse the AML) */
+    while ( len >= 5 ) {
+        if ( 0 == kmemcmp(addr, (u8 *)"_S5_", 4) ) {
+            /* Found */
+            break;
+        }
+        addr++;
+        len--;
+    }
+
+    if ( len >= 5 ){
+        /* S5 package is found. */
+        if ( 0x08 != *(addr - 1)
+             && !(0x08 == *(addr - 2) && '\\' == *(addr - 1)) ) {
+            /* Invalid AML (0x08: NameOp) */
+            return 1;
+        }
+        if ( 0x12 != *(addr + 4) ) {
+            /* Invalid AML (0x12: PackageOp) */
+            return 1;
+        }
+
+        /* Skip _S5_\x12 */
+        addr += 5;
+        len -= 5;
+
+        /* Calculate the size of the package */
+        sz = (*addr & 0xc0) >> 6;
+        /* Check the remaining length and skip package length and the number of
+           elements information */
+        if ( len < sz + 2 ) {
+            return 1;
+        }
+        addr += 2;
+        len -= 2;
+
+        /* SLP_TYPa */
+        if ( 0x0a == *addr ) {
+            /* byte prefix */
+            if ( len < 1 ) {
+                return 1;
+            }
+            addr++;
+            len--;
+        }
+        if ( len < 1 ) {
+            return 1;
+        }
+        acpi_slp_typa = (*addr) << 10;
+        addr++;
+        len--;
+
+        /* SLP_TYPb */
+        if ( 0x0a == *addr ) {
+            /* byte prefix */
+            if ( len < 1 ) {
+                return 1;
+            }
+            addr++;
+            len--;
+        }
+        if ( len < 1 ) {
+            return 1;
+        }
+        acpi_slp_typb = (*addr) << 10;
+        addr++;
+        len--;
+
+        return 1;
+    } else {
+        /* Not found (but not to raise an error) */
+        return 1;
+    }
+}
+
+/*
  * Parse Fixed ACPI Description Table (FADT)
  */
 static int
@@ -219,18 +312,18 @@ _parse_fadt(struct acpi *acpi, struct acpi_sdt_hdr *sdt)
         /* PM1a control block */
         if ( fadt->x_pm1a_ctrl_block.addr_space == 1 ) {
             /* Must be 1 (System I/O) */
-            acpi->acpi_pm1a_ctrl_block = fadt->x_pm1a_ctrl_block.addr;
-            if ( !acpi->acpi_pm1a_ctrl_block ) {
-                acpi->acpi_pm1a_ctrl_block = fadt->pm1a_ctrl_block;
+            acpi_pm1a_ctrl_block = fadt->x_pm1a_ctrl_block.addr;
+            if ( !acpi_pm1a_ctrl_block ) {
+                acpi_pm1a_ctrl_block = fadt->pm1a_ctrl_block;
             }
         }
 
         /* PM1b control block */
         if ( fadt->x_pm1b_ctrl_block.addr_space == 1 ) {
             /* Must be 1 (System I/O) */
-            acpi->acpi_pm1b_ctrl_block = fadt->x_pm1b_ctrl_block.addr;
-            if ( !acpi->acpi_pm1b_ctrl_block ) {
-                acpi->acpi_pm1b_ctrl_block = fadt->pm1b_ctrl_block;
+            acpi_pm1b_ctrl_block = fadt->x_pm1b_ctrl_block.addr;
+            if ( !acpi_pm1b_ctrl_block ) {
+                acpi_pm1b_ctrl_block = fadt->pm1b_ctrl_block;
             }
         }
 
@@ -244,10 +337,10 @@ _parse_fadt(struct acpi *acpi, struct acpi_sdt_hdr *sdt)
         acpi_pm_tmr_port = fadt->pm_timer_block;
 
         /* PM1a control block  */
-        acpi->acpi_pm1a_ctrl_block = fadt->pm1a_ctrl_block;
+        acpi_pm1a_ctrl_block = fadt->pm1a_ctrl_block;
 
         /* PM1b control block  */
-        acpi->acpi_pm1b_ctrl_block = fadt->pm1b_ctrl_block;
+        acpi_pm1b_ctrl_block = fadt->pm1b_ctrl_block;
 
         /* DSDT */
         dsdt = fadt->dsdt;
@@ -267,7 +360,10 @@ _parse_fadt(struct acpi *acpi, struct acpi_sdt_hdr *sdt)
     /* Century */
     acpi->acpi_cmos_century = fadt->century;
 
-    /* Ignore DSDT */
+    /* Parse DSDT */
+    if ( !_parse_dsdt(acpi, (struct acpi_sdt_hdr *)dsdt) ) {
+        return 0;
+    }
 
     return 1;
 }
@@ -419,6 +515,10 @@ acpi_load(struct acpi *acpi)
     /* Reset the data structure */
     kmemset(acpi, 0, sizeof(struct acpi));
     acpi_pm_tmr_port = 0;
+    acpi_pm1a_ctrl_block = 0;
+    acpi_pm1b_ctrl_block = 0;
+    acpi_slp_typa = 0;
+    acpi_slp_typb = 0;
 
     /* Check 1KB of EBDA, first */
     ebda = *(u16 *)BDA_EDBA;
@@ -597,6 +697,34 @@ acpi_memory_count_entries(struct acpi *acpi)
     }
 
     return n;
+}
+
+/*
+ * Power off the machine
+ */
+int
+acpi_poweroff(struct acpi *acpi)
+{
+    int i;
+
+    /* TYPa */
+    if ( acpi_pm1a_ctrl_block && acpi_slp_typa ) {
+        /* Try 30 times in 3 seconds */
+        for ( i = 0; i < 30; i++ ) {
+            outw(acpi_pm1a_ctrl_block, acpi_slp_typa | ACPI_SLP_EN);
+            acpi_busy_usleep(acpi, 100000);
+        }
+    }
+    /* TYPb */
+    if ( acpi_pm1b_ctrl_block && acpi_slp_typb ) {
+        /* Try 30 times in 3 seconds */
+        for ( i = 0; i < 30; i++ ) {
+            outw(acpi_pm1b_ctrl_block, acpi_slp_typb | ACPI_SLP_EN);
+            acpi_busy_usleep(acpi, 100000);
+        }
+    }
+
+    return -1;
 }
 
 /*

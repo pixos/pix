@@ -53,13 +53,13 @@ _kmem_init(struct kstring *, struct kstring *, struct kstring *);
 static int _kmem_pgt_init(struct arch_vmem_space **, u64 *);
 static int _kmem_pgt_init2(struct arch_kmem_space **, u64 *);
 static void * _kmem_mm_page_alloc(struct kmem *);
-static int _kmem_create_mm_region(struct kmem *, void *);
 static void _kmem_mm_page_free(struct kmem *, void *);
 static int _kmem_space_init(struct kmem *, struct kstring *, u64 *);
 static struct vmem_space * _kmem_vmem_space_create(void *, u64, u64 *);
 static int _kmem_space_pgt_reflect(struct kmem *);
 static int _kmem_vmem_map(struct kmem *, u64, u64, int);
 static int _kmem_map(struct kmem *, u64, u64, int);
+static int _kmem_unmap(struct kmem *, u64);
 static int _kmem_superpage_map(struct kmem *, u64, u64, int);
 static int
 _pmem_init_stage1(struct bootinfo *, struct acpi *, struct kstring *,
@@ -177,7 +177,7 @@ _pmem_init_stage1(struct bootinfo *bi, struct acpi *acpi,
     sz = _resolve_phys_mem_size(bi);
 
     /* Calculate the number of pages from the upper-bound of the memory space */
-    npg = DIV_CEIL(sz, PHYS_PAGESIZE);
+    npg = DIV_CEIL(sz, SUPERPAGESIZE);
 
     /* Calculate the size required by the pmem and pmem_page structures */
     pmsz = sizeof(struct pmem) + npg * sizeof(struct pmem_page);
@@ -217,13 +217,13 @@ _pmem_init_stage1(struct bootinfo *bi, struct acpi *acpi,
     }
 
     /* Mark as used for the reserved low memory (used by BIOS etc.) */
-    for ( i = 0; i < DIV_CEIL(PMEM_LBOUND, PHYS_PAGESIZE); i++ ) {
+    for ( i = 0; i < DIV_CEIL(PMEM_LBOUND, SUPERPAGESIZE); i++ ) {
         pgs[i].flags |= PMEM_USED;
     }
 
     /* Mark as used for the pmem pages */
-    for ( i = 0; i < DIV_CEIL(region->sz, PHYS_PAGESIZE); i++ ) {
-        pg = DIV_FLOOR((u64)region->base, PHYS_PAGESIZE) + i;
+    for ( i = 0; i < DIV_CEIL(region->sz, SUPERPAGESIZE); i++ ) {
+        pg = DIV_FLOOR((u64)region->base, SUPERPAGESIZE) + i;
         pgs[pg].flags |= PMEM_USED;
     }
 
@@ -231,8 +231,8 @@ _pmem_init_stage1(struct bootinfo *bi, struct acpi *acpi,
     for ( i = 0; i < bi->sysaddrmap.nr; i++ ) {
         bse = &bi->sysaddrmap.entries[i];
         if ( BSE_USABLE == bse->type ) {
-            a = DIV_CEIL(bse->base, PHYS_PAGESIZE);
-            b = DIV_FLOOR(bse->base + bse->len, PHYS_PAGESIZE);
+            a = DIV_CEIL(bse->base, SUPERPAGESIZE);
+            b = DIV_FLOOR(bse->base + bse->len, SUPERPAGESIZE);
             for ( pg = a; pg < b; pg++ ) {
                 pgs[pg].flags |= PMEM_USABLE;
             }
@@ -245,24 +245,24 @@ _pmem_init_stage1(struct bootinfo *bi, struct acpi *acpi,
         prox = -1;
         for ( i = 0; i < npg; i++ ) {
             if ( prox < 0
-                 || !(PHYS_PAGE_ADDR(i) >= pxbase
-                      && PHYS_PAGE_ADDR(i + 1) <= pxbase + pxlen) ) {
+                 || !(SUPERPAGE_ADDR(i) >= pxbase
+                      && SUPERPAGE_ADDR(i + 1) <= pxbase + pxlen) ) {
                 /* Resolve the proximity domain of the page */
-                prox = acpi_memory_prox_domain(acpi, PHYS_PAGE_ADDR(i), &pxbase,
+                prox = acpi_memory_prox_domain(acpi, SUPERPAGE_ADDR(i), &pxbase,
                                                &pxlen);
                 if ( prox < 0
-                     || !(PHYS_PAGE_ADDR(i) >= pxbase
-                          && PHYS_PAGE_ADDR(i + 1) <= pxbase + pxlen) ) {
+                     || !(SUPERPAGE_ADDR(i) >= pxbase
+                          && SUPERPAGE_ADDR(i + 1) <= pxbase + pxlen) ) {
                     /* No proximity domain; meaning unusable page. */
                     continue;
                 }
             }
-            pgs[i].zone = _pmem_page_zone((void *)PHYS_PAGE_ADDR(i), prox);
+            pgs[i].zone = _pmem_page_zone((void *)SUPERPAGE_ADDR(i), prox);
         }
     } else {
         /* UMA */
         for ( i = 0; i < npg; i++ ) {
-            pgs[i].zone = _pmem_page_zone((void *)PHYS_PAGE_ADDR(i), -1);
+            pgs[i].zone = _pmem_page_zone((void *)SUPERPAGE_ADDR(i), -1);
         }
     }
 
@@ -312,8 +312,8 @@ _find_pmem_region(struct bootinfo *bi, u64 sz)
         bse = &bi->sysaddrmap.entries[i];
         if ( BSE_USABLE == bse->type ) {
             /* Available space from a to b */
-            a = CEIL(bse->base, PHYS_PAGESIZE);
-            b = FLOOR(bse->base + bse->len, PHYS_PAGESIZE);
+            a = CEIL(bse->base, SUPERPAGESIZE);
+            b = FLOOR(bse->base + bse->len, SUPERPAGESIZE);
 
             if ( b < PMEM_LBOUND ) {
                 /* Skip below the lower bound */
@@ -397,11 +397,7 @@ _kmem_init(struct kstring *region, struct kstring *pmem,
     }
 
     /* Initialize slab */
-    for ( i = 0; i < KMEM_SLAB_ORDER; i++ ) {
-        kmem->slab.gslabs[i].partial = NULL;
-        kmem->slab.gslabs[i].full = NULL;
-        kmem->slab.gslabs[i].free = NULL;
-    }
+    kmemset(&kmem->slab, 0, sizeof(struct kmem_slab_root));
 
     /* Reflect the regions to the page table */
     ret = _kmem_space_pgt_reflect(kmem);
@@ -604,14 +600,14 @@ _kmem_pgt_init2(struct arch_kmem_space **akmem, u64 *off)
     (*akmem)->pdpt->entries[3] = KMEM_DIR_RW(pgt + PAGESIZE * 2);
 
     /* Superpage for the region in the range of 0-32 MiB */
-    nspg = DIV_CEIL(PMEM_LBOUND, KERN_PAGESIZE);
+    nspg = DIV_CEIL(PMEM_LBOUND, SUPERPAGESIZE);
     if ( nspg > 512 ) {
         /* The low memory address space for kernel memory is too large. */
         return -1;
     }
     /* Page directories for 0-32 MiB; must be consistent with KMEM_LOW_P2V */
     for ( i = 0; i < nspg; i++ ) {
-        (*akmem)->pd->entries[i] = KMEM_PG_GRW(KERN_PAGE_ADDR(i));
+        (*akmem)->pd->entries[i] = KMEM_PG_GRW(SUPERPAGE_ADDR(i));
     }
 
     /* Disable the global page feature */
@@ -657,7 +653,7 @@ _kmem_space_init(struct kmem *kmem, struct kstring *region, u64 *off)
 
     /* Initialize the pages in this region. */
     pages = (struct kmem_page *)KMEM_P2V(KMEM_BASE + *off);
-    npg = DIV_CEIL(space->len, KERN_PAGESIZE);
+    npg = DIV_CEIL(space->len, SUPERPAGESIZE);
     *off += sizeof(struct kmem_page) * npg;
     if ( *off > KMEM_MAX_SIZE ) {
         return -1;
@@ -667,21 +663,21 @@ _kmem_space_init(struct kmem *kmem, struct kstring *region, u64 *off)
     /* Initialize the kernel pages that used by the low physical memory region.
        Note that the pages in this region have already been configured in the
        kernel's page table. */
-    for ( pg = 0; pg < (ssize_t)DIV_CEIL(PMEM_LBOUND, KERN_PAGESIZE); pg++ ) {
-        pages[pg].addr = (reg_t)space->start + KERN_PAGE_ADDR(pg);
+    for ( pg = 0; pg < (ssize_t)DIV_CEIL(PMEM_LBOUND, SUPERPAGESIZE); pg++ ) {
+        pages[pg].addr = (reg_t)space->start + SUPERPAGE_ADDR(pg);
         pages[pg].order = KMEM_INVAL_BUDDY_ORDER;
         pages[pg].flags = KMEM_USED;
         pages[pg].next = NULL;
     }
 
     /* Prepare page data structures for the physical memory region */
-    n = DIV_CEIL(region->sz, KERN_PAGESIZE);
+    n = DIV_CEIL(region->sz, SUPERPAGESIZE);
     if ( pg + n >= npg ) {
         /* Exceeded the kernel region */
         return -1;
     }
     for ( i = 0; i < (ssize_t)n; i++ ) {
-        pages[pg].addr = (reg_t)region->base + KERN_PAGE_ADDR(i);
+        pages[pg].addr = (reg_t)region->base + SUPERPAGE_ADDR(i);
         pages[pg].order = KMEM_INVAL_BUDDY_ORDER;
         pages[pg].flags = KMEM_USED | KMEM_USABLE;
         pages[pg].next = NULL;
@@ -689,7 +685,7 @@ _kmem_space_init(struct kmem *kmem, struct kstring *region, u64 *off)
     }
 
     /* Prepare page data structures for the kernel memory region */
-    kpg = DIV_CEIL(KERNEL_SIZE, KERN_PAGESIZE);
+    kpg = DIV_CEIL(KERNEL_SIZE, SUPERPAGESIZE);
     for ( ; pg < (ssize_t)kpg; pg++ ) {
         pages[pg].addr = 0;
         pages[pg].order = KMEM_INVAL_BUDDY_ORDER;
@@ -699,7 +695,7 @@ _kmem_space_init(struct kmem *kmem, struct kstring *region, u64 *off)
 
     /* Prepare page data structures for the special use (e.g., APIC region) */
     for ( ; pg < (ssize_t)npg; pg++ ) {
-        pages[pg].addr = (reg_t)space->start + KERN_PAGE_ADDR(pg);
+        pages[pg].addr = (reg_t)space->start + SUPERPAGE_ADDR(pg);
         pages[pg].order = KMEM_INVAL_BUDDY_ORDER;
         pages[pg].flags = KMEM_USED | KMEM_USABLE;
         pages[pg].next = NULL;
@@ -893,14 +889,14 @@ _kmem_space_pgt_reflect(struct kmem *kmem)
     reg_t vaddr;
     int flags;
 
-    for ( i = 0; i < (ssize_t)DIV_CEIL(kmem->space->len, KERN_PAGESIZE); i++ ) {
+    for ( i = 0; i < (ssize_t)DIV_CEIL(kmem->space->len, SUPERPAGESIZE); i++ ) {
         if ( !(KMEM_USABLE & kmem->space->pages[i].flags)
              || !(KMEM_USED & kmem->space->pages[i].flags) ) {
             /* Not usable/used, then do nothing to this superpage */
             continue;
         }
         /* Register a superpage */
-        vaddr = (reg_t)kmem->space->start + KERN_PAGE_ADDR(i);
+        vaddr = (reg_t)kmem->space->start + SUPERPAGE_ADDR(i);
         paddr = kmem->space->pages[i].addr;
         flags = kmem->space->pages[i].flags;
 
@@ -921,7 +917,6 @@ static void *
 _kmem_mm_page_alloc(struct kmem *kmem)
 {
     struct kmem_mm_page *mmpg;
-    int ret;
 
     /* Get the head of the free page list */
     mmpg = kmem->pool.mm_pgs;
@@ -932,92 +927,10 @@ _kmem_mm_page_alloc(struct kmem *kmem)
     kmem->pool.mm_pgs = mmpg->next;
 
     if ( NULL == kmem->pool.mm_pgs ) {
-        /* Pages for memory management are empty, then allocate new pages using
-           the mmpg page. */
-        ret = _kmem_create_mm_region(kmem, mmpg);
-        if ( ret < 0 ) {
-            /* Failed, then return an error */
-            mmpg->next = kmem->pool.mm_pgs;
-            kmem->pool.mm_pgs = mmpg;
-            return NULL;
-        }
+        return NULL;
     }
 
     return (void *)mmpg;
-}
-
-/*
- * Create a new region for memory management
- */
-static int
-_kmem_create_mm_region(struct kmem *kmem, void *availpg)
-{
-    panic("FIXME!!!");
-    void *paddr;
-    struct kmem_mm_page *mmpg;
-    struct vmem_region *reg;
-    struct vmem_superpage *spg;
-    void *vstart;
-    size_t sz;
-    size_t i;
-    int ret;
-
-    /* Allocate for the data structure of new region */
-    sz = sizeof(struct vmem_region) + sizeof(struct vmem_superpage);
-    if ( sz >= PAGESIZE ) {
-        return -1;
-    }
-
-    /* Allocate physical page */
-    paddr = pmem_alloc_pages(PMEM_ZONE_LOWMEM, bitwidth(SUPERPAGESIZE));
-    if ( NULL == paddr ) {
-        return -1;
-    }
-
-    /* Search available memory space for region allocation */
-    vstart = vmem_search_available_region(kmem->space, SUPERPAGESIZE);
-    if ( NULL == vstart ) {
-        pmem_free_pages(paddr);
-        return -1;
-    }
-
-    /* Update the page table */
-    ret = _kmem_superpage_map(kmem, (u64)vstart, (u64)paddr,
-                              VMEM_SUPERPAGE | VMEM_USED | VMEM_USABLE);
-    if ( ret < 0 ) {
-        pmem_free_pages(paddr);
-        return -1;
-    }
-
-    /* Prepare the region */
-    reg = (struct vmem_region *)availpg;
-    spg = (struct vmem_superpage *)(reg + 1);
-    kmemset(reg, 0, sizeof(struct vmem_region));
-    kmemset(spg, 0, sizeof(struct vmem_superpage));
-
-    /* Prepare the allocated superpage */
-    spg->flags = VMEM_SUPERPAGE | VMEM_USED | VMEM_USABLE;
-    spg->u.superpage.addr = (reg_t)paddr;
-    spg->order = 0;
-    spg->region = reg;
-    spg->next = NULL;
-    spg->prev = NULL;
-
-    /* Prepare the allocated region */
-    reg->start = vstart;
-    reg->len = SUPERPAGESIZE;
-    reg->superpages = spg;
-
-    /* Use all pages in this superpage as memory management pages, and add them
-       to the list of free pages in kmem. */
-    for ( i = 0; i < SUPERPAGESIZE / PAGESIZE; i++ ) {
-        mmpg = vstart + PAGE_ADDR(i);
-        /* Prepend the page to the list */
-        mmpg->next = kmem->pool.mm_pgs;
-        kmem->pool.mm_pgs = mmpg;
-    }
-
-    return 0;
 }
 
 /*
@@ -1036,7 +949,7 @@ _kmem_mm_page_free(struct kmem *kmem, void *vaddr)
 }
 
 /*
- * Map a virtual page to a physical page
+ * Map a virtual page to a physical page (in a superpage granularity)
  */
 static int
 _kmem_map(struct kmem *kmem, u64 vaddr, u64 paddr, int flags)
@@ -1044,9 +957,8 @@ _kmem_map(struct kmem *kmem, u64 vaddr, u64 paddr, int flags)
     struct arch_kmem_space *akmem;
     int idxpd;
     int idxp;
-    int idx;
 
-    /* Check the flags */
+    /* Check the flags to ensure the page is usable and marked as used */
     if ( !(KMEM_USABLE & flags) || !(KMEM_USED & flags) ) {
         /* This page is not usable nor used, then do nothing. */
         return -1;
@@ -1059,8 +971,6 @@ _kmem_map(struct kmem *kmem, u64 vaddr, u64 paddr, int flags)
     idxpd = (vaddr >> 30);
     /* Index to page table */
     idxp = (vaddr >> 21) & 0x1ff;
-    /* Index to page entry */
-    idx = (vaddr >> 12) & 0x1ffULL;
 
     /* The virtual address must be in the range of kernel memory space */
     if ( 3 != idxpd ) {
@@ -1068,27 +978,79 @@ _kmem_map(struct kmem *kmem, u64 vaddr, u64 paddr, int flags)
     }
 
     /* Kernel page size must be 2 MiB for this architecture. */
-    if ( 0x00200000ULL != KERN_PAGESIZE ) {
-        return -1;
-    }
+#if (SUPERPAGESIZE) != 0x00200000ULL
+#error "SUPERPAGESIZE must be 2 MiB."
+#endif
 
-    /* Check the physical address argument */
-    if ( 0 != (paddr % KERN_PAGESIZE) || 0 != (vaddr % KERN_PAGESIZE) ) {
-        /* Invalid physical address */
+    /* Check the physical and virtual addresses are aligned */
+    if ( 0 != (paddr % SUPERPAGESIZE) || 0 != (vaddr % SUPERPAGESIZE) ) {
+        /* Invalid physical or virtual address */
         return -1;
     }
 
     /* Check whether the page presented */
     if ( VMEM_IS_PRESENT(akmem->pd->entries[idxp])
          && !VMEM_IS_PAGE(akmem->pd->entries[idxp]) ) {
-        /* 4 KiB paging is not supported in the kernel memory */
+        /* This entry is already presented but not a page, then it is a
+           directory to 4 KiB pages.  Return an error because 4 KiB paging is
+           not (currently) supported in the kernel memory. */
         return -1;
     }
 
-    /* Remapping */
+    /* Remapping the page in the page table */
     akmem->pd->entries[idxp] = KMEM_PG_GRW(paddr);
 
-    /* Invalidate the page */
+    /* Invalidate the page to activate it */
+    invlpg((void *)vaddr);
+
+    return 0;
+}
+
+/*
+ * Unmap a virtual page (in a superpage granularity)
+ */
+static int
+_kmem_unmap(struct kmem *kmem, u64 vaddr)
+{
+    struct arch_kmem_space *akmem;
+    int idxpd;
+    int idxp;
+
+    /* Get the architecture-specific kernel memory manager */
+    akmem = (struct arch_kmem_space *)kmem->space->arch;
+
+    /* Index to page directory */
+    idxpd = (vaddr >> 30);
+    /* Index to page table */
+    idxp = (vaddr >> 21) & 0x1ff;
+
+    /* The virtual address must be in the range of kernel memory space */
+    if ( 3 != idxpd ) {
+        return -1;
+    }
+
+    /* Kernel page size must be 2 MiB for this architecture. */
+#if (SUPERPAGESIZE) != 0x00200000ULL
+#error "SUPERPAGESIZE must be 2 MiB."
+#endif
+
+    /* Check the virtual address is aligned */
+    if ( 0 != (vaddr % SUPERPAGESIZE) ) {
+        /* Invalid physical or virtual address */
+        return -1;
+    }
+
+    /* Check whether the page presented */
+    if ( !VMEM_IS_PRESENT(akmem->pd->entries[idxp])
+         || !VMEM_IS_PAGE(akmem->pd->entries[idxp]) ) {
+        /* Not a page, then return an error */
+        return -1;
+    }
+
+    /* Remapping the page in the page table */
+    akmem->pd->entries[idxp] = 0;
+
+    /* Invalidate the page to activate it */
     invlpg((void *)vaddr);
 
     return 0;
@@ -1255,7 +1217,7 @@ _pmem_buddy_order(struct pmem *pmem, size_t pg)
 }
 
 /*
- * Resolve the zone of the page
+ * Resolve the zone of the page (physical address)
  */
 static __inline__ int
 _pmem_page_zone(void *page, int prox)
@@ -1390,9 +1352,9 @@ arch_vmem_map(struct vmem_space *space, void *vaddr, void *paddr, int flags)
 
         /* Remapping */
         if ( flags & VMEM_GLOBAL ) {
-            pt[idx] = VMEM_PG_GRW((u64)paddr);
+            vpt[idx] = VMEM_PG_GRW((u64)paddr);
         } else {
-            pt[idx] = VMEM_PG_RW((u64)paddr);
+            vpt[idx] = VMEM_PG_RW((u64)paddr);
         }
 
         /* Invalidate the page */
@@ -1403,12 +1365,21 @@ arch_vmem_map(struct vmem_space *space, void *vaddr, void *paddr, int flags)
 }
 
 /*
- * Map a virtual page to a physical page
+ * Map a virtual page to a physical page (in a superpage granularity)
  */
 int
 arch_kmem_map(struct kmem *kmem, void *vaddr, void *paddr, int flags)
 {
     return _kmem_map(kmem, (reg_t)vaddr, (reg_t)paddr, flags);
+}
+
+/*
+ * Unmap a virtual page (in a superpage granularity)
+ */
+int
+arch_kmem_unmap(struct kmem *kmem, void *vaddr)
+{
+    return _kmem_unmap(kmem, (reg_t)vaddr);
 }
 
 void *
@@ -1436,7 +1407,7 @@ arch_kmem_addr_v2p(struct kmem *kmem, void *vaddr)
     }
 
     /* Kernel page size must be 2 MiB for this architecture. */
-    if ( 0x00200000ULL != KERN_PAGESIZE ) {
+    if ( 0x00200000ULL != SUPERPAGESIZE ) {
         return NULL;
     }
 

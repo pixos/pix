@@ -1,5 +1,5 @@
 /*_
- * Copyright (c) 2015 Hirochika Asai <asai@jar.jp>
+ * Copyright (c) 2015-2016 Hirochika Asai <asai@jar.jp>
  * All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -21,55 +21,38 @@
  * SOFTWARE.
  */
 
-#include <aos/const.h>
-#include "kernel.h"
+#ifndef _MACHINE_SYSARCH_H
+#define _MACHINE_SYSARCH_H
 
-/*
- * High-level scheduler
- */
-void
-sched_high(void)
-{
-    struct ktask *ktask;
-    struct ktask *pt;
-    struct ktask_list *l;
+#define SYSARCH_INB     1
+#define SYSARCH_INW     2
+#define SYSARCH_INL     3
+#define SYSARCH_OUTB    5
+#define SYSARCH_OUTW    6
+#define SYSARCH_OUTL    7
+#define SYSARCH_CPUMAP  11
+#define SYSARCH_RDMSR   32
+#define SYSARCH_WRMSR   33
+#define SYSARCH_GETCR0  34
+#define SYSARCH_SETCR0  35
+#define SYSARCH_GETCR4  36
+#define SYSARCH_SETCR4  37
 
-    /* Schedule from running tasks */
-    l = g_ktask_root->r.head;
+struct sysarch_io {
+    long long port;
+    long long data;
+};
+struct sysarch_cpumap {
+    int id;
+};
+struct sysarch_msr {
+    unsigned long long key;
+    unsigned long long value;
+};
 
-    /* Search a ready-state task */
-    while ( NULL != l ) {
-        if ( l->ktask->state == KTASK_STATE_READY ) {
-            break;
-        } else {
-            l = l->next;
-        }
-    }
+int sysarch(int, void *);
 
-    if ( NULL == l ) {
-        /* The idle task is to be scheduled */
-        set_next_idle();
-        return;
-    }
-
-    /* Setup a run queue for the low-level scheduler */
-    ktask = l->ktask;
-    pt = ktask;
-    pt->credit = 10;
-    l = l->next;
-    while ( NULL != l ) {
-        if ( l->ktask->state == KTASK_STATE_READY ) {
-            pt->next = l->ktask;
-            pt = l->ktask;
-            pt->credit = 10;
-        }
-        l = l->next;
-    }
-    pt->next = NULL;
-
-    /* Schedule the next task */
-    set_next_ktask(ktask);
-}
+#endif /* _MACHINE_SYSARCH_H */
 
 /*
  * Local variables:

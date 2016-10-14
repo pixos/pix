@@ -1,5 +1,5 @@
 /*_
- * Copyright (c) 2015 Hirochika Asai <asai@jar.jp>
+ * Copyright (c) 2016 Hirochika Asai <asai@jar.jp>
  * All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -21,54 +21,51 @@
  * SOFTWARE.
  */
 
-#include <aos/const.h>
-#include "kernel.h"
+#include <stdlib.h>
+#include <unistd.h>
+#include <sys/syscall.h>
+#include <time.h>
+#include <mki/driver.h>
+
+#define VIDEO_RAM       0x000b8000ULL
+#define DEV_CHAR
+#define DEV_BLOCK
 
 /*
- * High-level scheduler
+ * Entry point for the process manager program
  */
-void
-sched_high(void)
+int
+main(int argc, char *argv[])
 {
-    struct ktask *ktask;
-    struct ktask *pt;
-    struct ktask_list *l;
+    struct timespec tm;
+    uint16_t *vram;
+    char buf[512];
+    ssize_t i;
 
-    /* Schedule from running tasks */
-    l = g_ktask_root->r.head;
+    //("/dev/video", 0);
 
-    /* Search a ready-state task */
-    while ( NULL != l ) {
-        if ( l->ktask->state == KTASK_STATE_READY ) {
-            break;
-        } else {
-            l = l->next;
+    vram = driver_mmap((void *)VIDEO_RAM, 4096);
+    if ( NULL == vram ) {
+        exit(EXIT_FAILURE);
+    }
+    for ( i = 0; i < 80 * 25; i++ ) {
+        *(vram + i) = 0x0f00;
+    }
+
+    tm.tv_sec = 1;
+    tm.tv_nsec = 0;
+    while ( 1 ) {
+        snprintf(buf, 512, "Sleeping %x driver.", vram);
+        for ( i = 0; i < 80 * 25; i++ ) {
+            *(vram + i) = 0x0f00;
         }
-    }
-
-    if ( NULL == l ) {
-        /* The idle task is to be scheduled */
-        set_next_idle();
-        return;
-    }
-
-    /* Setup a run queue for the low-level scheduler */
-    ktask = l->ktask;
-    pt = ktask;
-    pt->credit = 10;
-    l = l->next;
-    while ( NULL != l ) {
-        if ( l->ktask->state == KTASK_STATE_READY ) {
-            pt->next = l->ktask;
-            pt = l->ktask;
-            pt->credit = 10;
+        for ( i = 0; i < (ssize_t)strlen(buf); i++ ) {
+            *(vram + i) = 0x0f00 | (uint16_t)((char *)buf)[i];
         }
-        l = l->next;
+        nanosleep(&tm, NULL);
     }
-    pt->next = NULL;
 
-    /* Schedule the next task */
-    set_next_ktask(ktask);
+    exit(0);
 }
 
 /*

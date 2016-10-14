@@ -1,5 +1,5 @@
 /*_
- * Copyright (c) 2015 Hirochika Asai <asai@jar.jp>
+ * Copyright (c) 2015-2016 Hirochika Asai <asai@jar.jp>
  * All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -21,55 +21,42 @@
  * SOFTWARE.
  */
 
-#include <aos/const.h>
-#include "kernel.h"
+#ifndef _PCI_H
+#define _PCI_H
+
+#include <stdint.h>
 
 /*
- * High-level scheduler
+ * PCI configuration space
  */
-void
-sched_high(void)
-{
-    struct ktask *ktask;
-    struct ktask *pt;
-    struct ktask_list *l;
+struct pci_dev_conf {
+    uint16_t bus;
+    uint16_t slot;
+    uint16_t func;
+    uint16_t vendor_id;
+    uint16_t device_id;
+    uint8_t intr_pin;   /* 0x01: INTA#, 0x02: INTB#, 0x03: INTC#: 0x04: INTD# */
+    uint8_t intr_line;  /* 0xff: No connection */
+    uint8_t class;
+    uint8_t subclass;
+    uint8_t progif;
+    uint8_t revision;
+};
 
-    /* Schedule from running tasks */
-    l = g_ktask_root->r.head;
+/*
+ * PCI device
+ */
+struct pci_dev {
+    struct pci_dev_conf *device;
+    struct pci_dev *next;
+};
 
-    /* Search a ready-state task */
-    while ( NULL != l ) {
-        if ( l->ktask->state == KTASK_STATE_READY ) {
-            break;
-        } else {
-            l = l->next;
-        }
-    }
+uint16_t pci_read_config(uint16_t, uint16_t, uint16_t, uint16_t);
+uint64_t pci_read_mmio(uint8_t, uint8_t, uint8_t);
+uint32_t pci_read_rom_bar(uint8_t, uint8_t, uint8_t);
+uint8_t pci_get_header_type(uint16_t, uint16_t, uint16_t);
 
-    if ( NULL == l ) {
-        /* The idle task is to be scheduled */
-        set_next_idle();
-        return;
-    }
-
-    /* Setup a run queue for the low-level scheduler */
-    ktask = l->ktask;
-    pt = ktask;
-    pt->credit = 10;
-    l = l->next;
-    while ( NULL != l ) {
-        if ( l->ktask->state == KTASK_STATE_READY ) {
-            pt->next = l->ktask;
-            pt = l->ktask;
-            pt->credit = 10;
-        }
-        l = l->next;
-    }
-    pt->next = NULL;
-
-    /* Schedule the next task */
-    set_next_ktask(ktask);
-}
+#endif
 
 /*
  * Local variables:

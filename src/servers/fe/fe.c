@@ -1,5 +1,5 @@
 /*_
- * Copyright (c) 2015 Hirochika Asai <asai@jar.jp>
+ * Copyright (c) 2016 Hirochika Asai <asai@jar.jp>
  * All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -21,54 +21,41 @@
  * SOFTWARE.
  */
 
-#include <aos/const.h>
-#include "kernel.h"
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <unistd.h>
+#include <sys/syscall.h>
+#include <sys/mman.h>
+#include "pci.h"
+
+void
+sysxpsleep(void)
+{
+    __asm__ __volatile__ ("syscall" :: "a"(SYS_xpsleep));
+}
 
 /*
- * High-level scheduler
+ * Entry point for the process manager program
  */
-void
-sched_high(void)
+int
+main(int argc, char *argv[])
 {
-    struct ktask *ktask;
-    struct ktask *pt;
-    struct ktask_list *l;
+    char buf[512];
+    int ret;
+    char *mem;
 
-    /* Schedule from running tasks */
-    l = g_ktask_root->r.head;
+    /* Map */
+    mem = malloc(4096);;
+    strcpy(mem, "abcd efgh");
 
-    /* Search a ready-state task */
-    while ( NULL != l ) {
-        if ( l->ktask->state == KTASK_STATE_READY ) {
-            break;
-        } else {
-            l = l->next;
-        }
+    while ( 1 ) {
+        ret = pci_read_config(0, 0, 0, 0);
+        snprintf(buf, 512, "xxx %s %x %p %s\r\n", "abcd", ret, mem, mem);
+        write(1, buf, strlen(buf));
+        sysxpsleep();
     }
-
-    if ( NULL == l ) {
-        /* The idle task is to be scheduled */
-        set_next_idle();
-        return;
-    }
-
-    /* Setup a run queue for the low-level scheduler */
-    ktask = l->ktask;
-    pt = ktask;
-    pt->credit = 10;
-    l = l->next;
-    while ( NULL != l ) {
-        if ( l->ktask->state == KTASK_STATE_READY ) {
-            pt->next = l->ktask;
-            pt = l->ktask;
-            pt->credit = 10;
-        }
-        l = l->next;
-    }
-    pt->next = NULL;
-
-    /* Schedule the next task */
-    set_next_ktask(ktask);
+    exit(0);
 }
 
 /*

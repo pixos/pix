@@ -1,5 +1,5 @@
 /*_
- * Copyright (c) 2015 Hirochika Asai <asai@jar.jp>
+ * Copyright (c) 2015-2016 Hirochika Asai <asai@jar.jp>
  * All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -24,6 +24,8 @@
 #ifndef _SYS_MMAN_H
 #define _SYS_MMAN_H
 
+#include <aos/types.h>
+
 #define PROT_NONE       0x00
 #define PROT_READ       0x01
 #define PROT_WRITE      0x02
@@ -36,6 +38,8 @@
 #define MAP_HASSEMAPHORE        0x0200
 #define MAP_NOCACHE             0x0400
 #define MAP_ANON                0x1000
+
+void * mmap(void *, size_t, int, int, int, off_t);
 
 #endif /* _SYS_MMAN_H */
 

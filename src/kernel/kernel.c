@@ -1,5 +1,5 @@
 /*_
- * Copyright (c) 2015 Hirochika Asai <asai@jar.jp>
+ * Copyright (c) 2015-2016 Hirochika Asai <asai@jar.jp>
  * All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -35,6 +35,10 @@ kinit(void)
         panic("Invalid struct kernel_variable size.");
     }
 
+    /* Initialize kernel timer */
+    g_timer.head = NULL;
+    g_jiffies = 0;
+
     /* Setup system calls */
     for ( i = 0; i < SYS_MAXSYSCALL; i++ ) {
         g_syscall_table[i] = NULL;
@@ -55,6 +59,9 @@ kinit(void)
     g_syscall_table[SYS_mmap] = sys_mmap;
     g_syscall_table[SYS_munmap] = sys_munmap;
     g_syscall_table[SYS_lseek] = sys_lseek;
+    g_syscall_table[SYS_nanosleep] = sys_nanosleep;
+    g_syscall_table[SYS_xpsleep] = sys_xpsleep;
+    g_syscall_table[SYS_driver] = sys_driver;
     g_syscall_table[SYS_sysarch] = sys_sysarch;
 
     syscall_setup(g_syscall_table, SYS_MAXSYSCALL);
@@ -80,6 +87,26 @@ void
 isr_loc_tmr(void)
 {
     struct ktask *ktask;
+    struct ktimer_event *e;
+    struct ktimer_event *etmp;
+
+    /* FIXME: This variable should be CPU-specific value (i.e., one variable per
+       CPU core). */
+    g_jiffies++;
+
+    e = g_timer.head;
+    while ( NULL != e && e->jiffies < g_jiffies ) {
+        /* Fire the event */
+        ktask = e->proc->tasks;
+        while ( NULL != ktask ) {
+            ktask->state = KTASK_STATE_READY;
+            ktask = ktask->proc_task_next;
+        }
+        etmp = e;
+        e = e->next;
+        kfree(etmp);
+    }
+    g_timer.head = e;
 
     ktask = this_ktask();
     if ( ktask ) {
@@ -99,6 +126,32 @@ isr_loc_tmr(void)
 }
 
 /*
+ * Run an interrupt handler for IRQ interrupt
+ */
+static void
+_irq_handler(u64 vec)
+{
+    struct ktask *t;
+    struct ktask *tmp;
+
+    /* Check whether the interrupt handler is registered */
+    if ( NULL != g_intr_table->ivt[vec].f ) {
+        t = this_ktask();
+        tmp = g_intr_table->ivt[vec].proc->tasks;
+        while ( NULL != tmp ) {
+            tmp->state = KTASK_STATE_READY;
+            tmp = tmp->proc_task_next;
+        }
+
+        /* Replace the page table with the driver's */
+        arch_switch_page_table(g_intr_table->ivt[vec].proc->vmem);
+        g_intr_table->ivt[vec].f();
+        /* Restore the page table */
+        arch_switch_page_table(NULL);
+    }
+}
+
+/*
  * Interrupt service routine
  */
 void
@@ -107,6 +160,24 @@ kintr_isr(u64 vec)
     switch ( vec ) {
     case IV_LOC_TMR:
         isr_loc_tmr();
+        break;
+    case IV_IRQ(0):
+    case IV_IRQ(1):
+    case IV_IRQ(2):
+    case IV_IRQ(3):
+    case IV_IRQ(4):
+    case IV_IRQ(5):
+    case IV_IRQ(6):
+    case IV_IRQ(7):
+    case IV_IRQ(8):
+    case IV_IRQ(9):
+    case IV_IRQ(10):
+    case IV_IRQ(11):
+    case IV_IRQ(12):
+    case IV_IRQ(13):
+    case IV_IRQ(14):
+    case IV_IRQ(15):
+        _irq_handler(vec);
         break;
     default:
         ;

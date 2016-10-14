@@ -21,54 +21,36 @@
  * SOFTWARE.
  */
 
-#include <aos/const.h>
-#include "kernel.h"
+#include <stdlib.h>
+#include <unistd.h>
+#include <sys/syscall.h>
+#include <time.h>
+
+void
+sysxpsleep(void)
+{
+    __asm__ __volatile__ ("syscall" :: "a"(SYS_xpsleep));
+}
 
 /*
- * High-level scheduler
+ * Entry point for the process manager program
  */
-void
-sched_high(void)
+int
+main(int argc, char *argv[])
 {
-    struct ktask *ktask;
-    struct ktask *pt;
-    struct ktask_list *l;
+    struct timespec tm;
+    tm.tv_sec = 1;
+    tm.tv_nsec = 0;
 
-    /* Schedule from running tasks */
-    l = g_ktask_root->r.head;
-
-    /* Search a ready-state task */
-    while ( NULL != l ) {
-        if ( l->ktask->state == KTASK_STATE_READY ) {
-            break;
-        } else {
-            l = l->next;
-        }
+    while ( 1 ) {
+        //write(0, NULL, 0);
+        //sysxpsleep();
+        //read(0, NULL, 0);
+        //__asm__ ("hlt");
+        //sysxpsleep();
+        nanosleep(&tm, NULL);
     }
-
-    if ( NULL == l ) {
-        /* The idle task is to be scheduled */
-        set_next_idle();
-        return;
-    }
-
-    /* Setup a run queue for the low-level scheduler */
-    ktask = l->ktask;
-    pt = ktask;
-    pt->credit = 10;
-    l = l->next;
-    while ( NULL != l ) {
-        if ( l->ktask->state == KTASK_STATE_READY ) {
-            pt->next = l->ktask;
-            pt = l->ktask;
-            pt->credit = 10;
-        }
-        l = l->next;
-    }
-    pt->next = NULL;
-
-    /* Schedule the next task */
-    set_next_ktask(ktask);
+    exit(0);
 }
 
 /*

@@ -41,6 +41,7 @@ struct acpi arch_acpi;
 /* Multiprocessor enabled */
 int mp_enabled;
 
+
 /*
  * Relocate the trampoline code to a 4 KiB page alined space
  */
@@ -111,7 +112,26 @@ intr_setup(void)
     idt_setup_trap_gate(30, intr_se);
     /* Interrupts */
     idt_setup_intr_gate(IV_LOC_TMR, intr_apic_loc_tmr);
+    idt_setup_intr_gate(IV_LOC_TMR_XP, intr_apic_loc_tmr_xp);
     idt_setup_intr_gate(IV_CRASH, intr_crash);
+
+    /* IRQs */
+    idt_setup_intr_gate(IV_IRQ(0), intr_driver_0x20);
+    idt_setup_intr_gate(IV_IRQ(1), intr_driver_0x21);
+    idt_setup_intr_gate(IV_IRQ(2), intr_driver_0x22);
+    idt_setup_intr_gate(IV_IRQ(3), intr_driver_0x23);
+    idt_setup_intr_gate(IV_IRQ(4), intr_driver_0x24);
+    idt_setup_intr_gate(IV_IRQ(5), intr_driver_0x25);
+    idt_setup_intr_gate(IV_IRQ(6), intr_driver_0x26);
+    idt_setup_intr_gate(IV_IRQ(7), intr_driver_0x27);
+    idt_setup_intr_gate(IV_IRQ(8), intr_driver_0x28);
+    idt_setup_intr_gate(IV_IRQ(9), intr_driver_0x29);
+    idt_setup_intr_gate(IV_IRQ(10), intr_driver_0x2a);
+    idt_setup_intr_gate(IV_IRQ(11), intr_driver_0x2b);
+    idt_setup_intr_gate(IV_IRQ(12), intr_driver_0x2c);
+    idt_setup_intr_gate(IV_IRQ(13), intr_driver_0x2d);
+    idt_setup_intr_gate(IV_IRQ(14), intr_driver_0x2e);
+    idt_setup_intr_gate(IV_IRQ(15), intr_driver_0x2f);
 
     /* For driver use */
     idt_setup_intr_gate(0x50, intr_driver_0x50);
@@ -280,6 +300,17 @@ bsp_init(void)
     }
     g_proc_table->lastpid = -1;
 
+    /* Set up the interrupt handler table */
+    g_intr_table = kmalloc(sizeof(struct interrupt_handler_table));
+    if ( NULL == g_intr_table ) {
+        panic("Fatal: Could not initialize the interrupt handler table.");
+        return;
+    }
+    for ( i = 0; i < NR_IV; i++ ) {
+        g_intr_table->ivt[i].f = NULL;
+        g_intr_table->ivt[i].proc = NULL;
+    }
+
     /* Initialize the task lists */
     g_ktask_root = kmalloc(sizeof(struct ktask_root));
     if ( NULL == g_ktask_root ) {
@@ -315,6 +346,9 @@ bsp_init(void)
 
     /* Initialize the kernel */
     kinit();
+
+    void *test = kmalloc(64);
+    kfree(test);
 
 #if 0
     if ( vmx_enable() < 0 ) {
@@ -370,6 +404,8 @@ bsp_init(void)
     /* Schedule the idle task */
     this_cpu()->cur_task = NULL;
     this_cpu()->next_task = this_cpu()->idle_task;
+
+    set_next_ktask(g_ktask_root->r.head->ktask);
 
     /* Start the idle task */
     task_restart();
@@ -499,8 +535,8 @@ arch_exec(struct arch_task *t, void (*entry)(void), size_t size, int policy,
 
     /* For exec */
     void *paddr;
-    paddr = pmem_alloc_pages(PMEM_ZONE_LOWMEM,
-                             bitwidth(DIV_CEIL(size, PHYS_PAGESIZE)));
+    paddr = pmem_prim_alloc_pages(PMEM_ZONE_LOWMEM,
+                                  bitwidth(DIV_CEIL(size, SUPERPAGESIZE)));
     if ( NULL == paddr ) {
         return -1;
     }
@@ -518,7 +554,7 @@ arch_exec(struct arch_task *t, void (*entry)(void), size_t size, int policy,
     }
 
     /* Release the original one */
-    pmem_free_pages(t->ktask->proc->code_paddr);
+    pmem_prim_free_pages(t->ktask->proc->code_paddr);
     t->ktask->proc->code_paddr = paddr;
 
     kmemcpy((void *)CODE_INIT, entry, size);
@@ -527,7 +563,7 @@ arch_exec(struct arch_task *t, void (*entry)(void), size_t size, int policy,
     t->sp0 = (u64)t->kstack + KSTACK_SIZE - 16;
     t->rp->gs = ss;
     t->rp->fs = ss;
-    t->rp->sp = USTACK_INIT + USTACK_SIZE - 16;
+    t->rp->sp = USTACK_INIT + USTACK_SIZE - 16 - 8;
     t->rp->ss = ss;
     t->rp->cs = cs;
     t->rp->ip = CODE_INIT;
@@ -554,6 +590,21 @@ arch_exec(struct arch_task *t, void (*entry)(void), size_t size, int policy,
 void
 arch_task_switched(struct arch_task *prev, struct arch_task *next)
 {
+}
+
+void
+arch_switch_page_table(struct vmem_space *vmem)
+{
+    static void *cr3;
+    struct arch_vmem_space *avmem;
+
+    if ( NULL == vmem ) {
+        set_cr3(cr3);
+    } else {
+        cr3 = get_cr3();
+        avmem = (struct arch_vmem_space *)vmem->arch;
+        set_cr3(avmem->pgt);
+    }
 }
 
 /*
@@ -589,6 +640,7 @@ set_next_ktask(struct ktask *ktask)
  */
 void set_next_idle(void)
 {
+    this_cpu()->idle_task->ktask->credit = 0;
     this_cpu()->next_task = this_cpu()->idle_task;
 }
 

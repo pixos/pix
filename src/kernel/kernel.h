@@ -28,6 +28,7 @@
 #include <aos/types.h>
 #include <sys/resource.h>
 #include <sys/syscall.h>
+#include <time.h>
 
 /* Architecture-specific configuration */
 #if defined(ARCH_X86_64) && ARCH_X86_64
@@ -48,33 +49,39 @@
 #define g_proc_table    g_kvar->proc_table
 #define g_ktask_root    g_kvar->ktask_root
 #define g_syscall_table g_kvar->syscall_table
+#define g_intr_table    g_kvar->intr_table
+#define g_timer         g_kvar->timer
+#define g_jiffies       g_kvar->jiffies
 
 #define FLOOR(val, base)        (((val) / (base)) * (base))
 #define CEIL(val, base)         ((((val) - 1) / (base) + 1) * (base))
 #define DIV_FLOOR(val, base)    ((val) / (base))
 #define DIV_CEIL(val, base)     (((val) - 1) / (base) + 1)
 
-/* Page size: Must be consistent with the architecture's page size */
+/*
+ * NOTE FOR PAGE SIZES:
+ * PAGESIZE and SUPERPAGESIZE must be consistent with the paging unit of the
+ * processor's architecture.  In x86/x86-64, PAGESIZE and SUPERPAGESIZE must be
+ * 4 KiB and 2 MiB, respectively.  Physical and kernel memory are managed in the
+ * size of superpages.
+ */
 #define PAGESIZE                4096ULL         /* 4 KiB */
 #define SUPERPAGESIZE           (1ULL << 21)    /* 2 MiB */
 #define SP_SHIFT                9               /* log2(2M/4K)*/
-#define PHYS_PAGESIZE           SUPERPAGESIZE
-#define KERN_PAGESIZE           SUPERPAGESIZE
+/* Validation macro */
+#if (PAGESIZE) << (SP_SHIFT) != (SUPERPAGESIZE)
+#error "Invalid SP_SHIFT value."
+#endif
 
 #define CACHELINESIZE           64
 #define CACHE_ALIGN(a)          CEIL(a, CACHELINESIZE)
 #define PAGE_ALIGN(a)           CEIL(a, PAGESIZE)
 #define SUPERPAGE_ALIGN(a)      CEIL(a, SUPERPAGESIZE)
-#define PHYS_PAGE_ALIGN(a)      CEIL(a, PHYS_PAGESIZE)
 
 #define PAGE_ADDR(i)            (PAGESIZE * (u64)(i))
 #define SUPERPAGE_ADDR(i)       (SUPERPAGESIZE * (u64)(i))
-#define PHYS_PAGE_ADDR(i)       (PHYS_PAGESIZE * (u64)(i))
-#define KERN_PAGE_ADDR(i)       (KERN_PAGESIZE * (u64)(i))
 #define PAGE_INDEX(a)           ((u64)(a) / PAGESIZE)
 #define SUPERPAGE_INDEX(a)      ((u64)(a) / SUPERPAGESIZE)
-#define PHYS_PAGE_INDEX(a)      ((u64)(a) / PHYS_PAGESIZE)
-#define KERN_PAGE_INDEX(a)      ((u64)(a) / KERN_PAGESIZE)
 
 /* Flags for struct pmem */
 #define PMEM_USABLE             (1)             /* Usable */
@@ -83,14 +90,15 @@
 
 #define PMEM_MAX_BUDDY_ORDER    18
 #define PMEM_INVAL_BUDDY_ORDER  0x3f
+#define PMEM_INVAL_INDEX        0xffffffffUL
 
+/* Memory zones and NUMA domains */
 #define PMEM_NUMA_MAX_DOMAINS   16
 #define PMEM_ZONE_DMA           0
 #define PMEM_ZONE_LOWMEM        1
 #define PMEM_ZONE_UMA           2
 #define PMEM_ZONE_NUMA(d)       (3 + (d))
 #define PMEM_NUM_ZONES          (3 + PMEM_NUMA_MAX_DOMAINS)
-#define PMEM_INVAL_INDEX        0xffffffffUL
 
 
 /*
@@ -98,8 +106,8 @@
  */
 /* 32 (2^5) -byte is the minimum object size of a slab object */
 #define KMEM_SLAB_BASE_ORDER    5
-/* 1024 (2^(5 + 6 - 1)) byte is the maximum object size of a slab object */
-#define KMEM_SLAB_ORDER         6
+/* 8192 (2^(5 + 9 - 1)) byte is the maximum object size of a slab object */
+#define KMEM_SLAB_ORDER         9
 /* 2^16 objects in a cache */
 #define KMEM_SLAB_NR_OBJ_ORDER  4
 
@@ -108,6 +116,7 @@
 
 #define KMEM_USABLE             (1)
 #define KMEM_USED               (1<<1)
+#define KMEM_SLAB               (1<<2)
 #define KMEM_IS_FREE(x)         (KMEM_USABLE == ((x)->flags & 0x3))
 
 /*
@@ -147,6 +156,7 @@
 /* Tick */
 #define HZ                      100
 #define IV_LOC_TMR              0x40
+#define IV_LOC_TMR_XP           0x41 /* Exclusive processor */
 #define IV_CRASH                0xfe
 #define NR_IV                   0x100
 #define IV_IRQ(n)               (0x20 + (n))
@@ -268,10 +278,19 @@ struct vmem_space {
 struct kmem_page {
     /* Physical address */
     reg_t addr;
-    /* Order */
-    int order;
+
     /* Flags */
     int flags;
+
+    /* Order of the buddy system */
+    u8 order;
+
+    /* Zone */
+    u16 zone;
+
+    /* Slab */
+    struct kmem_slab *slab;
+
     /* Buddy system */
     struct kmem_page *next;
     struct kmem_page *prev;
@@ -281,7 +300,6 @@ struct kmem_page {
  * Kernel memory
  */
 struct kmem_space {
-    /* Superpages */
     ptr_t start;
     size_t len;                 /* Constant multiplication of SUPERPAGESIZE */
 
@@ -295,6 +313,29 @@ struct kmem_space {
     void *arch;
 };
 
+
+/*
+ * The management data structure of physical pages (2-MiB pages) are ensured to
+ * be mapped in the kernel memory region so that the kernel memory allocator
+ * does not recursively depend on any memory allocator.  4-KiB sub-pages can be
+ * allocated another interface that uses the kernel memory allocator.
+ */
+
+/*
+ * Physical subpage
+ */
+struct pmem_subpage {
+    /* Parent page */
+    struct pmem_page *page;
+    /* Order */
+    int order;
+    /* Flags */
+    int flags;
+    /* Buddy system */
+    struct pmem_subpage *prev;
+    struct pmem_subpage *next;
+};
+
 /*
  * Physical page
  */
@@ -304,6 +345,8 @@ struct pmem_page {
     /* Buddy system */
     u8 order;
     u32 next;
+    /* Sub-pages (segregated list) */
+    void *subpages;
 } __attribute__((packed));
 
 /*
@@ -361,11 +404,24 @@ struct pmem {
  *    ...
  */
 struct kmem_slab {
-    /* slab_hdr */
+    /*
+     * slab_hdr
+     */
+    /* A pointer to the next slab header */
     struct kmem_slab *next;
+    /* Parent free list */
+    struct kmem_slab_free_list *free_list;
+    /* The name of this slab */
+    char *name;
+    /* The size of each object in the slab */
+    size_t size;
+    /* The number of objects in this slab */
     int nr;
+    /* The number of used (allocated) objects */
     int nused;
+    /* The number of unused (free) objects */
     int free;
+    /* The pointer to the array of objects */
     void *obj_head;
     /* Free marks follows (nr byte) */
     u8 marks[0];
@@ -386,27 +442,7 @@ struct kmem_slab_free_list {
  */
 struct kmem_slab_root {
     /* Generic slabs */
-    struct kmem_slab_free_list gslabs[KMEM_SLAB_ORDER];
-};
-
-/*
- * Region
- */
-struct kmem_region {
-    /* Region information */
-    ptr_t start;
-    size_t len;                 /* Constant multiplication of SUPERPAGESIZE */
-
-    /* Superpages belonging to this region */
-    struct vmem_superpage *superpages;
-
-    /* Buddy system for superpages and pages */
-    struct vmem_superpage *spgheads[VMEM_MAX_BUDDY_ORDER + 1];
-    struct vmem_page *pgheads[SP_SHIFT + 1];
-
-    /* Pointer to the next region */
-    struct vmem_region *next;
-
+    struct kmem_slab_free_list gslabs[PMEM_NUM_ZONES][KMEM_SLAB_ORDER];
 };
 
 /*
@@ -434,14 +470,7 @@ struct kmem {
     struct {
         /* Free pages for page table */
         struct kmem_mm_page *mm_pgs;
-        /* Pages in a superpage */
-        //struct vmem_page *spgs;
-        /* Regions */
-        //struct vmem_region *regs;
     } pool;
-
-    /* Architecture-specific data structure */
-    void *arch_kmem;
 
     /* Physical memory */
     struct pmem *pmem;
@@ -469,6 +498,9 @@ struct proc {
 
     /* Parent process */
     struct proc *parent;
+
+    /* Tasks */
+    struct ktask *tasks;
 
     /* User information */
     uid_t uid;
@@ -529,6 +561,10 @@ struct ktask {
 
     /* Task type: Tick-full or tickless */
     int type;
+
+    /* Linked list of tasks in the same process */
+    struct ktask *proc_task_next;
+
     /* Pointers for scheduler (runqueue) */
     struct ktask *next;
     int credit;                 /* quantum */
@@ -554,11 +590,36 @@ struct ktask_root {
     } b;
 };
 
+/*
+ * Kernel timer
+ */
+struct ktimer_event {
+    reg_t jiffies;
+    struct proc *proc;
+    struct ktimer_event *next;
+};
+struct ktimer {
+    /* Head of timer list */
+    struct ktimer_event *head;
+};
+
 /* Kernel event handler */
 typedef void (*kevent_handler_f)(void);
 struct kevent_handlers {
     /* Interrupt vector table */
     kevent_handler_f ivt[NR_IV];
+};
+
+/* Interrupt handler */
+typedef void (*interrupt_handler_f)(void);
+struct interrupt_handler {
+    /* Interrupt handler */
+    interrupt_handler_f f;
+    /* Process to set an appropriate page table before call it */
+    struct proc *proc;
+};
+struct interrupt_handler_table {
+    struct interrupt_handler ivt[NR_IV];
 };
 
 /* Global variables */
@@ -567,6 +628,9 @@ struct kernel_variables {
     struct proc_table *proc_table;
     struct ktask_root *ktask_root;
     void *syscall_table[SYS_MAXSYSCALL];
+    struct interrupt_handler_table *intr_table;
+    struct ktimer timer;
+    reg_t jiffies;
 };
 
 /* for variable-length arguments */
@@ -629,16 +693,13 @@ void vmem_return_pages(struct vmem_page *);
 
 /* in kmem.c */
 int kmem_buddy_init(struct kmem *);
-void * kmem_alloc_pages(struct kmem *, size_t);
+void * kmem_alloc_pages(struct kmem *, size_t, int);
 void kmem_free_pages(struct kmem *, void *);
-struct kmem_page * kmem_grab_pages(struct kmem *, int);
-void kmem_return_pages(struct kmem *, struct kmem_page *);
 
 /* in pmem.c */
-void * pmem_alloc_pages(int, int);
-void * pmem_alloc_page(int);
-void * pmem_alloc_superpage(int);
-void pmem_free_pages(void *);
+void * pmem_prim_alloc_pages(int, int);
+void * pmem_prim_alloc_page(int);
+void pmem_prim_free_pages(void *);
 
 /* in ramfs.c */
 int ramfs_init(u64 *);
@@ -659,6 +720,9 @@ int sys_execve(const char *, char *const [], char *const []);
 void * sys_mmap(void *, size_t, int, int, int, off_t);
 int sys_munmap(void *, size_t);
 off_t sys_lseek(int, off_t, int);
+int sys_nanosleep(const struct timespec *, struct timespec *);
+void sys_xpsleep(void);
+int sys_driver(int, void *);
 int sys_sysarch(int, void *);
 
 /* The followings are mandatory functions for the kernel and should be
@@ -676,11 +740,13 @@ void spin_lock(u32 *);
 void spin_unlock(u32 *);
 int arch_vmem_map(struct vmem_space *, void *, void *, int);
 int arch_kmem_map(struct kmem *, void *, void *, int);
+int arch_kmem_unmap(struct kmem *, void *);
 int arch_address_width(void);
 void * arch_kmem_addr_v2p(struct kmem *, void *);
 void * arch_vmem_addr_v2p(struct vmem_space *, void *);
 int arch_vmem_init(struct vmem_space *);
 void syscall_setup(void *, size_t);
+void arch_switch_page_table(struct vmem_space *);
 
 #endif /* _KERNEL_H */
 

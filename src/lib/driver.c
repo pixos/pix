@@ -1,5 +1,5 @@
 /*_
- * Copyright (c) 2015 Hirochika Asai <asai@jar.jp>
+ * Copyright (c) 2016 Hirochika Asai <asai@jar.jp>
  * All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -21,54 +21,48 @@
  * SOFTWARE.
  */
 
-#include <aos/const.h>
-#include "kernel.h"
+#include <stdlib.h>
+#include <string.h>
+#include <sys/syscall.h>
+#include <mki/driver.h>
+
+/* in libcasm.s */
+unsigned long long syscall(int, ...);
 
 /*
- * High-level scheduler
+ * Request IRQ and register an interrupt handler
  */
-void
-sched_high(void)
+int
+driver_register_irq_handler(int irq, void *func)
 {
-    struct ktask *ktask;
-    struct ktask *pt;
-    struct ktask_list *l;
+    struct sysdriver_handler handler;
 
-    /* Schedule from running tasks */
-    l = g_ktask_root->r.head;
+    handler.nr = irq;
+    handler.handler = func;
 
-    /* Search a ready-state task */
-    while ( NULL != l ) {
-        if ( l->ktask->state == KTASK_STATE_READY ) {
-            break;
-        } else {
-            l = l->next;
-        }
+    return syscall(SYS_driver, SYSDRIVER_REG_IRQ, &handler);
+}
+
+int
+driver_register_device(char *path, int flag)
+{
+    return 0;
+}
+
+void *
+driver_mmap(void *addr, size_t length)
+{
+    struct sysdriver_mmap_req req;
+    int ret;
+
+    req.addr = addr;
+    req.length = length;
+    ret = syscall(SYS_driver, SYSDRIVER_MMAP, &req);
+    if ( ret < 0 ) {
+        return NULL;
     }
 
-    if ( NULL == l ) {
-        /* The idle task is to be scheduled */
-        set_next_idle();
-        return;
-    }
-
-    /* Setup a run queue for the low-level scheduler */
-    ktask = l->ktask;
-    pt = ktask;
-    pt->credit = 10;
-    l = l->next;
-    while ( NULL != l ) {
-        if ( l->ktask->state == KTASK_STATE_READY ) {
-            pt->next = l->ktask;
-            pt = l->ktask;
-            pt->credit = 10;
-        }
-        l = l->next;
-    }
-    pt->next = NULL;
-
-    /* Schedule the next task */
-    set_next_ktask(ktask);
+    return req.vaddr;
 }
 
 /*

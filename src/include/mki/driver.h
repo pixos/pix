@@ -1,5 +1,5 @@
 /*_
- * Copyright (c) 2015 Hirochika Asai <asai@jar.jp>
+ * Copyright (c) 2016 Hirochika Asai <asai@jar.jp>
  * All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -21,55 +21,40 @@
  * SOFTWARE.
  */
 
-#include <aos/const.h>
-#include "kernel.h"
+#ifndef _MKI_DRIVER_H
+#define _MKI_DRIVER_H
 
-/*
- * High-level scheduler
- */
-void
-sched_high(void)
-{
-    struct ktask *ktask;
-    struct ktask *pt;
-    struct ktask_list *l;
+#include <unistd.h>
 
-    /* Schedule from running tasks */
-    l = g_ktask_root->r.head;
+#define SYSDRIVER_REG_IRQ       1
+#define SYSDRIVER_UNREG_IRQ     2
+#define SYSDRIVER_REG_DEV       3
+#define SYSDRIVER_UNREG_DEV     4
 
-    /* Search a ready-state task */
-    while ( NULL != l ) {
-        if ( l->ktask->state == KTASK_STATE_READY ) {
-            break;
-        } else {
-            l = l->next;
-        }
-    }
+#define SYSDRIVER_MMAP          11
+#define SYSDRIVER_MUNMAP        12
 
-    if ( NULL == l ) {
-        /* The idle task is to be scheduled */
-        set_next_idle();
-        return;
-    }
+struct sysdriver_handler {
+    int nr;
+    void *handler;
+};
 
-    /* Setup a run queue for the low-level scheduler */
-    ktask = l->ktask;
-    pt = ktask;
-    pt->credit = 10;
-    l = l->next;
-    while ( NULL != l ) {
-        if ( l->ktask->state == KTASK_STATE_READY ) {
-            pt->next = l->ktask;
-            pt = l->ktask;
-            pt->credit = 10;
-        }
-        l = l->next;
-    }
-    pt->next = NULL;
+struct sysdriver_devfs {
+    char *path;
+    int flags;
+};
 
-    /* Schedule the next task */
-    set_next_ktask(ktask);
-}
+struct sysdriver_mmap_req {
+    void *addr;
+    size_t length;
+    void *vaddr;
+};
+
+int driver_register_irq_handler(int, void *);
+int driver_register_device(char *, int);
+void * driver_mmap(void *, size_t);
+
+#endif /* _MKI_DRIVER_H */
 
 /*
  * Local variables:

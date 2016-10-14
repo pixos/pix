@@ -55,10 +55,10 @@
 #define KMEM_LOW_P2V(a)         ((u64)(a))
 
 #define KMEM_REGION_KERNEL_BASE 0xc0000000ULL
-#define KMEM_REGION_KERNEL_SIZE 0x18000000ULL
+#define KMEM_REGION_KERNEL_SIZE 0x10000000ULL
 
-#define KMEM_REGION_SPEC_BASE   0xd8000000ULL
-#define KMEM_REGION_SPEC_SIZE   0x28000000ULL
+#define KMEM_REGION_SPEC_BASE   0xd0000000ULL
+#define KMEM_REGION_SPEC_SIZE   0x30000000ULL
 
 #define KMEM_REGION_PMEM_BASE   0x100000000ULL
 
@@ -217,12 +217,17 @@ struct arch_page_dir {
 };
 
 /*
- * Kernel memory space (i.e., page table)
+ * Kernel memory space (i.e., page table).  In this architecture, the kernel
+ * memory region is mapped from 3 to 4 GiB.
  */
 struct arch_kmem_space {
-    /* The root of the 4-level page table (virtual address) */
+    /* The root of the 4-level page table (virtual address); the physical
+       address of the next member variable, pdpt, is set to pml4->entries[0]
+       with flags (i.e., for the region of 0-512 GiB). */
     struct arch_page_dir *pml4;
-    /* The pointer to page directory pointer table */
+    /* The pointer to page directory pointer table; the physical address of the
+       next member variable, pd, is set to pdpt->entries[3] with flags (i.e.,
+       for the region of 3-4 GiB). */
     struct arch_page_dir *pdpt;
     /* The pointer to the page directory */
     struct arch_page_dir *pd;
@@ -294,16 +299,16 @@ struct cpu_data {
     u32 flags;          /* bit 0: enabled (working); bit 1- reserved */
     u32 cpu_id;
     u64 freq;           /* Frequency */
-    int prox_domain;
+    u32 prox_domain;
     u32 reserved[3];
     u64 stats[IDT_NR];  /* Interrupt counter */
-    /* P_TSS_OFFSET */
+    /* CPU_TSS_OFFSET */
     struct tss tss;
-    /* P_CUR_TASK_OFFSET */
+    /* CPU_CUR_TASK_OFFSET */
     struct arch_task *cur_task;
-    /* P_NEXT_TASK_OFFSET */
+    /* CPU_NEXT_TASK_OFFSET */
     struct arch_task *next_task;
-    /* Idle task */
+    /* Idle task (CPU_IDLE_TASK_OFFSET) */
     struct arch_task *idle_task;
     /* Stack and stack guard follow */
 } __attribute__ ((packed));
@@ -352,6 +357,23 @@ void intr_simd_fpe(void);
 void intr_vef(void);
 void intr_se(void);
 
+void intr_driver_0x20(void);
+void intr_driver_0x21(void);
+void intr_driver_0x22(void);
+void intr_driver_0x23(void);
+void intr_driver_0x24(void);
+void intr_driver_0x25(void);
+void intr_driver_0x26(void);
+void intr_driver_0x27(void);
+void intr_driver_0x28(void);
+void intr_driver_0x29(void);
+void intr_driver_0x2a(void);
+void intr_driver_0x2b(void);
+void intr_driver_0x2c(void);
+void intr_driver_0x2d(void);
+void intr_driver_0x2e(void);
+void intr_driver_0x2f(void);
+
 void intr_driver_0x50(void);
 void intr_driver_0x51(void);
 void intr_driver_0x52(void);
@@ -372,6 +394,7 @@ void intr_driver_0x5f(void);
 
 
 void intr_apic_loc_tmr(void);
+void intr_apic_loc_tmr_xp(void);
 void intr_crash(void);
 void task_restart(void);
 void task_replace(void *);
@@ -404,6 +427,8 @@ int vmresume(void);
 void spin_lock_intr(u32 *);
 void spin_unlock_intr(u32 *);
 
+void sys_task_switch(void);
+
 /* in trampoline.s */
 void trampoline(void);
 void trampoline_end(void);
@@ -424,7 +449,6 @@ int proc_create(const char *, const char *, pid_t);
     __asm__ __volatile__ ("xsave64 (%%rdi)" :: "D"(mem), "a"(a), "d"(d));
 #define xgetbv(a, b)                                                    \
     __asm__ __volatile__ ("xgetbv; movq %%rax,%%dr1" : "=a"(a), "=d"(b));
-
 
 #define interrupt_handler_begin(handler)        \
     void handler(void) {                        \

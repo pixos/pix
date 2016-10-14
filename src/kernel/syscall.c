@@ -24,8 +24,24 @@
 #include <aos/const.h>
 #include <unistd.h>
 #include <sys/syscall.h>
+#include <time.h>
 #include <machine/sysarch.h>
+#include <mki/driver.h>
 #include "kernel.h"
+
+/* Copied from sys/mman.h */
+#define PROT_NONE               0x00
+#define PROT_READ               0x01
+#define PROT_WRITE              0x02
+#define PROT_EXEC               0x04
+
+#define MAP_FILE                0x0000
+#define MAP_SHARED              0x0001
+#define MAP_PRIVATE             0x0002
+#define MAP_FIXED               0x0010
+#define MAP_HASSEMAPHORE        0x0200
+#define MAP_NOCACHE             0x0400
+#define MAP_ANON                0x1000
 
 typedef __builtin_va_list va_list;
 #define va_start(ap, last)      __builtin_va_start((ap), (last))
@@ -197,8 +213,21 @@ ssize_t
 sys_write(int fildes, const void *buf, size_t nbyte)
 {
     u16 *video;
-    int i;
+    ssize_t i;
     char *s;
+
+    if ( 1 == fildes && NULL != buf ) {
+        video = (u16 *)0xc00b8000;
+        for ( i = 0; i < 80 * 25; i++ ) {
+            *(video + i) = 0x0f00;
+        }
+        for ( i = 0; i < (ssize_t)nbyte; i++ ) {
+            *video = 0x0f00 | (u16)((char *)buf)[i];
+            //*video = 0x2f00 | (u16)*s;
+            video++;
+        }
+        return i;
+    }
 
     s = "write";
 
@@ -615,7 +644,7 @@ sys_execve(const char *path, char *const argv[], char *const envp[])
  *      space.  In all cases, the actual starting address of the region is
  *      returned.  If MAP_FIXED is specified, a successful mmap deletes any
  *      previous mapping in the allocated address range.  Previous mappings are
- *      never  deleted if MAP_FIXED is not specified.
+ *      never deleted if MAP_FIXED is not specified.
  *
  * RETURN VALUES
  *      Upon successful completion, mmap() returns a pointer to the mapped
@@ -624,7 +653,54 @@ sys_execve(const char *path, char *const argv[], char *const envp[])
 void *
 sys_mmap(void *addr, size_t len, int prot, int flags, int fd, off_t offset)
 {
-    return NULL;
+    struct ktask *t;
+    struct proc *proc;
+    void *paddr;
+    void *vaddr;
+    int ret;
+    ssize_t i;
+    int order;
+
+    /* Get the current task information */
+    t = this_ktask();
+    proc = t->proc;
+
+    if ( flags & MAP_FIXED ) {
+        /* Place the mapping at the address specified by addr */
+        return NULL;
+    } else {
+        /* Find address */
+    }
+
+    /* Allocate virtual memory region */
+    order = bitwidth(DIV_CEIL(len, SUPERPAGESIZE));
+    vaddr = vmem_buddy_alloc_superpages(proc->vmem, order);
+    if ( NULL == vaddr ) {
+        return NULL;
+    }
+
+    /* Allocate physical memory */
+    paddr = pmem_prim_alloc_pages(PMEM_ZONE_LOWMEM, order);
+    if ( NULL == paddr ) {
+        /* Could not allocate physical memory */
+        vmem_free_pages(proc->vmem, vaddr);
+        return NULL;
+    }
+
+    for ( i = 0; i < (ssize_t)DIV_CEIL(len, SUPERPAGESIZE); i++ ) {
+        ret = arch_vmem_map(proc->vmem,
+                            (void *)(vaddr + SUPERPAGESIZE * i),
+                            paddr + SUPERPAGESIZE * i,
+                            VMEM_USABLE | VMEM_USED | VMEM_SUPERPAGE);
+        if ( ret < 0 ) {
+            /* FIXME: Handle this error */
+            pmem_prim_free_pages(paddr);
+            vmem_free_pages(proc->vmem, vaddr);
+            return NULL;
+        }
+    }
+
+    return vaddr;
 }
 
 /*
@@ -686,24 +762,203 @@ sys_lseek(int fildes, off_t offset, int whence)
     return -1;
 }
 
+
+/*
+ * Suspend thread execution for an interval measured in nanoseconds
+ *
+ * SYNOPSIS
+ *      int
+ *      sys_nanosleep(const struct timespec *rqtp, struct timespec *rmtp);
+ *
+ * DESCRIPTION
+ *      The nanosleep() function causes the calling thread to sleep for the
+ *      amount of time specified in ratp (the actual time slept may be longer,
+ *      due to system latencies and possible limitations in the timer resolution
+ *      of the hardware).  An unmasked signal will cause nanosleep() to
+ *      terminate the sleep early, regardless of the SA_RESTART value on the
+ *      interrupting signal.
+ *
+ * RETURN VALUES
+ *      If nanosleep() returns because the requested time has elapsed, the value
+ *      returned will be zero.
+ *
+ *      If nanosleep() returns due to the delivery of a signal, the value
+ *      returned will be the -1, and the global variable errno will be set to
+ *      indicate the interruption.  If rmtp is non-NULL, the timespec structure
+ *      it references is updated to contain the unslept amount (the request time
+ *      minus the time actually slept).
+ */
+int
+sys_nanosleep(const struct timespec *rqtp, struct timespec *rmtp)
+{
+    struct ktask *t;
+    struct ktimer_event *e;
+    struct ktimer_event **eptr;
+    reg_t fire;
+
+    /* Get the current task information */
+    t = this_ktask();
+
+    fire = rqtp->tv_sec * HZ + (rqtp->tv_nsec * HZ / 1000000000) + g_jiffies;
+
+    /* Allocate an event */
+    e = kmalloc(sizeof(struct ktimer_event));
+    if ( NULL == e ) {
+        return -1;
+    }
+    e->jiffies = fire;
+    e->proc = t->proc;
+    e->next = NULL;
+
+    /* Search the appropriate position in the timer list to set the event */
+    eptr = &g_timer.head;
+    while ( NULL != *eptr && fire < (*eptr)->jiffies  ) {
+        eptr = &(*eptr)->next;
+    }
+    *eptr = e;;
+
+    /* Set the state of this task to blocked to sleep */
+    t->state = KTASK_STATE_BLOCKED;
+
+    /* Switch this task to another */
+    sys_task_switch();
+
+    return -1;
+}
+
+
+/*
+ * Sleep this exclusive processor
+ */
+void
+sys_xpsleep(void)
+{
+    __asm__ __volatile__ ("sti;hlt;cli");
+}
+
+/*
+ * Driver-related system call
+ */
+int
+sys_driver(int number, void *args)
+{
+    struct ktask *t;
+    struct proc *proc;
+    struct sysdriver_handler *s;
+
+    void *paddr;
+    void *vaddr;
+    int ret;
+    ssize_t i;
+    int order;
+    struct sysdriver_mmap_req *req;
+
+    /* Get the current task information */
+    t = this_ktask();
+    proc = t->proc;
+
+    switch ( number ) {
+    case SYSDRIVER_REG_IRQ:
+        /* Register an IRQ handler */
+        s = (struct sysdriver_handler *)args;
+        g_intr_table->ivt[IV_IRQ(s->nr)].f = s->handler;
+        g_intr_table->ivt[IV_IRQ(s->nr)].proc = proc;
+        return 0;
+    case SYSDRIVER_MMAP:
+        req = (struct sysdriver_mmap_req *)args;
+
+        /* Allocate virtual memory region */
+        order = bitwidth(DIV_CEIL(req->length, PAGESIZE));
+        vaddr = vmem_buddy_alloc_pages(proc->vmem, order);
+        if ( NULL == vaddr ) {
+            return -1;
+        }
+
+        paddr = req->addr;
+        for ( i = 0; i < (ssize_t)DIV_CEIL(req->length, PAGESIZE); i++ ) {
+            ret = arch_vmem_map(proc->vmem,
+                                (void *)(vaddr + PAGESIZE * i),
+                                paddr + PAGESIZE * i, VMEM_USABLE | VMEM_USED);
+            if ( ret < 0 ) {
+                vmem_free_pages(proc->vmem, vaddr);
+                return -1;
+            }
+        }
+        req->vaddr = vaddr;
+        return 0;
+    default:
+        ;
+    }
+    return -1;
+}
+
 /*
  * Architecture specific system call
+ * FIXME: Must check the caller's authority and implement protection mechanisms
  */
+u8 inb(u16);
+u16 inw(u16);
 u32 inl(u16);
+void outb(u16, u8);
+void outw(u16, u16);
 void outl(u16, u32);
+u64 rdmsr(u64);
+void wrmsr(u64, u64);
+u64 get_cr0(void);
+#define set_cr0(cr0)    __asm__ __volatile__ ("movq %%rax,%%cr0" :: "a"((cr0)))
+u64 get_cr4(void);
+#define set_cr4(cr4)    __asm__ __volatile__ ("movq %%rax,%%cr4" :: "a"((cr4)))
 int
 sys_sysarch(int number, void *args)
 {
     struct sysarch_io *io;
+    struct sysarch_msr *msr;
+    u64 reg;
 
     switch ( number ) {
+    case SYSARCH_INB:
+        io = (struct sysarch_io *)args;
+        io->data = inb(io->port);
+        return 0;
+    case SYSARCH_INW:
+        io = (struct sysarch_io *)args;
+        io->data = inw(io->port);
+        return 0;
     case SYSARCH_INL:
         io = (struct sysarch_io *)args;
         io->data = inl(io->port);
         return 0;
+    case SYSARCH_OUTB:
+        io = (struct sysarch_io *)args;
+        outb(io->port, io->data);
+        return 0;
+    case SYSARCH_OUTW:
+        io = (struct sysarch_io *)args;
+        outw(io->port, io->data);
+        return 0;
     case SYSARCH_OUTL:
         io = (struct sysarch_io *)args;
         outl(io->port, io->data);
+        return 0;
+    case SYSARCH_RDMSR:
+        msr = (struct sysarch_msr *)args;
+        msr->value = rdmsr(msr->key);
+        return 0;
+    case SYSARCH_WRMSR:
+        msr = (struct sysarch_msr *)args;
+        wrmsr(msr->key, msr->value);
+        return 0;
+    case SYSARCH_GETCR0:
+        *(u64 *)args = get_cr0();
+        return 0;
+    case SYSARCH_SETCR0:
+        set_cr0((u64)args);
+        return 0;
+    case SYSARCH_GETCR4:
+        *(u64 *)args = get_cr4();
+        return 0;
+    case SYSARCH_SETCR4:
+        set_cr4((u64)args);
         return 0;
     default:
         ;
