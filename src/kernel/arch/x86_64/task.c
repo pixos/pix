@@ -553,7 +553,7 @@ proc_create(const char *path, const char *name, pid_t pid)
     t->sp0 = (u64)t->kstack + KSTACK_SIZE - 16;
     t->rp->gs = ss;
     t->rp->fs = ss;
-    t->rp->sp = USTACK_INIT + USTACK_SIZE - 16;
+    t->rp->sp = USTACK_INIT + USTACK_SIZE - 16 - 8;
     t->rp->ss = ss;
     t->rp->cs = cs;
     t->rp->ip = CODE_INIT;
