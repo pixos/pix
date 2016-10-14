@@ -347,7 +347,7 @@ main(int argc, char *argv[])
 
     driver_register_irq_handler(1, kbd_intr);
     snprintf(buf, 512, "Registered an interrupt handler of %s driver.", "abcd");
-    write(1, buf, strlen(buf));
+    write(STDOUT_FILENO, buf, strlen(buf));
 
     i = 0;
     while ( 1 ) {
@@ -358,7 +358,7 @@ main(int argc, char *argv[])
         nanosleep(&tm, NULL);
 
         snprintf(buf, 512, "@%d.", i);
-        write(1, buf, strlen(buf));
+        write(STDOUT_FILENO, buf, strlen(buf));
 
         for ( ;; ) {
             io.port = KBD_CTRL_STAT;
@@ -366,7 +366,7 @@ main(int argc, char *argv[])
             if ( io.data & 1 ) {
                 kbd_scan_code = kbd_enc_read_buf();
                 snprintf(buf, 512, "Input: %x 0x%x.", io.data, kbd_scan_code);
-                write(1, buf, strlen(buf));
+                write(STDOUT_FILENO, buf, strlen(buf));
 
                 if ( kbd_scan_code == 0x01 ) {
                     kbd_power_reset();

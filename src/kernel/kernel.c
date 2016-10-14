@@ -126,6 +126,32 @@ isr_loc_tmr(void)
 }
 
 /*
+ * Run an interrupt handler for IRQ interrupt
+ */
+static void
+_irq_handler(u64 vec)
+{
+    struct ktask *t;
+    struct ktask *tmp;
+
+    /* Check whether the interrupt handler is registered */
+    if ( NULL != g_intr_table->ivt[vec].f ) {
+        t = this_ktask();
+        tmp = g_intr_table->ivt[vec].proc->tasks;
+        while ( NULL != tmp ) {
+            tmp->state = KTASK_STATE_READY;
+            tmp = tmp->proc_task_next;
+        }
+
+        /* Replace the page table with the driver's */
+        arch_switch_page_table(g_intr_table->ivt[vec].proc->vmem);
+        g_intr_table->ivt[vec].f();
+        /* Restore the page table */
+        arch_switch_page_table(NULL);
+    }
+}
+
+/*
  * Interrupt service routine
  */
 void
@@ -151,24 +177,7 @@ kintr_isr(u64 vec)
     case IV_IRQ(13):
     case IV_IRQ(14):
     case IV_IRQ(15):
-        /* Check whether the interrupt handler is registered */
-        if ( NULL != g_intr_table->ivt[vec].f ) {
-            struct ktask *t;
-            struct ktask *tmp;
-            //g_intr_table->ivt[vec].proc->
-            t = this_ktask();
-            tmp = g_intr_table->ivt[vec].proc->tasks;
-            while ( NULL != tmp ) {
-                tmp->state = KTASK_STATE_READY;
-                tmp = tmp->proc_task_next;
-            }
-
-            /* Replace the page table with the driver's */
-            arch_switch_page_table(g_intr_table->ivt[vec].proc->vmem);
-            g_intr_table->ivt[vec].f();
-            /* Restore the page table */
-            arch_switch_page_table(NULL);
-        }
+        _irq_handler(vec);
         break;
     default:
         ;

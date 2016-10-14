@@ -43,6 +43,28 @@ driver_register_irq_handler(int irq, void *func)
     return syscall(SYS_driver, SYSDRIVER_REG_IRQ, &handler);
 }
 
+int
+driver_register_device(char *path, int flag)
+{
+    return 0;
+}
+
+void *
+driver_mmap(void *addr, size_t length)
+{
+    struct sysdriver_mmap_req req;
+    int ret;
+
+    req.addr = addr;
+    req.length = length;
+    ret = syscall(SYS_driver, SYSDRIVER_MMAP, &req);
+    if ( ret < 0 ) {
+        return NULL;
+    }
+
+    return req.vaddr;
+}
+
 /*
  * Local variables:
  * tab-width: 4

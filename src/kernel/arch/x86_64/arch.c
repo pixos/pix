@@ -563,7 +563,7 @@ arch_exec(struct arch_task *t, void (*entry)(void), size_t size, int policy,
     t->sp0 = (u64)t->kstack + KSTACK_SIZE - 16;
     t->rp->gs = ss;
     t->rp->fs = ss;
-    t->rp->sp = USTACK_INIT + USTACK_SIZE - 16;
+    t->rp->sp = USTACK_INIT + USTACK_SIZE - 16 - 8;
     t->rp->ss = ss;
     t->rp->cs = cs;
     t->rp->ip = CODE_INIT;

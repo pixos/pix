@@ -846,6 +846,13 @@ sys_driver(int number, void *args)
     struct proc *proc;
     struct sysdriver_handler *s;
 
+    void *paddr;
+    void *vaddr;
+    int ret;
+    ssize_t i;
+    int order;
+    struct sysdriver_mmap_req *req;
+
     /* Get the current task information */
     t = this_ktask();
     proc = t->proc;
@@ -856,6 +863,28 @@ sys_driver(int number, void *args)
         s = (struct sysdriver_handler *)args;
         g_intr_table->ivt[IV_IRQ(s->nr)].f = s->handler;
         g_intr_table->ivt[IV_IRQ(s->nr)].proc = proc;
+        return 0;
+    case SYSDRIVER_MMAP:
+        req = (struct sysdriver_mmap_req *)args;
+
+        /* Allocate virtual memory region */
+        order = bitwidth(DIV_CEIL(req->length, PAGESIZE));
+        vaddr = vmem_buddy_alloc_pages(proc->vmem, order);
+        if ( NULL == vaddr ) {
+            return -1;
+        }
+
+        paddr = req->addr;
+        for ( i = 0; i < (ssize_t)DIV_CEIL(req->length, PAGESIZE); i++ ) {
+            ret = arch_vmem_map(proc->vmem,
+                                (void *)(vaddr + PAGESIZE * i),
+                                paddr + PAGESIZE * i, VMEM_USABLE | VMEM_USED);
+            if ( ret < 0 ) {
+                vmem_free_pages(proc->vmem, vaddr);
+                return -1;
+            }
+        }
+        req->vaddr = vaddr;
         return 0;
     default:
         ;

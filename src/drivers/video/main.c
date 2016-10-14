@@ -25,16 +25,11 @@
 #include <unistd.h>
 #include <sys/syscall.h>
 #include <time.h>
+#include <mki/driver.h>
 
-#define VIDEO_RAM       0x000b8000
+#define VIDEO_RAM       0x000b8000ULL
 #define DEV_CHAR
 #define DEV_BLOCK
-
-void
-sysxpsleep(void)
-{
-    __asm__ __volatile__ ("syscall" :: "a"(SYS_xpsleep));
-}
 
 /*
  * Entry point for the process manager program
@@ -42,18 +37,34 @@ sysxpsleep(void)
 int
 main(int argc, char *argv[])
 {
-    ("/dev/video", 0);
-
     struct timespec tm;
+    uint16_t *vram;
+    char buf[512];
+    ssize_t i;
+
+    //("/dev/video", 0);
+
+    vram = driver_mmap((void *)VIDEO_RAM, 4096);
+    if ( NULL == vram ) {
+        exit(EXIT_FAILURE);
+    }
+    for ( i = 0; i < 80 * 25; i++ ) {
+        *(vram + i) = 0x0f00;
+    }
+
     tm.tv_sec = 1;
     tm.tv_nsec = 0;
     while ( 1 ) {
+        snprintf(buf, 512, "Sleeping %x driver.", vram);
+        for ( i = 0; i < 80 * 25; i++ ) {
+            *(vram + i) = 0x0f00;
+        }
+        for ( i = 0; i < (ssize_t)strlen(buf); i++ ) {
+            *(vram + i) = 0x0f00 | (uint16_t)((char *)buf)[i];
+        }
         nanosleep(&tm, NULL);
     }
 
-    while ( 1 ) {
-        sysxpsleep();
-    }
     exit(0);
 }
 

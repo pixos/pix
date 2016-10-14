@@ -1352,9 +1352,9 @@ arch_vmem_map(struct vmem_space *space, void *vaddr, void *paddr, int flags)
 
         /* Remapping */
         if ( flags & VMEM_GLOBAL ) {
-            pt[idx] = VMEM_PG_GRW((u64)paddr);
+            vpt[idx] = VMEM_PG_GRW((u64)paddr);
         } else {
-            pt[idx] = VMEM_PG_RW((u64)paddr);
+            vpt[idx] = VMEM_PG_RW((u64)paddr);
         }
 
         /* Invalidate the page */

@@ -23,7 +23,7 @@ pxeboot: ASFLAGS=-nostdlib -I./boot/arch/$(ARCH)/
 
 kpack: ASFLAGS=-nostdlib -I./kernel/arch/$(ARCH)/
 kpack: CFLAGS=-I./include \
-	-Wall -fleading-underscore -mcmodel=large -nostdlib -nodefaultlibs -fno-builtin -O0 -m64 \
+	-Wall -fleading-underscore -mcmodel=large -nostdlib -nodefaultlibs -fno-builtin -O3 -m64 \
 	-DARCH_X86_64=1
 
 ## IPL
@@ -118,7 +118,8 @@ e1000: drivers/e1000/e1000.o lib/arch/$(ARCH)/libc.o lib/arch/$(ARCH)/libcasm.o
 	$(LD) -N -e _entry -Ttext=$(ORG) --oformat binary -o $@ $^
 
 ## video driver
-video: drivers/video/main.o lib/arch/$(ARCH)/libc.o lib/arch/$(ARCH)/libcasm.o
+video: drivers/video/main.o lib/arch/$(ARCH)/libc.o lib/arch/$(ARCH)/libcasm.o \
+	lib/driver.o
 	$(LD) -N -e _entry -Ttext=$(ORG) --oformat binary -o $@ $^
 
 ## keyboard driver
