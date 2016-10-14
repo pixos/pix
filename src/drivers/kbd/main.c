@@ -97,14 +97,7 @@ unsigned char
 kbd_enc_read_buf(void)
 {
     struct sysarch_io io;
-#if 0
-    int k;
-    int v;
 
-    k = KBD_ENC_BUF;
-    __asm__ __volatile__ ("inb %%dx,%%al" : "=a"(v) : "d"(k));
-    return v;
-#endif
     io.port = KBD_ENC_BUF;
     sysarch(SYSARCH_INB, &io);
     return io.data;
@@ -315,6 +308,31 @@ kbd_intr(void)
 #endif
 }
 
+void
+kbd_power_reset(void)
+{
+    struct sysarch_io io;
+    int c;
+
+    /* Empty the keyboard buffer to send reset request */
+    do {
+        io.port = KBD_CTRL_STAT;
+        sysarch(SYSARCH_INB, &io);
+        c = io.data;
+        if ( 0 != (c & 1) ) {
+            io.port = KBD_ENC_BUF;
+            sysarch(SYSARCH_INB, &io);
+        }
+    } while ( 0 != (c & 2) );
+
+    //kexit();
+
+    /* CPU reset */
+    io.port = KBD_CTRL_CMD;
+    io.data = 0xfe;
+    sysarch(SYSARCH_OUTB, &io);
+}
+
 /*
  * Entry point for the process manager program
  */
@@ -349,6 +367,10 @@ main(int argc, char *argv[])
                 kbd_scan_code = kbd_enc_read_buf();
                 snprintf(buf, 512, "Input: %x 0x%x.", io.data, kbd_scan_code);
                 write(1, buf, strlen(buf));
+
+                if ( kbd_scan_code == 0x01 ) {
+                    kbd_power_reset();
+                }
             } else {
                 break;
             }

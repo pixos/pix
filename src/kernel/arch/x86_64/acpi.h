@@ -243,10 +243,10 @@ struct acpi_sdt_srat_hdr {
  */
 struct acpi {
     u64 acpi_ioapic_base;
-    u64 acpi_pm_tmr_port;
+    //u64 acpi_pm_tmr_port;
     u8 acpi_pm_tmr_ext;
-    u32 acpi_pm1a_ctrl_block;
-    u32 acpi_pm1b_ctrl_block;
+    //u32 acpi_pm1a_ctrl_block;
+    //u32 acpi_pm1b_ctrl_block;
     u32 acpi_smi_cmd_port;
     u8 acpi_enable_val;
     u8 acpi_cmos_century;
@@ -265,6 +265,8 @@ int acpi_is_numa(struct acpi *);
 int acpi_lapic_prox_domain(struct acpi *, int);
 int acpi_memory_prox_domain(struct acpi *, u64, u64 *, u64 *);
 int acpi_memory_count_entries(struct acpi *);
+
+int acpi_poweroff(struct acpi *);
 
 extern struct acpi arch_acpi;
 
