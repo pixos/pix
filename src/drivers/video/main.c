@@ -28,8 +28,6 @@
 #include <mki/driver.h>
 
 #define VIDEO_RAM       0x000b8000ULL
-#define DEV_CHAR
-#define DEV_BLOCK
 
 /*
  * Entry point for the process manager program
@@ -42,7 +40,7 @@ main(int argc, char *argv[])
     char buf[512];
     ssize_t i;
 
-    //("/dev/video", 0);
+    //("video", 0);
 
     vram = driver_mmap((void *)VIDEO_RAM, 4096);
     if ( NULL == vram ) {

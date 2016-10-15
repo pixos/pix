@@ -21,56 +21,33 @@
  * SOFTWARE.
  */
 
-#include <stdlib.h>
-#include <string.h>
-#include <sys/syscall.h>
-#include <mki/driver.h>
+#ifndef _KBD_H
+#define _KBD_H
 
-/* in libcasm.s */
-unsigned long long syscall(int, ...);
+#include <stdint.h>
 
 /*
- * Request IRQ and register an interrupt handler
+ * Key state
  */
-int
-driver_register_irq_handler(int irq, void *func)
-{
-    struct sysdriver_handler handler;
-
-    handler.nr = irq;
-    handler.handler = func;
-
-    return syscall(SYS_driver, SYSDRIVER_REG_IRQ, &handler);
-}
+struct kbd_key_state {
+    unsigned char caps_on;
+    unsigned char alt_on;
+    unsigned char shift_on;
+    unsigned char ctrl_on;
+    unsigned char numlock_on;
+    unsigned char scrolllock_on;
+    unsigned char insert_on;
+};
 
 /*
- * Register a device to devfs
+ * Keyboard device
  */
-int
-driver_register_device(char *path, int flag)
-{
-    return -1;
-}
+struct kbd {
+    int disabled;
+    struct kbd_key_state key_state;
+};
 
-/*
- * Allocate virtual pages that are mapped to the physical memory space
- * specified by addr and length
- */
-void *
-driver_mmap(void *addr, size_t length)
-{
-    struct sysdriver_mmap_req req;
-    int ret;
-
-    req.addr = addr;
-    req.length = length;
-    ret = syscall(SYS_driver, SYSDRIVER_MMAP, &req);
-    if ( ret < 0 ) {
-        return NULL;
-    }
-
-    return req.vaddr;
-}
+#endif /* _KBD_H */
 
 /*
  * Local variables:
