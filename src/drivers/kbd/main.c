@@ -268,13 +268,14 @@ kbd_init(struct kbd *kbd)
     int stat;
 
     /* Initialize keyboard state */
-    kbd->key_state.caps_on = 0;
-    kbd->key_state.alt_on = 0;
-    kbd->key_state.shift_on = 0;
-    kbd->key_state.ctrl_on = 0;
-    kbd->key_state.numlock_on = 0;
-    kbd->key_state.scrolllock_on = 0;
-    kbd->key_state.insert_on = 0;
+    kbd->key_state.lctrl = 0;
+    kbd->key_state.rctrl = 0;
+    kbd->key_state.lshift = 0;
+    kbd->key_state.rshift = 0;
+    kbd->key_state.capslock = 0;
+    kbd->key_state.numlock = 0;
+    kbd->key_state.scrolllock = 0;
+    kbd->key_state.insert = 0;
 
     kbd->disabled = 0;
 
@@ -330,7 +331,8 @@ main(int argc, char *argv[])
     struct sysarch_io io;
     struct timespec tm;
     struct kbd kbd;
-    unsigned char kbd_scan_code;
+    unsigned char scan_code;
+    int ascii;
 
     /* Initialize the keyboard driver */
     kbd_init(&kbd);
@@ -349,11 +351,72 @@ main(int argc, char *argv[])
             io.port = KBD_CTRL_STAT;
             sysarch(SYSARCH_INB, &io);
             if ( io.data & 1 ) {
-                kbd_scan_code = kbd_enc_read_buf();
-                snprintf(buf, 512, "Input: %x 0x%x.", io.data, kbd_scan_code);
-                write(STDOUT_FILENO, buf, strlen(buf));
+                scan_code = kbd_enc_read_buf();
 
-                if ( kbd_scan_code == 0x01 ) {
+                ascii = -1;
+                if ( scan_code & 0x80 ) {
+                    /* Released */
+                    switch ( scan_code & 0x7f ) {
+                    case KBD_KEY_CTRL_LEFT:
+                        kbd.key_state.lctrl = 0;
+                        break;
+                    case KBD_KEY_CTRL_RIGHT:
+                        kbd.key_state.rctrl = 0;
+                        break;
+                    case KBD_KEY_SHIFT_LEFT:
+                        kbd.key_state.lshift = 0;
+                        break;
+                    case KBD_KEY_SHIFT_RIGHT:
+                        kbd.key_state.rshift = 0;
+                        break;
+                    case KBD_KEY_CAPS_LOCK:
+                        kbd.key_state.capslock = 0;
+                        break;
+                    default:
+                        ;
+                    }
+                } else {
+                    /* Pressed */
+                    switch ( scan_code ) {
+                    case KBD_KEY_CTRL_LEFT:
+                        kbd.key_state.lctrl = 1;
+                        break;
+                    case KBD_KEY_CTRL_RIGHT:
+                        kbd.key_state.rctrl = 1;
+                        break;
+                    case KBD_KEY_SHIFT_LEFT:
+                        kbd.key_state.lshift = 1;
+                        break;
+                    case KBD_KEY_SHIFT_RIGHT:
+                        kbd.key_state.rshift = 1;
+                        break;
+                    case KBD_KEY_CAPS_LOCK:
+                        kbd.key_state.capslock = 1;
+                        break;
+                    case KBD_KEY_UP:
+                        ascii = KBD_ASCII_UP;
+                        break;
+                    case KBD_KEY_LEFT:
+                        ascii = KBD_ASCII_LEFT;
+                        break;
+                    case KBD_KEY_RIGHT:
+                        ascii = KBD_ASCII_RIGHT;
+                        break;
+                    case KBD_KEY_DOWN:
+                        ascii = KBD_ASCII_DOWN;
+                        break;
+                    default:
+                        if ( kbd.key_state.lshift || kbd.key_state.rshift ) {
+                            ascii = keymap_shift[scan_code];
+                        } else {
+                            ascii = keymap_base[scan_code];
+                        }
+                    }
+                    snprintf(buf, 512, "Input: %c 0x%x.", ascii, scan_code);
+                    write(STDOUT_FILENO, buf, strlen(buf));
+                }
+
+                if ( scan_code == 0x01 ) {
                     kbd_power_reset();
                 }
             } else {

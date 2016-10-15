@@ -30,13 +30,14 @@
  * Key state
  */
 struct kbd_key_state {
-    unsigned char caps_on;
-    unsigned char alt_on;
-    unsigned char shift_on;
-    unsigned char ctrl_on;
-    unsigned char numlock_on;
-    unsigned char scrolllock_on;
-    unsigned char insert_on;
+    int lctrl:1;
+    int rctrl;
+    int lshift:1;
+    int rshift:1;
+    int capslock:1;
+    int numlock:1;
+    int scrolllock:1;
+    int insert:1;
 };
 
 /*
@@ -46,6 +47,42 @@ struct kbd {
     int disabled;
     struct kbd_key_state key_state;
 };
+
+static unsigned char keymap_base[] =
+    "  1234567890-=\x08\t"      /* 0x00-0x0f*/
+    "qwertyuiop[]\r as"         /* 0x10-0x1f */
+    "dfghjkl;'` \\zxcv"         /* 0x20-0x2f */
+    "bnm,./          "          /* 0x30-0x3f */
+    "                "          /* 0x40-0x4f */
+    "                "          /* 0x50-0x5f */
+    "                "          /* 0x60-0x6f */
+    "                ";         /* 0x70-0x7f */
+
+static unsigned char keymap_shift[] =
+    "  !@#$%^&*()_+\x08\t"      /* 0x00-0x0f*/
+    "QWERTYUIOP{}\r AS"         /* 0x10-0x1f */
+    "DFGHJKL:\"~ |ZXCV"         /* 0x20-0x2f */
+    "BNM<>?          "          /* 0x30-0x3f */
+    "                "          /* 0x40-0x4f */
+    "                "          /* 0x50-0x5f */
+    "                "          /* 0x60-0x6f */
+    "                ";         /* 0x70-0x7f */
+
+
+#define KBD_KEY_CTRL_LEFT       0x1d
+#define KBD_KEY_SHIFT_LEFT      0x2a
+#define KBD_KEY_SHIFT_RIGHT     0x36
+#define KBD_KEY_CAPS_LOCK       0x3a
+#define KBD_KEY_CTRL_RIGHT      0x5a
+#define KBD_KEY_UP              0x48
+#define KBD_KEY_LEFT            0x4b
+#define KBD_KEY_RIGHT           0x4d
+#define KBD_KEY_DOWN            0x50
+
+#define KBD_ASCII_UP            0x86
+#define KBD_ASCII_LEFT          0x83
+#define KBD_ASCII_RIGHT         0x84
+#define KBD_ASCII_DOWN          0x85
 
 #endif /* _KBD_H */
 
