@@ -49,7 +49,7 @@ struct kbd {
 };
 
 static unsigned char keymap_base[] =
-    "  1234567890-=\x08\t"      /* 0x00-0x0f*/
+    "  1234567890-=\x08\t"      /* 0x00-0x0f */
     "qwertyuiop[]\r as"         /* 0x10-0x1f */
     "dfghjkl;'` \\zxcv"         /* 0x20-0x2f */
     "bnm,./          "          /* 0x30-0x3f */
@@ -59,7 +59,7 @@ static unsigned char keymap_base[] =
     "                ";         /* 0x70-0x7f */
 
 static unsigned char keymap_shift[] =
-    "  !@#$%^&*()_+\x08\t"      /* 0x00-0x0f*/
+    "  !@#$%^&*()_+\x08\t"      /* 0x00-0x0f */
     "QWERTYUIOP{}\r AS"         /* 0x10-0x1f */
     "DFGHJKL:\"~ |ZXCV"         /* 0x20-0x2f */
     "BNM<>?          "          /* 0x30-0x3f */

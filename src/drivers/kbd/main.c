@@ -21,6 +21,7 @@
  * SOFTWARE.
  */
 
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
@@ -322,6 +323,78 @@ kbd_power_reset(void)
 }
 
 /*
+ * Parse a scan code to get ascii code
+ */
+int
+kbd_parse_scan_code(struct kbd *kbd, int scan_code)
+{
+    int ascii;
+
+    ascii = -1;
+    if ( scan_code & 0x80 ) {
+        /* Released */
+        switch ( scan_code & 0x7f ) {
+        case KBD_KEY_CTRL_LEFT:
+            kbd->key_state.lctrl = 0;
+            break;
+        case KBD_KEY_CTRL_RIGHT:
+            kbd->key_state.rctrl = 0;
+            break;
+        case KBD_KEY_SHIFT_LEFT:
+            kbd->key_state.lshift = 0;
+            break;
+        case KBD_KEY_SHIFT_RIGHT:
+            kbd->key_state.rshift = 0;
+            break;
+        case KBD_KEY_CAPS_LOCK:
+            kbd->key_state.capslock = 0;
+            break;
+        default:
+            ;
+        }
+    } else {
+        /* Pressed */
+        switch ( scan_code ) {
+        case KBD_KEY_CTRL_LEFT:
+            kbd->key_state.lctrl = 1;
+            break;
+        case KBD_KEY_CTRL_RIGHT:
+            kbd->key_state.rctrl = 1;
+            break;
+        case KBD_KEY_SHIFT_LEFT:
+            kbd->key_state.lshift = 1;
+            break;
+        case KBD_KEY_SHIFT_RIGHT:
+            kbd->key_state.rshift = 1;
+            break;
+        case KBD_KEY_CAPS_LOCK:
+            kbd->key_state.capslock = 1;
+            break;
+        case KBD_KEY_UP:
+            ascii = KBD_ASCII_UP;
+            break;
+        case KBD_KEY_LEFT:
+            ascii = KBD_ASCII_LEFT;
+            break;
+        case KBD_KEY_RIGHT:
+            ascii = KBD_ASCII_RIGHT;
+            break;
+        case KBD_KEY_DOWN:
+            ascii = KBD_ASCII_DOWN;
+            break;
+        default:
+            if ( kbd->key_state.lshift || kbd->key_state.rshift ) {
+                ascii = keymap_shift[scan_code];
+            } else {
+                ascii = keymap_base[scan_code];
+            }
+        }
+    }
+
+    return ascii;
+}
+
+/*
  * Entry point for the process manager program
  */
 int
@@ -352,67 +425,10 @@ main(int argc, char *argv[])
             sysarch(SYSARCH_INB, &io);
             if ( io.data & 1 ) {
                 scan_code = kbd_enc_read_buf();
+                ascii = kbd_parse_scan_code(&kbd, scan_code);
 
-                ascii = -1;
-                if ( scan_code & 0x80 ) {
-                    /* Released */
-                    switch ( scan_code & 0x7f ) {
-                    case KBD_KEY_CTRL_LEFT:
-                        kbd.key_state.lctrl = 0;
-                        break;
-                    case KBD_KEY_CTRL_RIGHT:
-                        kbd.key_state.rctrl = 0;
-                        break;
-                    case KBD_KEY_SHIFT_LEFT:
-                        kbd.key_state.lshift = 0;
-                        break;
-                    case KBD_KEY_SHIFT_RIGHT:
-                        kbd.key_state.rshift = 0;
-                        break;
-                    case KBD_KEY_CAPS_LOCK:
-                        kbd.key_state.capslock = 0;
-                        break;
-                    default:
-                        ;
-                    }
-                } else {
-                    /* Pressed */
-                    switch ( scan_code ) {
-                    case KBD_KEY_CTRL_LEFT:
-                        kbd.key_state.lctrl = 1;
-                        break;
-                    case KBD_KEY_CTRL_RIGHT:
-                        kbd.key_state.rctrl = 1;
-                        break;
-                    case KBD_KEY_SHIFT_LEFT:
-                        kbd.key_state.lshift = 1;
-                        break;
-                    case KBD_KEY_SHIFT_RIGHT:
-                        kbd.key_state.rshift = 1;
-                        break;
-                    case KBD_KEY_CAPS_LOCK:
-                        kbd.key_state.capslock = 1;
-                        break;
-                    case KBD_KEY_UP:
-                        ascii = KBD_ASCII_UP;
-                        break;
-                    case KBD_KEY_LEFT:
-                        ascii = KBD_ASCII_LEFT;
-                        break;
-                    case KBD_KEY_RIGHT:
-                        ascii = KBD_ASCII_RIGHT;
-                        break;
-                    case KBD_KEY_DOWN:
-                        ascii = KBD_ASCII_DOWN;
-                        break;
-                    default:
-                        if ( kbd.key_state.lshift || kbd.key_state.rshift ) {
-                            ascii = keymap_shift[scan_code];
-                        } else {
-                            ascii = keymap_base[scan_code];
-                        }
-                    }
-                    snprintf(buf, 512, "Input: %c 0x%x.", ascii, scan_code);
+                if ( ascii >= 0 ) {
+                    snprintf(buf, 512, "Input: %c", ascii);
                     write(STDOUT_FILENO, buf, strlen(buf));
                 }
 
