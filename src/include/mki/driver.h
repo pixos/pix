@@ -24,6 +24,7 @@
 #ifndef _MKI_DRIVER_H
 #define _MKI_DRIVER_H
 
+#include <stdint.h>
 #include <unistd.h>
 
 #define SYSDRIVER_REG_IRQ       1
@@ -40,8 +41,11 @@ struct sysdriver_handler {
 };
 
 struct sysdriver_devfs {
-    char *path;
+    /* Arguments */
+    char *name;
     int flags;
+    /* Return value(s) */
+    struct driver_device_chr *dev;
 };
 
 struct sysdriver_mmap_req {
@@ -50,8 +54,18 @@ struct sysdriver_mmap_req {
     void *vaddr;
 };
 
+struct driver_device_fifo {
+    uint8_t buf[512];
+    off_t head;
+    off_t tail;
+};
+struct driver_device_chr {
+    struct driver_device_fifo ibuf;
+    struct driver_device_fifo obuf;
+};
+
 int driver_register_irq_handler(int, void *);
-int driver_register_device(char *, int);
+struct driver_device_chr * driver_register_device(char *, int);
 void * driver_mmap(void *, size_t);
 
 #endif /* _MKI_DRIVER_H */

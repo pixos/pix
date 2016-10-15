@@ -410,6 +410,7 @@ main(int argc, char *argv[])
     unsigned char scan_code;
     int ascii;
     off_t next_tail;
+    struct driver_device_chr *dev;
 
     /* Initialize the keyboard driver */
     kbd_init(&kbd);
@@ -418,6 +419,11 @@ main(int argc, char *argv[])
     driver_register_irq_handler(1, kbd_intr);
     snprintf(buf, 512, "Registered an interrupt handler of %s driver.", "abcd");
     write(STDOUT_FILENO, buf, strlen(buf));
+
+    dev = driver_register_device("kbd", 0);
+    if ( NULL == dev ) {
+        exit(EXIT_FAILURE);
+    }
 
     while ( 1 ) {
         tm.tv_sec = 1;
@@ -438,15 +444,15 @@ main(int argc, char *argv[])
             if ( ascii >= 0 ) {
                 /* Valid ascii code */
 
-                next_tail = kbd.ibuf.tail + 1;
+                next_tail = dev->ibuf.tail + 1;
                 next_tail = next_tail < KBD_IBUF_SIZE ? next_tail : 0;
-                if ( kbd.ibuf.head == next_tail ) {
+                if ( dev->ibuf.head == next_tail ) {
                     /* Buffer full */
                     break;
                 }
 
-                kbd.ibuf.buf[kbd.ibuf.tail] = ascii;
-                kbd.ibuf.tail = next_tail;
+                dev->ibuf.buf[dev->ibuf.tail] = ascii;
+                dev->ibuf.tail = next_tail;
 
                 snprintf(buf, 512, "Input: %c", ascii);
                 write(STDOUT_FILENO, buf, strlen(buf));

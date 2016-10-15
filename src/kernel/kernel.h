@@ -52,6 +52,7 @@
 #define g_intr_table    g_kvar->intr_table
 #define g_timer         g_kvar->timer
 #define g_jiffies       g_kvar->jiffies
+#define g_devfs         g_kvar->devfs
 
 #define FLOOR(val, base)        (((val) / (base)) * (base))
 #define CEIL(val, base)         ((((val) - 1) / (base) + 1) * (base))
@@ -591,6 +592,32 @@ struct ktask_root {
 };
 
 /*
+ * Special device
+ */
+struct devfs_chr {
+    /* Also map to driver's virtual memory */
+    struct driver_device_chr *dev;
+};
+struct devfs_blk {
+    void *blk;
+};
+struct devfs_entry {
+    char *name;
+    int flags;
+    struct proc *proc;
+    union {
+        /* Character device */
+        struct devfs_chr chr;
+        /* Block device */
+        struct devfs_blk blk;
+    } spec;
+    struct devfs_entry *next;
+};
+struct devfs {
+    struct devfs_entry *head;
+};
+
+/*
  * Kernel timer
  */
 struct ktimer_event {
@@ -629,8 +656,11 @@ struct kernel_variables {
     struct ktask_root *ktask_root;
     void *syscall_table[SYS_MAXSYSCALL];
     struct interrupt_handler_table *intr_table;
+    /* Timer */
     struct ktimer timer;
     reg_t jiffies;
+    /* devfs */
+    struct devfs devfs;
 };
 
 /* for variable-length arguments */
@@ -650,6 +680,7 @@ size_t kstrlen(const char *);
 char * kstrcpy(char *, const char *);
 char * kstrncpy(char *, const char *, size_t);
 size_t kstrlcpy(char *, const char *, size_t);
+char * kstrdup(const char *);
 
 /* in strfmt.c */
 int kvsnprintf(char *, size_t, const char *, va_list);

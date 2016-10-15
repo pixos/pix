@@ -288,6 +288,33 @@ sys_open(const char *path, int oflag, ...)
     u64 offset = 0;
     u64 size;
     struct ktask *t;
+    struct proc *proc;
+    int i;
+    int fd;
+
+    /* Get the current task information */
+    t = this_ktask();
+    if ( NULL == t ) {
+        return -1;
+    }
+    proc = t->proc;
+    if ( NULL == proc ) {
+        return -1;
+    }
+
+    /* Search a file descriptor */
+    for ( i = 3; i < FD_MAX; i++ ) {
+        if ( NULL == proc->fds[i] ) {
+            char buf[512];
+            ksnprintf(buf, 512, "XX : %x", i);
+            panic(buf);
+        }
+    }
+
+    if ( 0 == kstrcmp(path, "/dev/kbd") ) {
+        return -1;
+    }
+
 
     /* Find the file pointed by path from the initramfs */
     while ( 0 != *initramfs ) {
@@ -852,6 +879,8 @@ sys_driver(int number, void *args)
     ssize_t i;
     int order;
     struct sysdriver_mmap_req *req;
+    struct sysdriver_devfs *devfs;
+    struct devfs_entry *devfs_ent;
 
     /* Get the current task information */
     t = this_ktask();
@@ -885,6 +914,44 @@ sys_driver(int number, void *args)
             }
         }
         req->vaddr = vaddr;
+        return 0;
+    case SYSDRIVER_REG_DEV:
+        devfs = (struct sysdriver_devfs *)args;
+
+        devfs_ent = kmalloc(sizeof(struct devfs_entry));
+        if ( NULL == devfs_ent ) {
+            return -1;
+        }
+        devfs_ent->name = kstrdup(devfs->name);
+        if ( NULL == devfs_ent->name ) {
+            kfree(devfs_ent);
+            return -1;
+        }
+        devfs_ent->flags = devfs->flags;
+        devfs_ent->proc = proc;
+        devfs_ent->next = g_devfs.head;
+        g_devfs.head = devfs_ent;
+
+        devfs_ent->spec.chr.dev = kmalloc(PAGESIZE);
+        kmemset(devfs_ent->spec.chr.dev, 0, PAGESIZE);
+
+        /* Allocate virtual memory region */
+        vaddr = vmem_buddy_alloc_pages(proc->vmem, 0);
+        if ( NULL == vaddr ) {
+            return -1;
+        }
+        paddr = arch_kmem_addr_v2p(g_kmem, devfs_ent->spec.chr.dev);
+        for ( i = 0; i < (ssize_t)1; i++ ) {
+            ret = arch_vmem_map(proc->vmem,
+                                (void *)(vaddr + PAGESIZE * i),
+                                paddr + PAGESIZE * i, VMEM_USABLE | VMEM_USED);
+            if ( ret < 0 ) {
+                vmem_free_pages(proc->vmem, vaddr);
+                return -1;
+            }
+        }
+        devfs->dev = vaddr;
+
         return 0;
     default:
         ;

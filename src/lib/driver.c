@@ -46,10 +46,21 @@ driver_register_irq_handler(int irq, void *func)
 /*
  * Register a device to devfs
  */
-int
-driver_register_device(char *path, int flag)
+struct driver_device_chr *
+driver_register_device(char *name, int flags)
 {
-    return -1;
+    struct sysdriver_devfs req;
+    int ret;
+
+    req.name = name;
+    req.flags = flags;
+
+    ret = syscall(SYS_driver, SYSDRIVER_REG_DEV, &req);
+    if ( ret < 0 ) {
+        return NULL;
+    }
+
+    return req.dev;
 }
 
 /*

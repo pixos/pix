@@ -39,6 +39,9 @@ kinit(void)
     g_timer.head = NULL;
     g_jiffies = 0;
 
+    /* Initialize devfs */
+    g_devfs.head = NULL;
+
     /* Setup system calls */
     for ( i = 0; i < SYS_MAXSYSCALL; i++ ) {
         g_syscall_table[i] = NULL;
@@ -337,6 +340,25 @@ kstrlcpy(char *dst, const char *src, size_t n)
     dst[i] = '\0';
 
     return i;
+}
+
+/*
+ * kstrdup
+ */
+char *
+kstrdup(const char *s1)
+{
+    size_t len;
+    char *s;
+
+    len = kstrlen(s1);
+    s = kmalloc(len + 1);
+    if ( NULL == s ) {
+        return NULL;
+    }
+    kmemcpy(s, s1, len + 1);
+
+    return s;
 }
 
 /*
