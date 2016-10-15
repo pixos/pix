@@ -280,6 +280,9 @@ kbd_init(struct kbd *kbd)
 
     kbd->disabled = 0;
 
+    kbd->ibuf.head = 0;
+    kbd->ibuf.tail = 0;
+
     /* Set LED */
     stat = kbd_set_led(KBD_LED_NONE);
 
@@ -406,6 +409,7 @@ main(int argc, char *argv[])
     struct kbd kbd;
     unsigned char scan_code;
     int ascii;
+    off_t next_tail;
 
     /* Initialize the keyboard driver */
     kbd_init(&kbd);
@@ -423,20 +427,33 @@ main(int argc, char *argv[])
         for ( ;; ) {
             io.port = KBD_CTRL_STAT;
             sysarch(SYSARCH_INB, &io);
-            if ( io.data & 1 ) {
-                scan_code = kbd_enc_read_buf();
-                ascii = kbd_parse_scan_code(&kbd, scan_code);
-
-                if ( ascii >= 0 ) {
-                    snprintf(buf, 512, "Input: %c", ascii);
-                    write(STDOUT_FILENO, buf, strlen(buf));
-                }
-
-                if ( scan_code == 0x01 ) {
-                    kbd_power_reset();
-                }
-            } else {
+            if ( !(io.data & 1) ) {
                 break;
+            }
+            /* Read a scan code from the buffer of the keyboard controller */
+            scan_code = kbd_enc_read_buf();
+            /* Convert the scan code to an ascii code */
+            ascii = kbd_parse_scan_code(&kbd, scan_code);
+
+            if ( ascii >= 0 ) {
+                /* Valid ascii code */
+
+                next_tail = kbd.ibuf.tail + 1;
+                next_tail = next_tail < KBD_IBUF_SIZE ? next_tail : 0;
+                if ( kbd.ibuf.head == next_tail ) {
+                    /* Buffer full */
+                    break;
+                }
+
+                kbd.ibuf.buf[kbd.ibuf.tail] = ascii;
+                kbd.ibuf.tail = next_tail;
+
+                snprintf(buf, 512, "Input: %c", ascii);
+                write(STDOUT_FILENO, buf, strlen(buf));
+            }
+
+            if ( scan_code == 0x01 ) {
+                kbd_power_reset();
             }
         }
     }

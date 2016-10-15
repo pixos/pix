@@ -25,6 +25,24 @@
 #define _KBD_H
 
 #include <stdint.h>
+#include <sys/types.h>
+
+#define KBD_KEY_CTRL_LEFT       0x1d
+#define KBD_KEY_SHIFT_LEFT      0x2a
+#define KBD_KEY_SHIFT_RIGHT     0x36
+#define KBD_KEY_CAPS_LOCK       0x3a
+#define KBD_KEY_CTRL_RIGHT      0x5a
+#define KBD_KEY_UP              0x48
+#define KBD_KEY_LEFT            0x4b
+#define KBD_KEY_RIGHT           0x4d
+#define KBD_KEY_DOWN            0x50
+
+#define KBD_ASCII_UP            0x86
+#define KBD_ASCII_LEFT          0x83
+#define KBD_ASCII_RIGHT         0x84
+#define KBD_ASCII_DOWN          0x85
+
+#define KBD_IBUF_SIZE           128
 
 /*
  * Key state
@@ -46,6 +64,12 @@ struct kbd_key_state {
 struct kbd {
     int disabled;
     struct kbd_key_state key_state;
+    /* Input buffer */
+    struct {
+        unsigned char buf[KBD_IBUF_SIZE];
+        off_t head;
+        off_t tail;
+    } ibuf;
 };
 
 static unsigned char keymap_base[] =
@@ -67,22 +91,6 @@ static unsigned char keymap_shift[] =
     "                "          /* 0x50-0x5f */
     "                "          /* 0x60-0x6f */
     "                ";         /* 0x70-0x7f */
-
-
-#define KBD_KEY_CTRL_LEFT       0x1d
-#define KBD_KEY_SHIFT_LEFT      0x2a
-#define KBD_KEY_SHIFT_RIGHT     0x36
-#define KBD_KEY_CAPS_LOCK       0x3a
-#define KBD_KEY_CTRL_RIGHT      0x5a
-#define KBD_KEY_UP              0x48
-#define KBD_KEY_LEFT            0x4b
-#define KBD_KEY_RIGHT           0x4d
-#define KBD_KEY_DOWN            0x50
-
-#define KBD_ASCII_UP            0x86
-#define KBD_ASCII_LEFT          0x83
-#define KBD_ASCII_RIGHT         0x84
-#define KBD_ASCII_DOWN          0x85
 
 #endif /* _KBD_H */
 

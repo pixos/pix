@@ -27,6 +27,8 @@
 typedef long long time_t;
 typedef long suseconds_t;
 
+typedef signed long long off_t;
+
 #endif /* _SYS_TIME_H */
 
 /*
