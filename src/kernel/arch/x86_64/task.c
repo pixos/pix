@@ -107,6 +107,14 @@ proc_fork(struct proc *op, struct ktask *ot, struct ktask **ntp)
     kmemcpy(np->name, op->name, PATH_MAX);
     np->code_size = op->code_size;
 
+    /* Copy all file descriptors and increment the reference counter */
+    for ( i = 0; i < FD_MAX; i++ ) {
+        if ( NULL != op->fds[i] ) {
+            np->fds[i] = op->fds[i];
+            np->fds[i]->refs++;
+        }
+    }
+
     /* Allocate the architecture-specific task structure of a new task */
     t = kmalloc(sizeof(struct arch_task));
     if ( NULL == t ) {
