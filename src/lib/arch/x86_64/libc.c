@@ -861,7 +861,7 @@ strncpy(char *__restrict__ dst, const char *__restrict__ src, size_t n)
  * Copy strings
  *
  * SYNOPSIS
- *      char *
+ *      size_t
  *      strlcpy(char *restrict dst, const char *restrict src, size_t n);
  *
  * DESCRIPTION
