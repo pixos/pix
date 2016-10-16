@@ -313,7 +313,7 @@ kstrncpy(char *dst, const char *src, size_t n)
     size_t i;
 
     i = 0;
-    while ( src[i] != '\0' || i < n ) {
+    while ( src[i] != '\0' && i < n ) {
         dst[i] = src[i];
         i++;
     }
@@ -333,7 +333,7 @@ kstrlcpy(char *dst, const char *src, size_t n)
     size_t i;
 
     i = 0;
-    while ( src[i] != '\0' || i < n - 1 ) {
+    while ( src[i] != '\0' && i < n - 1 ) {
         dst[i] = src[i];
         i++;
     }
