@@ -339,6 +339,10 @@ kstrlcpy(char *dst, const char *src, size_t n)
     }
     dst[i] = '\0';
 
+    while ( '\0' != src[i] ) {
+        i++;
+    }
+
     return i;
 }
 

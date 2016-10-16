@@ -869,7 +869,8 @@ strncpy(char *__restrict__ dst, const char *__restrict__ src, size_t n)
  *      dst is not NULL-terminated.
  *
  * RETURN VALUES
- *      The strlcpy() function returns the length of the string copied.
+ *      The strlcpy() function returns the length of the string that it tried to
+ *      copy; i.e., it returns the length of src.
  *
  */
 size_t
@@ -883,6 +884,10 @@ strlcpy(char *__restrict__ dst, const char *__restrict__ src, size_t n)
         i++;
     }
     dst[i] = '\0';
+
+    while ( '\0' != src[i] ) {
+        i++;
+    }
 
     return i;
 }
