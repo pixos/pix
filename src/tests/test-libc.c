@@ -75,9 +75,8 @@ test_strcpy(void)
 
     /* Test */
     for ( i = 0; i < sizeof(str) / sizeof(char *); i++ ) {
-        if ( strcpy(bufa, str[i]) != aos_stdc_strcpy(bufb, str[i]) ) {
-            return -1;
-        }
+        strcpy(bufa, str[i]);
+        aos_stdc_strcpy(bufb, str[i]);
         if ( strcmp(bufa, bufb) ) {
             return -1;
         }
