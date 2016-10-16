@@ -70,14 +70,15 @@ test_strcpy(void)
 {
     const char *str[] = {"test", "", "testing"};
     size_t i;
-    char buf[32];
+    char bufa[32];
+    char bufb[32];
 
     /* Test */
     for ( i = 0; i < sizeof(str) / sizeof(char *); i++ ) {
-        if ( strcpy(buf, str[i]) != aos_stdc_strcpy(buf, str[i]) ) {
+        if ( strcpy(bufa, str[i]) != aos_stdc_strcpy(bufb, str[i]) ) {
             return -1;
         }
-        if ( strcmp(buf, str[i]) ) {
+        if ( strcmp(bufa, bufb) ) {
             return -1;
         }
     }
@@ -93,14 +94,15 @@ test_strlcpy(void)
 {
     const char *str[] = {"test", "", "testing"};
     size_t i;
-    char buf[6];
+    char bufa[6];
+    char bufb[6];
 
     /* Test */
     for ( i = 0; i < sizeof(str) / sizeof(char *); i++ ) {
-        if ( strlcpy(buf, str[i], 6) != aos_stdc_strlcpy(buf, str[i], 6) ) {
+        if ( strlcpy(bufa, str[i], 6) != aos_stdc_strlcpy(bufb, str[i], 6) ) {
             return -1;
         }
-        if ( strcmp(buf, str[i]) ) {
+        if ( strcmp(bufa, bufb) ) {
             return -1;
         }
     }
