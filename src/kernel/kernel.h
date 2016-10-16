@@ -190,6 +190,9 @@ struct fildes {
     ssize_t (*read)(struct fildes *, void *, size_t);
     ssize_t (*write)(struct fildes *, const void *, size_t);
     off_t (*lseek)(struct fildes *, off_t, int);
+
+    /* Reference count */
+    int refs;
 };
 
 /*
@@ -676,6 +679,7 @@ typedef __builtin_va_list va_list;
 void kinit(void);
 void kernel(void);
 int kstrcmp(const char *, const char *);
+int kstrncmp(const char *, const char *, size_t);
 size_t kstrlen(const char *);
 char * kstrcpy(char *, const char *);
 char * kstrncpy(char *, const char *, size_t);

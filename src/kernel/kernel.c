@@ -287,6 +287,27 @@ kstrcmp(const char *s1, const char *s2)
 }
 
 /*
+ * kstrncmp
+ */
+int
+kstrncmp(const char *s1, const char *s2, size_t n)
+{
+    size_t i;
+    int diff;
+
+    i = 0;
+    while ( (s1[i] != '\0' || s2[i] != '\0') && i < n ) {
+        diff = s1[i] - s2[i];
+        if ( diff ) {
+            return diff;
+        }
+        i++;
+    }
+
+    return 0;
+}
+
+/*
  * kstrcpy
  */
 char *
@@ -363,6 +384,32 @@ kstrdup(const char *s1)
     kmemcpy(s, s1, len + 1);
 
     return s;
+}
+
+
+/*
+ * kvsscanf
+ */
+int
+kvsscanf(const char *s, const char *format, va_list arg)
+{
+    return -1;
+}
+
+/*
+ * ksscanf
+ */
+int
+ksscanf(const char *s, const char *format, ...)
+{
+    va_list ap;
+    int ret;
+
+    va_start(ap, format);
+    ret = kvsscanf(s, format, ap);
+    va_end(ap);
+
+    return ret;
 }
 
 /*
