@@ -102,12 +102,13 @@ int
 open(const char *path, int oflag, ...)
 {
     va_list ap;
+    int ret;
 
     va_start(ap, oflag);
-    syscall(SYS_open, path, oflag, ap);
+    ret = syscall(SYS_open, path, oflag, ap);
     va_end(ap);
 
-    return -1;
+    return ret;
 }
 
 /*

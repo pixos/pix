@@ -27,8 +27,6 @@
 #include <aos/const.h>
 #include <aos/types.h>
 
-#define CR4_VME     (1 << 13)
-
 struct vmx_vmcs {
     u32 index;
     u64 *ptr;

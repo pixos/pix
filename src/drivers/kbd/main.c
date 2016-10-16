@@ -83,6 +83,15 @@ int kbd_wait_until_outbuf_full(void);
 
 
 /*
+ * sysdebug
+ */
+void
+sysdebug(int nr)
+{
+    __asm__ __volatile__ ("syscall" :: "a"(SYS_debug), "D"(nr));
+}
+
+/*
  * Read control status
  */
 unsigned char
@@ -280,9 +289,6 @@ kbd_init(struct kbd *kbd)
 
     kbd->disabled = 0;
 
-    kbd->ibuf.head = 0;
-    kbd->ibuf.tail = 0;
-
     /* Set LED */
     stat = kbd_set_led(KBD_LED_NONE);
 
@@ -417,7 +423,7 @@ main(int argc, char *argv[])
 
     /* Print out the interrupt handler */
     driver_register_irq_handler(1, kbd_intr);
-    snprintf(buf, 512, "Registered an interrupt handler of %s driver.", "abcd");
+    snprintf(buf, 512, "Registered an interrupt handler of %s driver.", "kbd");
     write(STDOUT_FILENO, buf, strlen(buf));
 
     dev = driver_register_device("kbd", 0);
@@ -454,8 +460,18 @@ main(int argc, char *argv[])
                 dev->ibuf.buf[dev->ibuf.tail] = ascii;
                 dev->ibuf.tail = next_tail;
 
-                snprintf(buf, 512, "Input: %c", ascii);
-                write(STDOUT_FILENO, buf, strlen(buf));
+                //snprintf(buf, 512, "Input: %c %x", ascii, scan_code);
+                //write(STDOUT_FILENO, buf, strlen(buf));
+            }
+
+            if ( scan_code == KBD_KEY_F1 ) {
+                sysdebug(0);
+            }
+            if ( scan_code == KBD_KEY_F2 ) {
+                sysdebug(1);
+            }
+            if ( scan_code == KBD_KEY_F3 ) {
+                sysdebug(2);
             }
 
             if ( scan_code == 0x01 ) {

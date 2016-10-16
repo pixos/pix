@@ -176,6 +176,35 @@ sys_read(int fildes, void *buf, size_t nbyte)
     int i;
     char *s;
 
+    struct ktask *t;
+    struct proc *proc;
+
+    /* Get the current process */
+    t = this_ktask();
+    if ( NULL == t ) {
+        return -1;
+    }
+    proc = t->proc;
+    if ( NULL == proc ) {
+        return -1;
+    }
+
+    if ( fildes < 0 || fildes >= FD_MAX ) {
+        return -1;
+    }
+    if ( NULL != proc->fds[fildes] ) {
+        struct driver_device_chr *dc;
+        dc = proc->fds[fildes]->devfs->spec.chr.dev;
+        if ( dc->ibuf.head != dc->ibuf.tail ) {
+            *(char *)buf = dc->ibuf.buf[dc->ibuf.head];
+            dc->ibuf.head++;
+            return 1;
+        } else {
+            return 0;
+        }
+    }
+
+
     s = "read";
 
     video = (u16 *)0xc00b8000;
@@ -291,6 +320,7 @@ sys_open(const char *path, int oflag, ...)
     struct proc *proc;
     int i;
     int fd;
+    struct fildes *fildes;
 
     /* Get the current task information */
     t = this_ktask();
@@ -302,19 +332,48 @@ sys_open(const char *path, int oflag, ...)
         return -1;
     }
 
-    /* Search a file descriptor */
-    for ( i = 3; i < FD_MAX; i++ ) {
+    /* Search an available file descriptor */
+    fd = -1;
+    for ( i = 0; i < FD_MAX; i++ ) {
         if ( NULL == proc->fds[i] ) {
-            char buf[512];
-            ksnprintf(buf, 512, "XX : %x", i);
-            panic(buf);
+            /* Found an available file descriptor */
+            fd = i;
+            break;
         }
     }
-
-    if ( 0 == kstrcmp(path, "/dev/kbd") ) {
+    if ( fd < 0 ) {
+        /* No available file descriptor found */
         return -1;
     }
 
+    /* Allocate for a file descriptor data structure */
+    fildes = kmalloc(sizeof(struct fildes));
+    if ( NULL == fildes ) {
+        return -1;
+    }
+    kmemset(fildes, 0, sizeof(struct fildes));
+    fildes->refs++;
+
+    /* Parse the path (to be modified to support non-canonical form) */
+    if ( 0 == kstrncmp(path, "/dev/", kstrlen("/dev/")) ) {
+        /* devfs */
+        const char *devname = path + kstrlen("/dev/");
+        struct devfs_entry *ent;
+        ent = g_devfs.head;
+        while ( NULL != ent ) {
+            if ( 0 == kstrcmp(ent->name, devname) ) {
+                break;
+            }
+            ent = ent->next;
+        }
+        if ( NULL != ent ) {
+            fildes->devfs = ent;
+            proc->fds[fd] = fildes;
+            return fd;
+        }
+
+        return -1;
+    }
 
     /* Find the file pointed by path from the initramfs */
     while ( 0 != *initramfs ) {
@@ -619,6 +678,9 @@ sys_execve(const char *path, char *const argv[], char *const envp[])
     u64 offset = 0;
     u64 size;
     struct ktask *t;
+    const char *name;
+    ssize_t i;
+    struct proc *proc;
 
     /* Find the file pointed by path from the initramfs */
     while ( 0 != *initramfs ) {
@@ -635,6 +697,20 @@ sys_execve(const char *path, char *const argv[], char *const envp[])
     }
 
     t = this_ktask();
+    proc = t->proc;
+
+    /* Get the name of the process */
+    name = path;
+    for ( i = kstrlen(path) - 1; i >= 0; i-- ) {
+        if ( '/' == path[i] ) {
+            name = path + i + 1;
+            break;
+        }
+    }
+    /* Rename the process name */
+    kstrlcpy(proc->name, name, PATH_MAX);
+
+    /* Execute the process */
     arch_exec(t->arch, (void *)(INITRAMFS_BASE + 0xc0000000 + offset), size,
               KTASK_POLICY_USER, argv, envp);
 
@@ -842,7 +918,8 @@ sys_nanosleep(const struct timespec *rqtp, struct timespec *rmtp)
     while ( NULL != *eptr && fire < (*eptr)->jiffies  ) {
         eptr = &(*eptr)->next;
     }
-    *eptr = e;;
+    e->next = (*eptr);
+    *eptr = e;
 
     /* Set the state of this task to blocked to sleep */
     t->state = KTASK_STATE_BLOCKED;
@@ -850,7 +927,7 @@ sys_nanosleep(const struct timespec *rqtp, struct timespec *rmtp)
     /* Switch this task to another */
     sys_task_switch();
 
-    return -1;
+    return 0;
 }
 
 
@@ -861,6 +938,92 @@ void
 sys_xpsleep(void)
 {
     __asm__ __volatile__ ("sti;hlt;cli");
+}
+
+/*
+ * Debug
+ */
+void
+sys_debug(int nr)
+{
+    u16 *video;
+    ssize_t i;
+
+    video = (u16 *)0xc00b8000;
+    for ( i = 0; i < 80 * 25; i++ ) {
+        *(video + i) = 0x0f00;
+    }
+
+    switch ( nr ) {
+    case 0:
+    {
+        for ( i = 0; i < PROC_NR; i++ ) {
+            if ( NULL != g_proc_table->procs[i] ) {
+                ssize_t j;
+                char buf[512];
+                ksnprintf(buf, 512, "%x: %s (%d) -> %x ",
+                          g_proc_table->procs[i]->tasks,
+                          g_proc_table->procs[i]->name,
+                          g_proc_table->procs[i]->tasks->state,
+                          g_proc_table->procs[i]->tasks->next);
+                for ( j = 0; j < (ssize_t)kstrlen(buf); j++ ) {
+                    *video = 0x0f00 | (u16)buf[j];
+                    video++;
+                }
+            }
+        }
+    }
+    break;
+    case 1:
+    {
+        struct ktask_list *l;
+        l = g_ktask_root->r.head;
+        while ( NULL != l ) {
+            char buf[512];
+            ksnprintf(buf, 512, "%x: %s (%d) -> %x ",
+                      l->ktask->proc->tasks,
+                      l->ktask->proc->name,
+                      l->ktask->state,
+                      l->ktask->next);
+            for ( i = 0; i < (ssize_t)kstrlen(buf); i++ ) {
+                *video = 0x0f00 | (u16)buf[i];
+                video++;
+            }
+            l = l->next;
+        }
+    }
+    break;
+    case 2:
+    {
+        struct ktimer_event *e;
+        e = g_timer.head;
+        while ( NULL != e ) {
+            char buf[512];
+            ksnprintf(buf, 512, "%x: %s (%d, %d/%d) -> %x ",
+                      e->proc->tasks,
+                      e->proc->name,
+                      e->proc->tasks->state,
+                      e->jiffies, g_jiffies,
+                      e->proc->tasks->next);
+            for ( i = 0; i < (ssize_t)kstrlen(buf); i++ ) {
+                *video = 0x0f00 | (u16)buf[i];
+                video++;
+            }
+            e = e->next;
+        }
+    }
+    break;
+    default:
+        ;
+    }
+
+#if 0
+    for ( i = 0; i < (ssize_t)nbyte; i++ ) {
+        *video = 0x0f00 | (u16)((char *)buf)[i];
+        //*video = 0x2f00 | (u16)*s;
+        video++;
+    }
+#endif
 }
 
 /*

@@ -21,7 +21,9 @@
  * SOFTWARE.
  */
 
+#include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include <unistd.h>
 #include <sys/syscall.h>
 #include <time.h>
@@ -40,8 +42,6 @@ main(int argc, char *argv[])
     char buf[512];
     ssize_t i;
 
-    //("video", 0);
-
     vram = driver_mmap((void *)VIDEO_RAM, 4096);
     if ( NULL == vram ) {
         exit(EXIT_FAILURE);
@@ -53,7 +53,7 @@ main(int argc, char *argv[])
     tm.tv_sec = 1;
     tm.tv_nsec = 0;
     while ( 1 ) {
-        snprintf(buf, 512, "Sleeping %x driver.", vram);
+        snprintf(buf, 512, "Sleeping vram driver: %p.", vram);
         for ( i = 0; i < 80 * 25; i++ ) {
             *(vram + i) = 0x0f00;
         }

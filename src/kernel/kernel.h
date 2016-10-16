@@ -191,6 +191,9 @@ struct fildes {
     ssize_t (*write)(struct fildes *, const void *, size_t);
     off_t (*lseek)(struct fildes *, off_t, int);
 
+    /* FS-specific data structure (to be fixed) */
+    struct devfs_entry *devfs;
+
     /* Reference count */
     int refs;
 };
@@ -757,6 +760,7 @@ int sys_munmap(void *, size_t);
 off_t sys_lseek(int, off_t, int);
 int sys_nanosleep(const struct timespec *, struct timespec *);
 void sys_xpsleep(void);
+void sys_debug(int);
 int sys_driver(int, void *);
 int sys_sysarch(int, void *);
 

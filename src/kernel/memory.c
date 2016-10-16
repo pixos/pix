@@ -330,9 +330,8 @@ kfree(void *ptr)
     int found;
     u64 asz;
     struct kmem_slab *hdr;
-    struct kmem_slab **hdrp;
+    //struct kmem_slab **hdrp;
     struct kmem_page *page;
-    int zone;
     int idx;
 
     /* Lock */
@@ -346,9 +345,6 @@ kfree(void *ptr)
         idx = SUPERPAGE_INDEX(ptr - g_kmem->space->start);
         page = &g_kmem->space->pages[idx];
         hdr = page->slab;
-
-        /* Resolve the memory zone */
-        zone = page->zone;
 
         /* The size of the object */
         asz = hdr->size;
@@ -370,7 +366,7 @@ kfree(void *ptr)
             if ( hdr->nused <= 0 ) {
                 /* If all the objects in this slab becomes free, move it to the
                    free list */
-                *hdrp = hdr->next;
+                //*hdrp = hdr->next;
                 hdr->next = hdr->free_list->free;
                 hdr->free_list->free = hdr;
             }
