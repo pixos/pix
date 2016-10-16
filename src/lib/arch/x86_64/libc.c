@@ -102,12 +102,13 @@ int
 open(const char *path, int oflag, ...)
 {
     va_list ap;
+    int ret;
 
     va_start(ap, oflag);
-    syscall(SYS_open, path, oflag, ap);
+    ret = syscall(SYS_open, path, oflag, ap);
     va_end(ap);
 
-    return -1;
+    return ret;
 }
 
 /*
@@ -855,6 +856,41 @@ strncpy(char *__restrict__ dst, const char *__restrict__ src, size_t n)
     }
 
     return dst;
+}
+
+/*
+ * Copy strings
+ *
+ * SYNOPSIS
+ *      size_t
+ *      strlcpy(char *restrict dst, const char *restrict src, size_t n);
+ *
+ * DESCRIPTION
+ *      The strlcpy() function copies at most n - 1 characters from src to dst.
+ *      dst is not NULL-terminated.
+ *
+ * RETURN VALUES
+ *      The strlcpy() function returns the length of the string that it tried to
+ *      copy; i.e., it returns the length of src.
+ *
+ */
+size_t
+strlcpy(char *__restrict__ dst, const char *__restrict__ src, size_t n)
+{
+    size_t i;
+
+    i = 0;
+    while ( '\0' != src[i] && i < n - 1 ) {
+        dst[i] = src[i];
+        i++;
+    }
+    dst[i] = '\0';
+
+    while ( '\0' != src[i] ) {
+        i++;
+    }
+
+    return i;
 }
 
 /*

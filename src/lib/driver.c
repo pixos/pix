@@ -43,12 +43,30 @@ driver_register_irq_handler(int irq, void *func)
     return syscall(SYS_driver, SYSDRIVER_REG_IRQ, &handler);
 }
 
-int
-driver_register_device(char *path, int flag)
+/*
+ * Register a device to devfs
+ */
+struct driver_device_chr *
+driver_register_device(char *name, int flags)
 {
-    return 0;
+    struct sysdriver_devfs req;
+    int ret;
+
+    req.name = name;
+    req.flags = flags;
+
+    ret = syscall(SYS_driver, SYSDRIVER_REG_DEV, &req);
+    if ( ret < 0 ) {
+        return NULL;
+    }
+
+    return req.dev;
 }
 
+/*
+ * Allocate virtual pages that are mapped to the physical memory space
+ * specified by addr and length
+ */
 void *
 driver_mmap(void *addr, size_t length)
 {

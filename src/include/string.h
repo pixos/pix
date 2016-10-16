@@ -1,5 +1,5 @@
 /*_
- * Copyright (c) 2015 Hirochika Asai <asai@jar.jp>
+ * Copyright (c) 2015-2016 Hirochika Asai <asai@jar.jp>
  * All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -28,6 +28,7 @@
 
 size_t strlen(const char *);
 char * strncpy(char *__restrict__, const char *__restrict__, size_t);
+size_t strlcpy(char *__restrict__, const char *__restrict__, size_t);
 char * strcpy(char *, const char *);
 
 #endif /* _STRING_H */

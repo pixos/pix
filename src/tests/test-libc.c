@@ -1,5 +1,5 @@
 /*_
- * Copyright (c) 2015 Hirochika Asai <asai@jar.jp>
+ * Copyright (c) 2015-2016 Hirochika Asai <asai@jar.jp>
  * All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -27,6 +27,9 @@
 
 /* Prototype declarations */
 void aos_stdc_bzero(void *, size_t);
+char * aos_stdc_strcpy(char *, const char *);
+char * aos_stdc_strncpy(char *__restrict__, const char *__restrict__, size_t);
+size_t aos_stdc_strlcpy(char *__restrict__, const char *__restrict__, size_t);
 size_t aos_stdc_strlen(const char *);
 int aos_stdc_atoi(const char *);
 
@@ -59,6 +62,52 @@ test_bzero(void)
     return 0;
 }
 
+/*
+ * Test strcpy
+ */
+int
+test_strcpy(void)
+{
+    const char *str[] = {"test", "", "testing"};
+    size_t i;
+    char bufa[32];
+    char bufb[32];
+
+    /* Test */
+    for ( i = 0; i < sizeof(str) / sizeof(char *); i++ ) {
+        strcpy(bufa, str[i]);
+        aos_stdc_strcpy(bufb, str[i]);
+        if ( strcmp(bufa, bufb) ) {
+            return -1;
+        }
+    }
+
+    return 0;
+}
+
+/*
+ * Test strlcpy
+ */
+int
+test_strlcpy(void)
+{
+    const char *str[] = {"test", "", "testing"};
+    size_t i;
+    char bufa[6];
+    char bufb[6];
+
+    /* Test */
+    for ( i = 0; i < sizeof(str) / sizeof(char *); i++ ) {
+        if ( strlcpy(bufa, str[i], 6) != aos_stdc_strlcpy(bufb, str[i], 6) ) {
+            return -1;
+        }
+        if ( strcmp(bufa, bufb) ) {
+            return -1;
+        }
+    }
+
+    return 0;
+}
 
 /*
  * Test strlen
@@ -121,6 +170,8 @@ main(int argc, const char *const argv[])
 
     ret = 0;
     TEST_FUNC("strlen", test_strlen, ret);
+    TEST_FUNC("strcpy", test_strcpy, ret);
+    TEST_FUNC("strlcpy", test_strlcpy, ret);
     TEST_FUNC("atoi", test_atoi, ret);
     TEST_FUNC("bzero", test_bzero, ret);
 

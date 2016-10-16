@@ -39,6 +39,9 @@ kinit(void)
     g_timer.head = NULL;
     g_jiffies = 0;
 
+    /* Initialize devfs */
+    g_devfs.head = NULL;
+
     /* Setup system calls */
     for ( i = 0; i < SYS_MAXSYSCALL; i++ ) {
         g_syscall_table[i] = NULL;
@@ -61,6 +64,7 @@ kinit(void)
     g_syscall_table[SYS_lseek] = sys_lseek;
     g_syscall_table[SYS_nanosleep] = sys_nanosleep;
     g_syscall_table[SYS_xpsleep] = sys_xpsleep;
+    g_syscall_table[SYS_debug] = sys_debug;
     g_syscall_table[SYS_driver] = sys_driver;
     g_syscall_table[SYS_sysarch] = sys_sysarch;
 
@@ -284,6 +288,27 @@ kstrcmp(const char *s1, const char *s2)
 }
 
 /*
+ * kstrncmp
+ */
+int
+kstrncmp(const char *s1, const char *s2, size_t n)
+{
+    size_t i;
+    int diff;
+
+    i = 0;
+    while ( (s1[i] != '\0' || s2[i] != '\0') && i < n ) {
+        diff = s1[i] - s2[i];
+        if ( diff ) {
+            return diff;
+        }
+        i++;
+    }
+
+    return 0;
+}
+
+/*
  * kstrcpy
  */
 char *
@@ -310,7 +335,7 @@ kstrncpy(char *dst, const char *src, size_t n)
     size_t i;
 
     i = 0;
-    while ( src[i] != '\0' || i < n ) {
+    while ( src[i] != '\0' && i < n ) {
         dst[i] = src[i];
         i++;
     }
@@ -330,13 +355,62 @@ kstrlcpy(char *dst, const char *src, size_t n)
     size_t i;
 
     i = 0;
-    while ( src[i] != '\0' || i < n - 1 ) {
+    while ( src[i] != '\0' && i < n - 1 ) {
         dst[i] = src[i];
         i++;
     }
     dst[i] = '\0';
 
+    while ( '\0' != src[i] ) {
+        i++;
+    }
+
     return i;
+}
+
+/*
+ * kstrdup
+ */
+char *
+kstrdup(const char *s1)
+{
+    size_t len;
+    char *s;
+
+    len = kstrlen(s1);
+    s = kmalloc(len + 1);
+    if ( NULL == s ) {
+        return NULL;
+    }
+    kmemcpy(s, s1, len + 1);
+
+    return s;
+}
+
+
+/*
+ * kvsscanf
+ */
+int
+kvsscanf(const char *s, const char *format, va_list arg)
+{
+    return -1;
+}
+
+/*
+ * ksscanf
+ */
+int
+ksscanf(const char *s, const char *format, ...)
+{
+    va_list ap;
+    int ret;
+
+    va_start(ap, format);
+    ret = kvsscanf(s, format, ap);
+    va_end(ap);
+
+    return ret;
 }
 
 /*

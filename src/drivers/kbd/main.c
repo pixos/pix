@@ -21,6 +21,7 @@
  * SOFTWARE.
  */
 
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
@@ -28,6 +29,7 @@
 #include <sys/syscall.h>
 #include <machine/sysarch.h>
 #include <mki/driver.h>
+#include "kbd.h"
 
 #define KBD_OK          0
 #define KBD_ERROR       -1
@@ -54,12 +56,44 @@
 #define KBD_STAT_OBUF 0x01
 #define KBD_STAT_IBUF 0x02
 
+#define KBD_ENC_CMD_SETLED      0xed
+#define KBD_ENC_CMD_ENABLE      0xF4
+#define KBD_ENC_CMD_DISABLE     0xF5
+
+/* LED status */
+#define KBD_LED_NONE            0x00000000
+#define KBD_LED_SCROLLLOCK      0x00000001
+#define KBD_LED_NUMLOCK         0x00000002
+#define KBD_LED_CAPSLOCK        0x00000004
+
+
+/* Commands */
+#define KBD_CTRL_CMD_DISABLE    0xad
+#define KBD_CTRL_CMD_ENABLE     0xae
+#define KBD_CTRL_CMD_SELFTEST   0xaa
+
+/* Status of self test */
+#define KBD_CTRL_STAT_SELFTEST_OK   0x55
+#define KBD_CTRL_STAT_SELFTEST_NG   0xfc
+
 /*
  * Prototype declarations
  */
 int kbd_wait_until_outbuf_full(void);
 
 
+/*
+ * sysdebug
+ */
+void
+sysdebug(int nr)
+{
+    __asm__ __volatile__ ("syscall" :: "a"(SYS_debug), "D"(nr));
+}
+
+/*
+ * Read control status
+ */
 unsigned char
 kbd_read_ctrl_status(void)
 {
@@ -70,7 +104,9 @@ kbd_read_ctrl_status(void)
     return io.data;
 }
 
-
+/*
+ * Write a control command
+ */
 int
 kbd_write_ctrl_cmd(unsigned char cmd)
 {
@@ -124,21 +160,15 @@ kbd_enc_write_cmd(unsigned char cmd)
     return KBD_ERROR;
 }
 
-
-#define KBD_ENC_CMD_SETLED      0xed
-#define KBD_ENC_CMD_ENABLE      0xF4
-#define KBD_ENC_CMD_DISABLE     0xF5
-
-#define KBD_LED_NONE            0x00000000
-#define KBD_LED_SCROLLLOCK      0x00000001
-#define KBD_LED_NUMLOCK         0x00000002
-#define KBD_LED_CAPSLOCK        0x00000004
-
+/*
+ * Set LED status
+ */
 int
 kbd_set_led(int led)
 {
     int stat;
 
+    /* Check the argument value */
     if ( ( KBD_LED_SCROLLLOCK | KBD_LED_NUMLOCK | KBD_LED_CAPSLOCK ) < led ) {
         return KBD_ERROR;
     }
@@ -149,14 +179,9 @@ kbd_set_led(int led)
     return stat;
 }
 
-#define KBD_CTRL_CMD_DISABLE    0xad
-#define KBD_CTRL_CMD_ENABLE     0xae
-
-#define KBD_CTRL_CMD_SELFTEST       0xaa
-
-#define KBD_CTRL_STAT_SELFTEST_OK   0x55
-#define KBD_CTRL_STAT_SELFTEST_NG   0xfc
-
+/*
+ * Run self test
+ */
 int
 kbd_selftest(void)
 {
@@ -184,6 +209,9 @@ kbd_selftest(void)
     return KBD_ERROR;
 }
 
+/*
+ * Wait until the output buffer becomes full
+ */
 int
 kbd_wait_until_outbuf_full(void)
 {
@@ -201,10 +229,11 @@ kbd_wait_until_outbuf_full(void)
     return KBD_ERROR;
 }
 
-static int kbd_disabled;
-
+/*
+ * Disable keyboard
+ */
 int
-kbd_disable(void)
+kbd_disable(struct kbd *kbd)
 {
     int stat;
 
@@ -212,16 +241,19 @@ kbd_disable(void)
     stat = kbd_write_ctrl_cmd(KBD_CTRL_CMD_DISABLE);
 
     if ( KBD_OK != stat ) {
-        kbd_disabled = 0;
+        kbd->disabled = 0;
     } else {
-        kbd_disabled = 1;
+        kbd->disabled = 1;
     }
 
     return stat;
 }
 
+/*
+ * Enable keyboard
+ */
 int
-kbd_enable(void)
+kbd_enable(struct kbd *kbd)
 {
     int stat;
 
@@ -229,44 +261,33 @@ kbd_enable(void)
     stat = kbd_write_ctrl_cmd(KBD_CTRL_CMD_ENABLE);
 
     if ( KBD_OK != stat ) {
-        kbd_disabled = 1;
+        kbd->disabled = 1;
     } else {
-        kbd_disabled = 0;
+        kbd->disabled = 0;
     }
 
     return stat;
 }
 
-typedef struct {
-    unsigned char caps_on;
-    unsigned char alt_on;
-    unsigned char shift_on;
-    unsigned char ctrl_on;
-    unsigned char numlock_on;
-    unsigned char scrolllock_on;
-    unsigned char insert_on;
-} kbd_key_state_t;
-
-static kbd_key_state_t kbd_key_state;
-static unsigned char kbd_scan_code;
-
-
+/*
+ * Initialize the keybaord driver
+ */
 int
-kbd_init(void)
+kbd_init(struct kbd *kbd)
 {
     int stat;
 
     /* Initialize keyboard state */
-    kbd_key_state.caps_on = 0;
-    kbd_key_state.alt_on = 0;
-    kbd_key_state.shift_on = 0;
-    kbd_key_state.ctrl_on = 0;
-    kbd_key_state.numlock_on = 0;
-    kbd_key_state.scrolllock_on = 0;
-    kbd_key_state.insert_on = 0;
+    kbd->key_state.lctrl = 0;
+    kbd->key_state.rctrl = 0;
+    kbd->key_state.lshift = 0;
+    kbd->key_state.rshift = 0;
+    kbd->key_state.capslock = 0;
+    kbd->key_state.numlock = 0;
+    kbd->key_state.scrolllock = 0;
+    kbd->key_state.insert = 0;
 
-    /* Initialize scan code */
-    kbd_scan_code = 0x00;
+    kbd->disabled = 0;
 
     /* Set LED */
     stat = kbd_set_led(KBD_LED_NONE);
@@ -275,40 +296,17 @@ kbd_init(void)
 }
 
 
-
-void
-sysxpsleep(void)
-{
-    __asm__ __volatile__ ("syscall" :: "a"(SYS_xpsleep));
-}
-
 /*
  * Keyboard interrupt handler (ring 0...)
  */
 void
 kbd_intr(void)
-{
-#if 0
-    char buf[512];
-    uint16_t *video;
-    ssize_t i;
+{}
 
-    /* Read buffer from keyboard encoder*/
-    //kbd_scan_code = kbd_enc_read_buf();
-
-    video = (uint16_t *)0xc00b8000;
-    for ( i = 0; i < 80 * 25; i++ ) {
-        *(video + i) = 0x0f00;
-    }
-    snprintf(buf, 512, "kbd input %x", kbd_scan_code);
-    for ( i = 0; i < (ssize_t)strlen(buf); i++ ) {
-        *video = 0x0f00 | (uint16_t)((char *)buf)[i];
-        video++;
-    }
-#endif
-}
-
-void
+/*
+ * Send a reset signal via keyboard controller
+ */
+int
 kbd_power_reset(void)
 {
     struct sysarch_io io;
@@ -325,12 +323,84 @@ kbd_power_reset(void)
         }
     } while ( 0 != (c & 2) );
 
-    //kexit();
-
     /* CPU reset */
     io.port = KBD_CTRL_CMD;
     io.data = 0xfe;
     sysarch(SYSARCH_OUTB, &io);
+
+    return -1;
+}
+
+/*
+ * Parse a scan code to get ascii code
+ */
+int
+kbd_parse_scan_code(struct kbd *kbd, int scan_code)
+{
+    int ascii;
+
+    ascii = -1;
+    if ( scan_code & 0x80 ) {
+        /* Released */
+        switch ( scan_code & 0x7f ) {
+        case KBD_KEY_CTRL_LEFT:
+            kbd->key_state.lctrl = 0;
+            break;
+        case KBD_KEY_CTRL_RIGHT:
+            kbd->key_state.rctrl = 0;
+            break;
+        case KBD_KEY_SHIFT_LEFT:
+            kbd->key_state.lshift = 0;
+            break;
+        case KBD_KEY_SHIFT_RIGHT:
+            kbd->key_state.rshift = 0;
+            break;
+        case KBD_KEY_CAPS_LOCK:
+            kbd->key_state.capslock = 0;
+            break;
+        default:
+            ;
+        }
+    } else {
+        /* Pressed */
+        switch ( scan_code ) {
+        case KBD_KEY_CTRL_LEFT:
+            kbd->key_state.lctrl = 1;
+            break;
+        case KBD_KEY_CTRL_RIGHT:
+            kbd->key_state.rctrl = 1;
+            break;
+        case KBD_KEY_SHIFT_LEFT:
+            kbd->key_state.lshift = 1;
+            break;
+        case KBD_KEY_SHIFT_RIGHT:
+            kbd->key_state.rshift = 1;
+            break;
+        case KBD_KEY_CAPS_LOCK:
+            kbd->key_state.capslock = 1;
+            break;
+        case KBD_KEY_UP:
+            ascii = KBD_ASCII_UP;
+            break;
+        case KBD_KEY_LEFT:
+            ascii = KBD_ASCII_LEFT;
+            break;
+        case KBD_KEY_RIGHT:
+            ascii = KBD_ASCII_RIGHT;
+            break;
+        case KBD_KEY_DOWN:
+            ascii = KBD_ASCII_DOWN;
+            break;
+        default:
+            if ( kbd->key_state.lshift || kbd->key_state.rshift ) {
+                ascii = keymap_shift[scan_code];
+            } else {
+                ascii = keymap_base[scan_code];
+            }
+        }
+    }
+
+    return ascii;
 }
 
 /*
@@ -341,42 +411,75 @@ main(int argc, char *argv[])
 {
     char buf[512];
     struct sysarch_io io;
-    int i;
+    struct timespec tm;
+    struct kbd kbd;
+    unsigned char scan_code;
+    int ascii;
+    off_t next_tail;
+    struct driver_device_chr *dev;
 
-    kbd_init();
+    /* Initialize the keyboard driver */
+    kbd_init(&kbd);
 
+    /* Print out the interrupt handler */
     driver_register_irq_handler(1, kbd_intr);
-    snprintf(buf, 512, "Registered an interrupt handler of %s driver.", "abcd");
+    snprintf(buf, 512, "Registered an interrupt handler of %s driver.", "kbd");
     write(STDOUT_FILENO, buf, strlen(buf));
 
-    i = 0;
+    dev = driver_register_device("kbd", 0);
+    if ( NULL == dev ) {
+        exit(EXIT_FAILURE);
+    }
+
     while ( 1 ) {
-        i++;
-        struct timespec tm;
         tm.tv_sec = 1;
         tm.tv_nsec = 0;
         nanosleep(&tm, NULL);
 
-        snprintf(buf, 512, "@%d.", i);
-        write(STDOUT_FILENO, buf, strlen(buf));
-
         for ( ;; ) {
             io.port = KBD_CTRL_STAT;
             sysarch(SYSARCH_INB, &io);
-            if ( io.data & 1 ) {
-                kbd_scan_code = kbd_enc_read_buf();
-                snprintf(buf, 512, "Input: %x 0x%x.", io.data, kbd_scan_code);
-                write(STDOUT_FILENO, buf, strlen(buf));
-
-                if ( kbd_scan_code == 0x01 ) {
-                    kbd_power_reset();
-                }
-            } else {
+            if ( !(io.data & 1) ) {
                 break;
             }
+            /* Read a scan code from the buffer of the keyboard controller */
+            scan_code = kbd_enc_read_buf();
+            /* Convert the scan code to an ascii code */
+            ascii = kbd_parse_scan_code(&kbd, scan_code);
+
+            if ( ascii >= 0 ) {
+                /* Valid ascii code */
+
+                next_tail = dev->ibuf.tail + 1;
+                next_tail = next_tail < KBD_IBUF_SIZE ? next_tail : 0;
+                if ( dev->ibuf.head == next_tail ) {
+                    /* Buffer full */
+                    break;
+                }
+
+                dev->ibuf.buf[dev->ibuf.tail] = ascii;
+                dev->ibuf.tail = next_tail;
+
+                //snprintf(buf, 512, "Input: %c %x", ascii, scan_code);
+                //write(STDOUT_FILENO, buf, strlen(buf));
+            }
+
+            if ( scan_code == KBD_KEY_F1 ) {
+                sysdebug(0);
+            }
+            if ( scan_code == KBD_KEY_F2 ) {
+                sysdebug(1);
+            }
+            if ( scan_code == KBD_KEY_F3 ) {
+                sysdebug(2);
+            }
+
+            if ( scan_code == 0x01 ) {
+                kbd_power_reset();
+            }
         }
-        //sysxpsleep();
     }
+
     exit(0);
 }
 
