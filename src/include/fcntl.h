@@ -41,6 +41,8 @@
 
 int open(const char *, int, ...);
 
+int fcntl(int, int, ...);
+
 #endif /* _FCNTL_H */
 
 /*

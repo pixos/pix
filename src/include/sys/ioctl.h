@@ -21,56 +21,12 @@
  * SOFTWARE.
  */
 
-#ifndef _MKI_DRIVER_H
-#define _MKI_DRIVER_H
+#ifndef _SYS_IOCTL_H
+#define _SYS_IOCTL_H
 
-#include <stdint.h>
-#include <unistd.h>
+int ioctl(int, unsigned long, ...);
 
-#define SYSDRIVER_REG_IRQ       1
-#define SYSDRIVER_UNREG_IRQ     2
-#define SYSDRIVER_REG_DEV       3
-#define SYSDRIVER_UNREG_DEV     4
-
-#define SYSDRIVER_MMAP          11
-#define SYSDRIVER_MUNMAP        12
-
-struct sysdriver_handler {
-    int nr;
-    void *handler;
-};
-
-struct sysdriver_devfs {
-    /* Arguments */
-    char *name;
-    int flags;
-    /* Return value(s) */
-    struct driver_device_chr *dev;
-};
-
-struct sysdriver_mmap_req {
-    void *addr;
-    size_t length;
-    void *vaddr;
-};
-/*
- * Ring buffer
- */
-struct driver_device_fifo {
-    uint8_t buf[512];
-    volatile off_t head;
-    volatile off_t tail;
-};
-struct driver_device_chr {
-    struct driver_device_fifo ibuf;
-    struct driver_device_fifo obuf;
-};
-
-int driver_register_irq_handler(int, void *);
-struct driver_device_chr * driver_register_device(char *, int);
-void * driver_mmap(void *, size_t);
-
-#endif /* _MKI_DRIVER_H */
+#endif /* _SYS_IOCTL_H */
 
 /*
  * Local variables:

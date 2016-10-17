@@ -431,9 +431,9 @@ main(int argc, char *argv[])
         exit(EXIT_FAILURE);
     }
 
+    tm.tv_sec = 1;
+    tm.tv_nsec = 0;
     while ( 1 ) {
-        tm.tv_sec = 1;
-        tm.tv_nsec = 0;
         nanosleep(&tm, NULL);
 
         for ( ;; ) {

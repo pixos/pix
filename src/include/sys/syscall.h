@@ -49,14 +49,14 @@
 //#define SYS_dup       41
 //#define SYS_pipe      42
 #define SYS_getgid      47
-//#define SYS_ioctl     54
+#define SYS_ioctl       54
 #define SYS_execve      59
 //#define SYS_umask     60
 //#define SYS_chroot    61
 #define SYS_munmap      73
 //#define SYS_pgrp      81
 //#define SYS_setitimer 83
-//#define SYS_fcntl     92
+#define SYS_fcntl       92
 //#define SYS_rename    128
 //#define SYS_mkdir     136
 //#define SYS_rmdir     137

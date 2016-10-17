@@ -195,6 +195,12 @@ sys_read(int fildes, void *buf, size_t nbyte)
     if ( NULL != proc->fds[fildes] ) {
         struct driver_device_chr *dc;
         dc = proc->fds[fildes]->devfs->spec.chr.dev;
+        if ( dc->ibuf.head == dc->ibuf.tail ) {
+            /* Blocking */
+            t->state = KTASK_STATE_BLOCKED;
+            /* Switch this task to another */
+            sys_task_switch();
+        }
         if ( dc->ibuf.head != dc->ibuf.tail ) {
             *(char *)buf = dc->ibuf.buf[dc->ibuf.head];
             dc->ibuf.head++;
