@@ -50,6 +50,8 @@ typedef __builtin_va_list va_list;
 #define va_copy(dest, src)      __builtin_va_copy((dest), (src))
 #define alloca(size)            __builtin_alloca((size))
 
+void sys_task_switch(void);
+
 /*
  * Exit a process
  */
@@ -178,6 +180,7 @@ sys_read(int fildes, void *buf, size_t nbyte)
 
     struct ktask *t;
     struct proc *proc;
+    struct driver_mapped_device_chr *dc;
 
     /* Get the current process */
     t = this_ktask();
@@ -189,25 +192,18 @@ sys_read(int fildes, void *buf, size_t nbyte)
         return -1;
     }
 
+    /* Check the file descriptor number */
     if ( fildes < 0 || fildes >= FD_MAX ) {
         return -1;
     }
+
+    if ( NULL == proc->fds[fildes] ) {
+        /* Invalid file descriptor (not opened) */
+        return -1;
+    }
+
     if ( NULL != proc->fds[fildes] ) {
-        struct driver_device_chr *dc;
-        dc = proc->fds[fildes]->devfs->spec.chr.dev;
-        if ( dc->ibuf.head == dc->ibuf.tail ) {
-            /* Blocking */
-            t->state = KTASK_STATE_BLOCKED;
-            /* Switch this task to another */
-            sys_task_switch();
-        }
-        if ( dc->ibuf.head != dc->ibuf.tail ) {
-            *(char *)buf = dc->ibuf.buf[dc->ibuf.head];
-            dc->ibuf.head++;
-            return 1;
-        } else {
-            return 0;
-        }
+        return proc->fds[fildes]->read(proc->fds[fildes], buf, nbyte);
     }
 
 
@@ -374,7 +370,10 @@ sys_open(const char *path, int oflag, ...)
         }
         if ( NULL != ent ) {
             fildes->devfs = ent;
+            fildes->read = NULL;
+
             proc->fds[fd] = fildes;
+
             return fd;
         }
 
@@ -1040,102 +1039,6 @@ sys_debug(int nr)
     default:
         ;
     }
-}
-
-/*
- * Driver-related system call
- */
-int
-sys_driver(int number, void *args)
-{
-    struct ktask *t;
-    struct proc *proc;
-    struct sysdriver_handler *s;
-
-    void *paddr;
-    void *vaddr;
-    int ret;
-    ssize_t i;
-    int order;
-    struct sysdriver_mmap_req *req;
-    struct sysdriver_devfs *devfs;
-    struct devfs_entry *devfs_ent;
-
-    /* Get the current task information */
-    t = this_ktask();
-    proc = t->proc;
-
-    switch ( number ) {
-    case SYSDRIVER_REG_IRQ:
-        /* Register an IRQ handler */
-        s = (struct sysdriver_handler *)args;
-        g_intr_table->ivt[IV_IRQ(s->nr)].f = s->handler;
-        g_intr_table->ivt[IV_IRQ(s->nr)].proc = proc;
-        return 0;
-    case SYSDRIVER_MMAP:
-        req = (struct sysdriver_mmap_req *)args;
-
-        /* Allocate virtual memory region */
-        order = bitwidth(DIV_CEIL(req->length, PAGESIZE));
-        vaddr = vmem_buddy_alloc_pages(proc->vmem, order);
-        if ( NULL == vaddr ) {
-            return -1;
-        }
-
-        paddr = req->addr;
-        for ( i = 0; i < (ssize_t)DIV_CEIL(req->length, PAGESIZE); i++ ) {
-            ret = arch_vmem_map(proc->vmem,
-                                (void *)(vaddr + PAGESIZE * i),
-                                paddr + PAGESIZE * i, VMEM_USABLE | VMEM_USED);
-            if ( ret < 0 ) {
-                vmem_free_pages(proc->vmem, vaddr);
-                return -1;
-            }
-        }
-        req->vaddr = vaddr;
-        return 0;
-    case SYSDRIVER_REG_DEV:
-        devfs = (struct sysdriver_devfs *)args;
-
-        devfs_ent = kmalloc(sizeof(struct devfs_entry));
-        if ( NULL == devfs_ent ) {
-            return -1;
-        }
-        devfs_ent->name = kstrdup(devfs->name);
-        if ( NULL == devfs_ent->name ) {
-            kfree(devfs_ent);
-            return -1;
-        }
-        devfs_ent->flags = devfs->flags;
-        devfs_ent->proc = proc;
-        devfs_ent->next = g_devfs.head;
-        g_devfs.head = devfs_ent;
-
-        devfs_ent->spec.chr.dev = kmalloc(PAGESIZE);
-        kmemset(devfs_ent->spec.chr.dev, 0, PAGESIZE);
-
-        /* Allocate virtual memory region */
-        vaddr = vmem_buddy_alloc_pages(proc->vmem, 0);
-        if ( NULL == vaddr ) {
-            return -1;
-        }
-        paddr = arch_kmem_addr_v2p(g_kmem, devfs_ent->spec.chr.dev);
-        for ( i = 0; i < (ssize_t)1; i++ ) {
-            ret = arch_vmem_map(proc->vmem,
-                                (void *)(vaddr + PAGESIZE * i),
-                                paddr + PAGESIZE * i, VMEM_USABLE | VMEM_USED);
-            if ( ret < 0 ) {
-                vmem_free_pages(proc->vmem, vaddr);
-                return -1;
-            }
-        }
-        devfs->dev = vaddr;
-
-        return 0;
-    default:
-        ;
-    }
-    return -1;
 }
 
 /*

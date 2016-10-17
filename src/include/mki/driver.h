@@ -35,6 +35,8 @@
 #define SYSDRIVER_MMAP          11
 #define SYSDRIVER_MUNMAP        12
 
+#define SYSDRIVER_INTERRUPT     20
+
 struct sysdriver_handler {
     int nr;
     void *handler;
@@ -45,7 +47,7 @@ struct sysdriver_devfs {
     char *name;
     int flags;
     /* Return value(s) */
-    struct driver_device_chr *dev;
+    union driver_mapped_device *dev;
 };
 
 struct sysdriver_mmap_req {
@@ -61,14 +63,32 @@ struct driver_device_fifo {
     volatile off_t head;
     volatile off_t tail;
 };
-struct driver_device_chr {
+/*
+ * Character device
+ */
+struct driver_mapped_device_chr {
+    /* FIFO */
     struct driver_device_fifo ibuf;
     struct driver_device_fifo obuf;
+};
+/*
+ * Block device
+ */
+struct driver_mapped_device_blk {
+    uint8_t buf[4096];
+};
+/*
+ * Mapped device (also referred from struct devfs_entry)
+ */
+union driver_mapped_device {
+    struct driver_mapped_device_chr chr;
+    struct driver_mapped_device_blk blk;
 };
 
 int driver_register_irq_handler(int, void *);
 struct driver_device_chr * driver_register_device(char *, int);
 void * driver_mmap(void *, size_t);
+void driver_interrupt(struct driver_device_chr *);
 
 #endif /* _MKI_DRIVER_H */
 

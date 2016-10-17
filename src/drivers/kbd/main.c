@@ -416,7 +416,7 @@ main(int argc, char *argv[])
     unsigned char scan_code;
     int ascii;
     off_t next_tail;
-    struct driver_device_chr *dev;
+    struct driver_mapped_device_chr *dev;
 
     /* Initialize the keyboard driver */
     kbd_init(&kbd);
@@ -456,10 +456,13 @@ main(int argc, char *argv[])
                     /* Buffer full */
                     break;
                 }
-
+                /* Enqueue to the buffer */
                 dev->ibuf.buf[dev->ibuf.tail] = ascii;
+                __asm__ __volatile__ ("mfence");
                 dev->ibuf.tail = next_tail;
+                __asm__ __volatile__ ("mfence");
             }
+
 
             if ( scan_code == KBD_KEY_F1 ) {
                 sysdebug(0);
@@ -475,6 +478,7 @@ main(int argc, char *argv[])
                 kbd_power_reset();
             }
         }
+        driver_interrupt(dev);
     }
 
     exit(0);

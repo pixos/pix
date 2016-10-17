@@ -84,6 +84,15 @@ driver_mmap(void *addr, size_t length)
 }
 
 /*
+ * Invoke an interrupt
+ */
+void
+driver_interrupt(struct driver_device_chr *dev)
+{
+    syscall(SYS_driver, SYSDRIVER_INTERRUPT, dev);
+}
+
+/*
  * Local variables:
  * tab-width: 4
  * c-basic-offset: 4

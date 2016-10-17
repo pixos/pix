@@ -29,6 +29,7 @@
 #include <sys/resource.h>
 #include <sys/syscall.h>
 #include <time.h>
+#include <mki/driver.h>
 
 /* Architecture-specific configuration */
 #if defined(ARCH_X86_64) && ARCH_X86_64
@@ -184,8 +185,13 @@ struct kstring {
 /*
  * File descriptor
  */
+struct fildes_proc {
+    struct proc *proc;
+    struct fildes_proc *next;
+};
 struct fildes {
     void *data;
+
     off_t pos;
     ssize_t (*read)(struct fildes *, void *, size_t);
     ssize_t (*write)(struct fildes *, const void *, size_t);
@@ -193,6 +199,9 @@ struct fildes {
 
     /* FS-specific data structure (to be fixed) */
     struct devfs_entry *devfs;
+
+    /* Associated processes */
+    struct fildes_proc *assoc_procs;
 
     /* Reference count */
     int refs;
@@ -525,7 +534,6 @@ struct proc {
     /* File descriptors */
     struct fildes *fds[FD_MAX];
 
-
     /* Code */
     void *code_paddr;
     size_t code_size;
@@ -600,25 +608,45 @@ struct ktask_root {
 /*
  * Special device
  */
-struct devfs_chr {
+struct devfs_mapped_dev_chr {
     /* Also map to driver's virtual memory */
     struct driver_device_chr *dev;
 };
-struct devfs_blk {
+struct devfs_mapped_dev_blk {
     void *blk;
 };
-struct devfs_entry {
-    char *name;
-    int flags;
-    struct proc *proc;
+/*
+ * Buffer of a special device that is accessible from the corresponding user
+ * process
+ */
+struct devfs_mapped_dev {
     union {
         /* Character device */
-        struct devfs_chr chr;
+        struct devfs_mapped_dev_chr chr;
         /* Block device */
-        struct devfs_blk blk;
-    } spec;
+        struct devfs_mapped_dev_blk blk;
+    } dev;
+};
+#define DEVFS_CHAR  0
+#define DEVFS_BLOCK 1
+struct devfs_entry {
+    /* Name of the entry */
+    char *name;
+    /* Flags */
+    int flags;
+    /* Owner process (driver) */
+    struct proc *proc;
+
+    /* Memory mapped region */
+    int type;
+    union driver_mapped_device *mapped;
+
+    /* Pointer to the next entry */
     struct devfs_entry *next;
 };
+/*
+ * devfs
+ */
 struct devfs {
     struct devfs_entry *head;
 };
