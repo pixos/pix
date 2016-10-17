@@ -448,8 +448,8 @@ main(int argc, char *argv[])
             ascii = kbd_parse_scan_code(&kbd, scan_code);
 
             if ( ascii >= 0 ) {
-                /* Valid ascii code */
-
+                /* Valid ascii code, then enqueue it to the buffer of the
+                   character device */
                 next_tail = dev->ibuf.tail + 1;
                 next_tail = next_tail < KBD_IBUF_SIZE ? next_tail : 0;
                 if ( dev->ibuf.head == next_tail ) {
@@ -459,9 +459,6 @@ main(int argc, char *argv[])
 
                 dev->ibuf.buf[dev->ibuf.tail] = ascii;
                 dev->ibuf.tail = next_tail;
-
-                //snprintf(buf, 512, "Input: %c %x", ascii, scan_code);
-                //write(STDOUT_FILENO, buf, strlen(buf));
             }
 
             if ( scan_code == KBD_KEY_F1 ) {

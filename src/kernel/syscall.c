@@ -941,8 +941,75 @@ sys_xpsleep(void)
 }
 
 /*
- * Debug
+ * Print out debug information
  */
+static void
+_debug_procss(u16 *video)
+{
+    ssize_t i;
+    ssize_t j;
+    char buf[512];
+
+    /* Display the list of process */
+    for ( i = 0; i < PROC_NR; i++ ) {
+        if ( NULL != g_proc_table->procs[i] ) {
+            ksnprintf(buf, 512, "%x: %s (%d) -> %x ",
+                      g_proc_table->procs[i]->tasks,
+                      g_proc_table->procs[i]->name,
+                      g_proc_table->procs[i]->tasks->state,
+                      g_proc_table->procs[i]->tasks->next);
+            for ( j = 0; j < (ssize_t)kstrlen(buf); j++ ) {
+                *video = 0x0f00 | (u16)buf[j];
+                video++;
+            }
+        }
+    }
+}
+static void
+_debug_scheduler(u16 *video)
+{
+    ssize_t i;
+    struct ktask_list *l;
+
+    /* Display scheduler information */
+    l = g_ktask_root->r.head;
+    while ( NULL != l ) {
+        char buf[512];
+        ksnprintf(buf, 512, "%x: %s (%d) -> %x ",
+                  l->ktask->proc->tasks,
+                  l->ktask->proc->name,
+                  l->ktask->state,
+                  l->ktask->next);
+        for ( i = 0; i < (ssize_t)kstrlen(buf); i++ ) {
+            *video = 0x0f00 | (u16)buf[i];
+            video++;
+        }
+        l = l->next;
+    }
+}
+static void
+_debug_timer(u16 *video)
+{
+    ssize_t i;
+    struct ktimer_event *e;
+    char buf[512];
+
+    /* Display timer list */
+    e = g_timer.head;
+    while ( NULL != e ) {
+        ksnprintf(buf, 512, "%x: %s (%d, %d/%d) -> %x ",
+                  e->proc->tasks,
+                  e->proc->name,
+                  e->proc->tasks->state,
+                  e->jiffies, g_jiffies,
+                  e->proc->tasks->next);
+        for ( i = 0; i < (ssize_t)kstrlen(buf); i++ ) {
+            *video = 0x0f00 | (u16)buf[i];
+            video++;
+        }
+        e = e->next;
+    }
+}
 void
 sys_debug(int nr)
 {
@@ -956,74 +1023,17 @@ sys_debug(int nr)
 
     switch ( nr ) {
     case 0:
-    {
-        for ( i = 0; i < PROC_NR; i++ ) {
-            if ( NULL != g_proc_table->procs[i] ) {
-                ssize_t j;
-                char buf[512];
-                ksnprintf(buf, 512, "%x: %s (%d) -> %x ",
-                          g_proc_table->procs[i]->tasks,
-                          g_proc_table->procs[i]->name,
-                          g_proc_table->procs[i]->tasks->state,
-                          g_proc_table->procs[i]->tasks->next);
-                for ( j = 0; j < (ssize_t)kstrlen(buf); j++ ) {
-                    *video = 0x0f00 | (u16)buf[j];
-                    video++;
-                }
-            }
-        }
-    }
-    break;
+        _debug_procss(video);
+        break;
     case 1:
-    {
-        struct ktask_list *l;
-        l = g_ktask_root->r.head;
-        while ( NULL != l ) {
-            char buf[512];
-            ksnprintf(buf, 512, "%x: %s (%d) -> %x ",
-                      l->ktask->proc->tasks,
-                      l->ktask->proc->name,
-                      l->ktask->state,
-                      l->ktask->next);
-            for ( i = 0; i < (ssize_t)kstrlen(buf); i++ ) {
-                *video = 0x0f00 | (u16)buf[i];
-                video++;
-            }
-            l = l->next;
-        }
-    }
-    break;
+        _debug_scheduler(video);
+        break;
     case 2:
-    {
-        struct ktimer_event *e;
-        e = g_timer.head;
-        while ( NULL != e ) {
-            char buf[512];
-            ksnprintf(buf, 512, "%x: %s (%d, %d/%d) -> %x ",
-                      e->proc->tasks,
-                      e->proc->name,
-                      e->proc->tasks->state,
-                      e->jiffies, g_jiffies,
-                      e->proc->tasks->next);
-            for ( i = 0; i < (ssize_t)kstrlen(buf); i++ ) {
-                *video = 0x0f00 | (u16)buf[i];
-                video++;
-            }
-            e = e->next;
-        }
-    }
-    break;
+        _debug_timer(video);
+        break;
     default:
         ;
     }
-
-#if 0
-    for ( i = 0; i < (ssize_t)nbyte; i++ ) {
-        *video = 0x0f00 | (u16)((char *)buf)[i];
-        //*video = 0x2f00 | (u16)*s;
-        video++;
-    }
-#endif
 }
 
 /*
