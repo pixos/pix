@@ -451,7 +451,7 @@ main(int argc, char *argv[])
                 /* Valid ascii code, then enqueue it to the buffer of the
                    character device */
                 next_tail = dev->dev.chr.ibuf.tail + 1;
-                next_tail = next_tail < KBD_IBUF_SIZE ? next_tail : 0;
+                next_tail = next_tail < 512 ? next_tail : 0;
                 if ( dev->dev.chr.ibuf.head == next_tail ) {
                     /* Buffer full */
                     break;
