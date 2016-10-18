@@ -192,17 +192,27 @@ struct vfs_interface {
     off_t (*lseek)(struct fildes *, off_t, int);
 };
 
-/*
- * File descriptor
- */
 struct fildes_proc {
     struct proc *proc;
     struct fildes_proc *next;
 };
-struct fildes_task_list_entry {
+
+/*
+ * Task list
+ */
+struct ktask_list_entry {
     struct ktask *ktask;
-    struct fildes_task_list_entry *next;
+    struct ktask_list_entry *next;
 };
+
+struct fildes_list_entry {
+    struct fildes *fildes;
+    struct fildes_list_entry *next;
+};
+
+/*
+ * File descriptor
+ */
 struct fildes {
     /* FS-specific data structure */
     void *data;
@@ -212,11 +222,8 @@ struct fildes {
     ssize_t (*write)(struct fildes *, const void *, size_t);
     off_t (*lseek)(struct fildes *, off_t, int);
 
-    /* Associated processes */
-    struct fildes_proc *procs;
-
-    /* Blocking processes */
-    struct fildes_blocking_tasks *btasks;
+    /* Blocking tasks */
+    struct ktask_list_entry *blocking_tasks;
 
     /* Reference count */
     int refs;
@@ -620,28 +627,6 @@ struct ktask_root {
     } b;
 };
 
-/*
- * Special device
- */
-struct devfs_mapped_dev_chr {
-    /* Also map to driver's virtual memory */
-    struct driver_device_chr *dev;
-};
-struct devfs_mapped_dev_blk {
-    void *blk;
-};
-/*
- * Buffer of a special device that is accessible from the corresponding user
- * process
- */
-struct devfs_mapped_dev {
-    union {
-        /* Character device */
-        struct devfs_mapped_dev_chr chr;
-        /* Block device */
-        struct devfs_mapped_dev_blk blk;
-    } dev;
-};
 #define DEVFS_CHAR  0
 #define DEVFS_BLOCK 1
 struct devfs_entry {
@@ -654,7 +639,11 @@ struct devfs_entry {
 
     /* Memory mapped region */
     int type;
-    union driver_mapped_device *mapped;
+    struct driver_mapped_device *mapped;
+    void *mapped_integrity;
+
+    /* File descriptors that open this file */
+    struct fildes_list_entry *fildes;
 
     /* Pointer to the next entry */
     struct devfs_entry *next;

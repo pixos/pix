@@ -416,7 +416,7 @@ main(int argc, char *argv[])
     unsigned char scan_code;
     int ascii;
     off_t next_tail;
-    struct driver_mapped_device_chr *dev;
+    struct driver_mapped_device *dev;
 
     /* Initialize the keyboard driver */
     kbd_init(&kbd);
@@ -450,16 +450,16 @@ main(int argc, char *argv[])
             if ( ascii >= 0 ) {
                 /* Valid ascii code, then enqueue it to the buffer of the
                    character device */
-                next_tail = dev->ibuf.tail + 1;
+                next_tail = dev->dev.chr.ibuf.tail + 1;
                 next_tail = next_tail < KBD_IBUF_SIZE ? next_tail : 0;
-                if ( dev->ibuf.head == next_tail ) {
+                if ( dev->dev.chr.ibuf.head == next_tail ) {
                     /* Buffer full */
                     break;
                 }
                 /* Enqueue to the buffer */
-                dev->ibuf.buf[dev->ibuf.tail] = ascii;
+                dev->dev.chr.ibuf.buf[dev->dev.chr.ibuf.tail] = ascii;
                 __asm__ __volatile__ ("mfence");
-                dev->ibuf.tail = next_tail;
+                dev->dev.chr.ibuf.tail = next_tail;
                 __asm__ __volatile__ ("mfence");
             }
 

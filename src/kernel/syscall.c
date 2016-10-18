@@ -357,22 +357,16 @@ sys_open(const char *path, int oflag, ...)
     kmemset(fildes, 0, sizeof(struct fildes));
     fildes->refs++;
 
-    /* Allocate an entry for the process list associated with this file
-       descriptor */
-    fdproc = kmalloc(sizeof(struct fildes_proc));
-    if ( NULL == fdproc ) {
-        kfree(fildes);
-        return -1;
-    }
-    fdproc->proc = proc;
-    fdproc->next = NULL;
-    fildes->procs = fdproc;
+    /* The list of blocking tasks */
+    fildes->blocking_tasks = NULL;
 
     /* Parse the path (to be modified to support non-canonical form) */
     if ( 0 == kstrncmp(path, "/dev/", kstrlen("/dev/")) ) {
         /* devfs */
         const char *devname = path + kstrlen("/dev/");
         struct devfs_entry *ent;
+        struct fildes_list_entry *fle;
+
         ent = g_devfs.head;
         while ( NULL != ent ) {
             if ( 0 == kstrcmp(ent->name, devname) ) {
@@ -381,6 +375,20 @@ sys_open(const char *path, int oflag, ...)
             ent = ent->next;
         }
         if ( NULL != ent ) {
+            /* Found the corresponding device file */
+
+            /* Allocate an entry of the list of file descriptors that open this
+               device file */
+            fle = kmalloc(sizeof(struct fildes_list_entry));
+            if ( NULL == fle ) {
+                kfree(fildes);
+                return -1;
+            }
+            fle->fildes = fildes;
+            fle->next = ent->fildes;
+            ent->fildes = fle;
+
+            /* File-system-specific data structure */
             fildes->data = ent;
 
             /* Set up the interfaces to file-system-related system calls */

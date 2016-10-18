@@ -47,7 +47,7 @@ struct sysdriver_devfs {
     char *name;
     int flags;
     /* Return value(s) */
-    union driver_mapped_device *dev;
+    struct driver_mapped_device *dev;
 };
 
 struct sysdriver_mmap_req {
@@ -75,14 +75,17 @@ struct driver_mapped_device_chr {
  * Block device
  */
 struct driver_mapped_device_blk {
-    uint8_t buf[4096];
+    uint8_t buf[2048];
 };
 /*
  * Mapped device (also referred from struct devfs_entry)
  */
-union driver_mapped_device {
-    struct driver_mapped_device_chr chr;
-    struct driver_mapped_device_blk blk;
+struct driver_mapped_device {
+    union {
+        struct driver_mapped_device_chr chr;
+        struct driver_mapped_device_blk blk;
+    } dev;
+    void *file;
 };
 
 int driver_register_irq_handler(int, void *);

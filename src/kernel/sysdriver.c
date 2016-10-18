@@ -84,6 +84,7 @@ _sysdriver_reg_dev(struct ktask *t, struct proc *proc, void *args)
     int ret;
     ssize_t i;
     struct devfs_entry *ent;
+    struct driver_mapped_device *mapped;
 
     /* Message */
     msg = (struct sysdriver_devfs *)args;
@@ -128,17 +129,29 @@ _sysdriver_reg_dev(struct ktask *t, struct proc *proc, void *args)
     }
     msg->dev = vaddr;
 
+    ent->mapped_integrity = vaddr;
+    mapped = vaddr;
+    mapped->file = ent;
+
     return 0;
 }
 
 static int
 _sysdriver_interrupt(struct ktask *t, struct proc *proc, void *args)
 {
-    union driver_mapped_device *dev;
+    struct driver_mapped_device *dev;
+    struct devfs_entry *e;
     struct fildes *fd;
 
-    dev = (union driver_mapped_device *)args;
-    //fd = (struct fildes *)ddev->listeners;
+    dev = (struct driver_mapped_device *)args;
+    e = (struct devfs_entry *)dev->file;
+    /* Check the integrity */
+    if ( e->mapped_integrity != dev ) {
+        char buf[512];
+        ksnprintf(buf, 512, "%x %x %x", e, e->mapped, dev);
+        panic(buf);
+        return -1;
+    }
 
     return 0;
 }
