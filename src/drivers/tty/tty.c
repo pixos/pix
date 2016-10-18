@@ -42,6 +42,7 @@ main(int argc, char *argv[])
     int foreground;
     ssize_t rsz;
     char buf[128];
+    int i;
 
     /* Check the arguments */
     if ( argc != 2 ) {
@@ -50,12 +51,15 @@ main(int argc, char *argv[])
     tty = argv[1];
     snprintf(path, PATH_MAX, "/dev/%s", tty);
 
-    tm.tv_sec = 1;
-    tm.tv_nsec = 0;
-    nanosleep(&tm, NULL);
-
-    /* Open tty file */
-    fd = open("/dev/kbd", O_RDWR);
+    /* Try until the /dev/kbd is ready */
+    fd = -1;
+    tm.tv_sec = 0;
+    tm.tv_nsec = 100000000;
+    for ( i = 0; i < 10 && fd < 0; i++ ) {
+        /* Open tty file */
+        fd = open("/dev/kbd", O_RDWR);
+        nanosleep(&tm, NULL);
+    }
     if ( fd < 0 ) {
         exit(EXIT_FAILURE);
     }
@@ -66,8 +70,6 @@ main(int argc, char *argv[])
 
         snprintf(buf, 128, "test %ld %x", rsz, buf[0]);
         write(STDOUT_FILENO, buf, strlen(buf));
-
-        //nanosleep(&tm, NULL);
     }
 
     exit(0);

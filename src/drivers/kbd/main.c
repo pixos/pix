@@ -434,8 +434,6 @@ main(int argc, char *argv[])
     tm.tv_sec = 1;
     tm.tv_nsec = 0;
     while ( 1 ) {
-        nanosleep(&tm, NULL);
-
         for ( ;; ) {
             io.port = KBD_CTRL_STAT;
             sysarch(SYSARCH_INB, &io);
@@ -481,6 +479,7 @@ main(int argc, char *argv[])
         if ( dev->dev.chr.ibuf.head != dev->dev.chr.ibuf.tail ) {
             driver_interrupt(dev);
         }
+        nanosleep(&tm, NULL);
     }
 
     exit(0);
