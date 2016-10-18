@@ -107,6 +107,8 @@ _sysdriver_reg_dev(struct ktask *t, struct proc *proc, void *args)
     ent->next = g_devfs.head;
     g_devfs.head = ent;
 
+    ent->fildes = NULL;
+
     ent->mapped = kmalloc(PAGESIZE);
     kmemset(ent->mapped, 0, PAGESIZE);
 
@@ -141,16 +143,28 @@ _sysdriver_interrupt(struct ktask *t, struct proc *proc, void *args)
 {
     struct driver_mapped_device *dev;
     struct devfs_entry *e;
-    struct fildes *fd;
+    struct fildes_list_entry *fle;
+    struct ktask_list_entry *tle;
+    struct ktask_list_entry *tle2;
 
     dev = (struct driver_mapped_device *)args;
     e = (struct devfs_entry *)dev->file;
     /* Check the integrity */
     if ( e->mapped_integrity != dev ) {
-        char buf[512];
-        ksnprintf(buf, 512, "%x %x %x", e, e->mapped, dev);
-        panic(buf);
         return -1;
+    }
+
+    fle = e->fildes;
+    while ( NULL != fle ) {
+        tle = fle->fildes->blocking_tasks;
+        while ( NULL != tle ) {
+            tle->ktask->state = KTASK_STATE_READY;
+            tle2 = tle->next;
+            kfree(tle);
+            tle = tle2;
+        }
+        fle->fildes->blocking_tasks = NULL;
+        fle = fle->next;
     }
 
     return 0;

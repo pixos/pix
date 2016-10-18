@@ -478,7 +478,9 @@ main(int argc, char *argv[])
                 kbd_power_reset();
             }
         }
-        driver_interrupt(dev);
+        if ( dev->dev.chr.ibuf.head != dev->dev.chr.ibuf.tail ) {
+            driver_interrupt(dev);
+        }
     }
 
     exit(0);
