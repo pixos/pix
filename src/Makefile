@@ -81,6 +81,7 @@ kpack: kernel/arch/$(ARCH)/asm.o \
 	kernel/rbtree.o \
 	kernel/mpq.o \
 	kernel/ramfs.o \
+	kernel/devfs.o \
 	kernel/syscall.o \
 	kernel/sysdriver.o
 	$(LD) -N -e kstart64 -Ttext=0xc0010000 --oformat binary -o $@ $^

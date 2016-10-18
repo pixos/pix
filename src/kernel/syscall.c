@@ -323,6 +323,7 @@ sys_open(const char *path, int oflag, ...)
     int i;
     int fd;
     struct fildes *fildes;
+    struct fildes_proc *fdproc;
 
     /* Get the current task information */
     t = this_ktask();
@@ -356,6 +357,17 @@ sys_open(const char *path, int oflag, ...)
     kmemset(fildes, 0, sizeof(struct fildes));
     fildes->refs++;
 
+    /* Allocate an entry for the process list associated with this file
+       descriptor */
+    fdproc = kmalloc(sizeof(struct fildes_proc));
+    if ( NULL == fdproc ) {
+        kfree(fildes);
+        return -1;
+    }
+    fdproc->proc = proc;
+    fdproc->next = NULL;
+    fildes->procs = fdproc;
+
     /* Parse the path (to be modified to support non-canonical form) */
     if ( 0 == kstrncmp(path, "/dev/", kstrlen("/dev/")) ) {
         /* devfs */
@@ -369,8 +381,12 @@ sys_open(const char *path, int oflag, ...)
             ent = ent->next;
         }
         if ( NULL != ent ) {
-            fildes->devfs = ent;
-            fildes->read = NULL;
+            fildes->data = ent;
+
+            /* Set up the interfaces to file-system-related system calls */
+            fildes->read = devfs_read;
+            fildes->write = devfs_write;
+            fildes->lseek = devfs_lseek;
 
             proc->fds[fd] = fildes;
 

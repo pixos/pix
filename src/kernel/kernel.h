@@ -183,13 +183,28 @@ struct kstring {
 };
 
 /*
+ * vfs interface
+ */
+struct fildes;
+struct vfs_interface {
+    ssize_t (*read)(struct fildes *, void *, size_t);
+    ssize_t (*write)(struct fildes *, const void *, size_t);
+    off_t (*lseek)(struct fildes *, off_t, int);
+};
+
+/*
  * File descriptor
  */
 struct fildes_proc {
     struct proc *proc;
     struct fildes_proc *next;
 };
+struct fildes_task_list_entry {
+    struct ktask *ktask;
+    struct fildes_task_list_entry *next;
+};
 struct fildes {
+    /* FS-specific data structure */
     void *data;
 
     off_t pos;
@@ -197,11 +212,11 @@ struct fildes {
     ssize_t (*write)(struct fildes *, const void *, size_t);
     off_t (*lseek)(struct fildes *, off_t, int);
 
-    /* FS-specific data structure (to be fixed) */
-    struct devfs_entry *devfs;
-
     /* Associated processes */
-    struct fildes_proc *assoc_procs;
+    struct fildes_proc *procs;
+
+    /* Blocking processes */
+    struct fildes_blocking_tasks *btasks;
 
     /* Reference count */
     int refs;
@@ -649,6 +664,7 @@ struct devfs_entry {
  */
 struct devfs {
     struct devfs_entry *head;
+    //struct vfs_interface vif;
 };
 
 /*
@@ -769,6 +785,11 @@ void pmem_prim_free_pages(void *);
 
 /* in ramfs.c */
 int ramfs_init(u64 *);
+
+/* in devfs.c (to be modularized) */
+ssize_t devfs_read(struct fildes *, void *, size_t);
+ssize_t devfs_write(struct fildes *, const void *, size_t);
+off_t devfs_lseek(struct fildes *, off_t, int);
 
 /* in syscall.c */
 void sys_exit(int);
