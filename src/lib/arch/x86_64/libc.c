@@ -212,6 +212,7 @@ calloc(size_t count, size_t size)
     for ( i = 0; i < (ssize_t)(count * size); i++ ) {
         *(uint8_t *)(ptr + i) = 0;
     }
+
     return ptr;
 }
 
@@ -222,6 +223,24 @@ void
 free(void *ptr)
 {
     //munmap(ptr, len);
+}
+
+/*
+ * ioctl
+ */
+int
+ioctl(int fildes, unsigned long request, ...)
+{
+    return syscall(SYS_ioctl, fildes, request);
+}
+
+/*
+ * fcntl
+ */
+int
+fcntl(int fildes, int cmd, ...)
+{
+    return syscall(SYS_fcntl, fildes, cmd);
 }
 
 /*

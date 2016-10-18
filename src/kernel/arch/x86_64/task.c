@@ -112,6 +112,8 @@ proc_fork(struct proc *op, struct ktask *ot, struct ktask **ntp)
         if ( NULL != op->fds[i] ) {
             np->fds[i] = op->fds[i];
             np->fds[i]->refs++;
+            /* FIXME: Add new process to the process list associated with the
+               file descriptor */
         }
     }
 

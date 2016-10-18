@@ -1,5 +1,5 @@
 /*_
- * Copyright (c) 2016 Hirochika Asai <asai@jar.jp>
+ * Copyright (c) 2015-2016 Hirochika Asai <asai@jar.jp>
  * All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -21,75 +21,56 @@
  * SOFTWARE.
  */
 
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <sys/syscall.h>
-#include <mki/driver.h>
-
-/* in libcasm.s */
-unsigned long long syscall(int, ...);
+#include <unistd.h>
+#include <limits.h>
+#include <fcntl.h>
+#include <time.h>
 
 /*
- * Request IRQ and register an interrupt handler
+ * Entry point for the tty driver
  */
 int
-driver_register_irq_handler(int irq, void *func)
+main(int argc, char *argv[])
 {
-    struct sysdriver_handler handler;
+    const char *tty;
+    char path[PATH_MAX];
+    int fd;
+    struct timespec tm;
+    int foreground;
+    ssize_t rsz;
+    char buf[128];
 
-    handler.nr = irq;
-    handler.handler = func;
+    /* Check the arguments */
+    if ( argc != 2 ) {
+        exit(EXIT_FAILURE);
+    }
+    tty = argv[1];
+    snprintf(path, PATH_MAX, "/dev/%s", tty);
 
-    return syscall(SYS_driver, SYSDRIVER_REG_IRQ, &handler);
-}
+    tm.tv_sec = 1;
+    tm.tv_nsec = 0;
+    nanosleep(&tm, NULL);
 
-/*
- * Register a device to devfs
- */
-struct driver_device_chr *
-driver_register_device(char *name, int flags)
-{
-    struct sysdriver_devfs req;
-    int ret;
-
-    req.name = name;
-    req.flags = flags;
-
-    ret = syscall(SYS_driver, SYSDRIVER_REG_DEV, &req);
-    if ( ret < 0 ) {
-        return NULL;
+    /* Open tty file */
+    fd = open("/dev/kbd", O_RDWR);
+    if ( fd < 0 ) {
+        exit(EXIT_FAILURE);
     }
 
-    return req.dev;
-}
+    foreground = 1;
+    while ( 1 ) {
+        rsz = read(fd, buf, 128);
 
-/*
- * Allocate virtual pages that are mapped to the physical memory space
- * specified by addr and length
- */
-void *
-driver_mmap(void *addr, size_t length)
-{
-    struct sysdriver_mmap_req req;
-    int ret;
+        snprintf(buf, 128, "test %ld %x", rsz, buf[0]);
+        write(STDOUT_FILENO, buf, strlen(buf));
 
-    req.addr = addr;
-    req.length = length;
-    ret = syscall(SYS_driver, SYSDRIVER_MMAP, &req);
-    if ( ret < 0 ) {
-        return NULL;
+        //nanosleep(&tm, NULL);
     }
 
-    return req.vaddr;
-}
-
-/*
- * Invoke an interrupt
- */
-void
-driver_interrupt(struct driver_device_chr *dev)
-{
-    syscall(SYS_driver, SYSDRIVER_INTERRUPT, dev);
+    exit(0);
 }
 
 /*

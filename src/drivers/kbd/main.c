@@ -416,7 +416,7 @@ main(int argc, char *argv[])
     unsigned char scan_code;
     int ascii;
     off_t next_tail;
-    struct driver_device_chr *dev;
+    struct driver_mapped_device *dev;
 
     /* Initialize the keyboard driver */
     kbd_init(&kbd);
@@ -431,9 +431,9 @@ main(int argc, char *argv[])
         exit(EXIT_FAILURE);
     }
 
+    tm.tv_sec = 1;
+    tm.tv_nsec = 0;
     while ( 1 ) {
-        tm.tv_sec = 1;
-        tm.tv_nsec = 0;
         nanosleep(&tm, NULL);
 
         for ( ;; ) {
@@ -448,21 +448,21 @@ main(int argc, char *argv[])
             ascii = kbd_parse_scan_code(&kbd, scan_code);
 
             if ( ascii >= 0 ) {
-                /* Valid ascii code */
-
-                next_tail = dev->ibuf.tail + 1;
-                next_tail = next_tail < KBD_IBUF_SIZE ? next_tail : 0;
-                if ( dev->ibuf.head == next_tail ) {
+                /* Valid ascii code, then enqueue it to the buffer of the
+                   character device */
+                next_tail = dev->dev.chr.ibuf.tail + 1;
+                next_tail = next_tail < 512 ? next_tail : 0;
+                if ( dev->dev.chr.ibuf.head == next_tail ) {
                     /* Buffer full */
                     break;
                 }
-
-                dev->ibuf.buf[dev->ibuf.tail] = ascii;
-                dev->ibuf.tail = next_tail;
-
-                //snprintf(buf, 512, "Input: %c %x", ascii, scan_code);
-                //write(STDOUT_FILENO, buf, strlen(buf));
+                /* Enqueue to the buffer */
+                dev->dev.chr.ibuf.buf[dev->dev.chr.ibuf.tail] = ascii;
+                __asm__ __volatile__ ("mfence");
+                dev->dev.chr.ibuf.tail = next_tail;
+                __asm__ __volatile__ ("mfence");
             }
+
 
             if ( scan_code == KBD_KEY_F1 ) {
                 sysdebug(0);
@@ -477,6 +477,9 @@ main(int argc, char *argv[])
             if ( scan_code == 0x01 ) {
                 kbd_power_reset();
             }
+        }
+        if ( dev->dev.chr.ibuf.head != dev->dev.chr.ibuf.tail ) {
+            driver_interrupt(dev);
         }
     }
 

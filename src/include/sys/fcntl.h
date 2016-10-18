@@ -21,76 +21,27 @@
  * SOFTWARE.
  */
 
-#include <stdlib.h>
-#include <string.h>
-#include <sys/syscall.h>
-#include <mki/driver.h>
+#ifndef _SYS_FCNTL_H
+#define _SYS_FCNTL_H
 
-/* in libcasm.s */
-unsigned long long syscall(int, ...);
+#define FD_CLOEXEC      1
 
-/*
- * Request IRQ and register an interrupt handler
- */
-int
-driver_register_irq_handler(int irq, void *func)
-{
-    struct sysdriver_handler handler;
+#define O_RDONLY        0x0000
+#define O_WRONLY        0x0001
+#define O_RDWR          0x0002
 
-    handler.nr = irq;
-    handler.handler = func;
+#define O_NONBLOCK      0x0004
+#define O_APPEND        0x0008
+#define O_SHLOCK        0x0010
+#define O_EXLOCK        0x0020
+#define O_NOFOLLOW      0x0100
+#define O_CREAT         0x0200
+#define O_TRUNC         0x0400
+#define O_EXCL          0x0800
 
-    return syscall(SYS_driver, SYSDRIVER_REG_IRQ, &handler);
-}
+#define O_CLOEXEC       0x1000000
 
-/*
- * Register a device to devfs
- */
-struct driver_device_chr *
-driver_register_device(char *name, int flags)
-{
-    struct sysdriver_devfs req;
-    int ret;
-
-    req.name = name;
-    req.flags = flags;
-
-    ret = syscall(SYS_driver, SYSDRIVER_REG_DEV, &req);
-    if ( ret < 0 ) {
-        return NULL;
-    }
-
-    return req.dev;
-}
-
-/*
- * Allocate virtual pages that are mapped to the physical memory space
- * specified by addr and length
- */
-void *
-driver_mmap(void *addr, size_t length)
-{
-    struct sysdriver_mmap_req req;
-    int ret;
-
-    req.addr = addr;
-    req.length = length;
-    ret = syscall(SYS_driver, SYSDRIVER_MMAP, &req);
-    if ( ret < 0 ) {
-        return NULL;
-    }
-
-    return req.vaddr;
-}
-
-/*
- * Invoke an interrupt
- */
-void
-driver_interrupt(struct driver_device_chr *dev)
-{
-    syscall(SYS_driver, SYSDRIVER_INTERRUPT, dev);
-}
+#endif /* _SYS_FCNTL_H */
 
 /*
  * Local variables:

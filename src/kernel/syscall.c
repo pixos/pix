@@ -50,6 +50,8 @@ typedef __builtin_va_list va_list;
 #define va_copy(dest, src)      __builtin_va_copy((dest), (src))
 #define alloca(size)            __builtin_alloca((size))
 
+void sys_task_switch(void);
+
 /*
  * Exit a process
  */
@@ -178,6 +180,7 @@ sys_read(int fildes, void *buf, size_t nbyte)
 
     struct ktask *t;
     struct proc *proc;
+    struct driver_mapped_device_chr *dc;
 
     /* Get the current process */
     t = this_ktask();
@@ -189,19 +192,18 @@ sys_read(int fildes, void *buf, size_t nbyte)
         return -1;
     }
 
+    /* Check the file descriptor number */
     if ( fildes < 0 || fildes >= FD_MAX ) {
         return -1;
     }
+
+    if ( NULL == proc->fds[fildes] ) {
+        /* Invalid file descriptor (not opened) */
+        return -1;
+    }
+
     if ( NULL != proc->fds[fildes] ) {
-        struct driver_device_chr *dc;
-        dc = proc->fds[fildes]->devfs->spec.chr.dev;
-        if ( dc->ibuf.head != dc->ibuf.tail ) {
-            *(char *)buf = dc->ibuf.buf[dc->ibuf.head];
-            dc->ibuf.head++;
-            return 1;
-        } else {
-            return 0;
-        }
+        return proc->fds[fildes]->read(proc->fds[fildes], buf, nbyte);
     }
 
 
@@ -321,6 +323,7 @@ sys_open(const char *path, int oflag, ...)
     int i;
     int fd;
     struct fildes *fildes;
+    struct fildes_proc *fdproc;
 
     /* Get the current task information */
     t = this_ktask();
@@ -354,11 +357,16 @@ sys_open(const char *path, int oflag, ...)
     kmemset(fildes, 0, sizeof(struct fildes));
     fildes->refs++;
 
+    /* The list of blocking tasks */
+    fildes->blocking_tasks = NULL;
+
     /* Parse the path (to be modified to support non-canonical form) */
     if ( 0 == kstrncmp(path, "/dev/", kstrlen("/dev/")) ) {
         /* devfs */
         const char *devname = path + kstrlen("/dev/");
         struct devfs_entry *ent;
+        struct fildes_list_entry *fle;
+
         ent = g_devfs.head;
         while ( NULL != ent ) {
             if ( 0 == kstrcmp(ent->name, devname) ) {
@@ -367,8 +375,29 @@ sys_open(const char *path, int oflag, ...)
             ent = ent->next;
         }
         if ( NULL != ent ) {
-            fildes->devfs = ent;
+            /* Found the corresponding device file */
+
+            /* Allocate an entry of the list of file descriptors that open this
+               device file */
+            fle = kmalloc(sizeof(struct fildes_list_entry));
+            if ( NULL == fle ) {
+                kfree(fildes);
+                return -1;
+            }
+            fle->fildes = fildes;
+            fle->next = ent->fildes;
+            ent->fildes = fle;
+
+            /* File-system-specific data structure */
+            fildes->data = ent;
+
+            /* Set up the interfaces to file-system-related system calls */
+            fildes->read = devfs_read;
+            fildes->write = devfs_write;
+            fildes->lseek = devfs_lseek;
+
             proc->fds[fd] = fildes;
+
             return fd;
         }
 
@@ -941,8 +970,75 @@ sys_xpsleep(void)
 }
 
 /*
- * Debug
+ * Print out debug information
  */
+static void
+_debug_procss(u16 *video)
+{
+    ssize_t i;
+    ssize_t j;
+    char buf[512];
+
+    /* Display the list of process */
+    for ( i = 0; i < PROC_NR; i++ ) {
+        if ( NULL != g_proc_table->procs[i] ) {
+            ksnprintf(buf, 512, "%x: %s (%d) -> %x ",
+                      g_proc_table->procs[i]->tasks,
+                      g_proc_table->procs[i]->name,
+                      g_proc_table->procs[i]->tasks->state,
+                      g_proc_table->procs[i]->tasks->next);
+            for ( j = 0; j < (ssize_t)kstrlen(buf); j++ ) {
+                *video = 0x0f00 | (u16)buf[j];
+                video++;
+            }
+        }
+    }
+}
+static void
+_debug_scheduler(u16 *video)
+{
+    ssize_t i;
+    struct ktask_list *l;
+
+    /* Display scheduler information */
+    l = g_ktask_root->r.head;
+    while ( NULL != l ) {
+        char buf[512];
+        ksnprintf(buf, 512, "%x: %s (%d) -> %x ",
+                  l->ktask->proc->tasks,
+                  l->ktask->proc->name,
+                  l->ktask->state,
+                  l->ktask->next);
+        for ( i = 0; i < (ssize_t)kstrlen(buf); i++ ) {
+            *video = 0x0f00 | (u16)buf[i];
+            video++;
+        }
+        l = l->next;
+    }
+}
+static void
+_debug_timer(u16 *video)
+{
+    ssize_t i;
+    struct ktimer_event *e;
+    char buf[512];
+
+    /* Display timer list */
+    e = g_timer.head;
+    while ( NULL != e ) {
+        ksnprintf(buf, 512, "%x: %s (%d, %d/%d) -> %x ",
+                  e->proc->tasks,
+                  e->proc->name,
+                  e->proc->tasks->state,
+                  e->jiffies, g_jiffies,
+                  e->proc->tasks->next);
+        for ( i = 0; i < (ssize_t)kstrlen(buf); i++ ) {
+            *video = 0x0f00 | (u16)buf[i];
+            video++;
+        }
+        e = e->next;
+    }
+}
 void
 sys_debug(int nr)
 {
@@ -956,170 +1052,17 @@ sys_debug(int nr)
 
     switch ( nr ) {
     case 0:
-    {
-        for ( i = 0; i < PROC_NR; i++ ) {
-            if ( NULL != g_proc_table->procs[i] ) {
-                ssize_t j;
-                char buf[512];
-                ksnprintf(buf, 512, "%x: %s (%d) -> %x ",
-                          g_proc_table->procs[i]->tasks,
-                          g_proc_table->procs[i]->name,
-                          g_proc_table->procs[i]->tasks->state,
-                          g_proc_table->procs[i]->tasks->next);
-                for ( j = 0; j < (ssize_t)kstrlen(buf); j++ ) {
-                    *video = 0x0f00 | (u16)buf[j];
-                    video++;
-                }
-            }
-        }
-    }
-    break;
+        _debug_procss(video);
+        break;
     case 1:
-    {
-        struct ktask_list *l;
-        l = g_ktask_root->r.head;
-        while ( NULL != l ) {
-            char buf[512];
-            ksnprintf(buf, 512, "%x: %s (%d) -> %x ",
-                      l->ktask->proc->tasks,
-                      l->ktask->proc->name,
-                      l->ktask->state,
-                      l->ktask->next);
-            for ( i = 0; i < (ssize_t)kstrlen(buf); i++ ) {
-                *video = 0x0f00 | (u16)buf[i];
-                video++;
-            }
-            l = l->next;
-        }
-    }
-    break;
+        _debug_scheduler(video);
+        break;
     case 2:
-    {
-        struct ktimer_event *e;
-        e = g_timer.head;
-        while ( NULL != e ) {
-            char buf[512];
-            ksnprintf(buf, 512, "%x: %s (%d, %d/%d) -> %x ",
-                      e->proc->tasks,
-                      e->proc->name,
-                      e->proc->tasks->state,
-                      e->jiffies, g_jiffies,
-                      e->proc->tasks->next);
-            for ( i = 0; i < (ssize_t)kstrlen(buf); i++ ) {
-                *video = 0x0f00 | (u16)buf[i];
-                video++;
-            }
-            e = e->next;
-        }
-    }
-    break;
+        _debug_timer(video);
+        break;
     default:
         ;
     }
-
-#if 0
-    for ( i = 0; i < (ssize_t)nbyte; i++ ) {
-        *video = 0x0f00 | (u16)((char *)buf)[i];
-        //*video = 0x2f00 | (u16)*s;
-        video++;
-    }
-#endif
-}
-
-/*
- * Driver-related system call
- */
-int
-sys_driver(int number, void *args)
-{
-    struct ktask *t;
-    struct proc *proc;
-    struct sysdriver_handler *s;
-
-    void *paddr;
-    void *vaddr;
-    int ret;
-    ssize_t i;
-    int order;
-    struct sysdriver_mmap_req *req;
-    struct sysdriver_devfs *devfs;
-    struct devfs_entry *devfs_ent;
-
-    /* Get the current task information */
-    t = this_ktask();
-    proc = t->proc;
-
-    switch ( number ) {
-    case SYSDRIVER_REG_IRQ:
-        /* Register an IRQ handler */
-        s = (struct sysdriver_handler *)args;
-        g_intr_table->ivt[IV_IRQ(s->nr)].f = s->handler;
-        g_intr_table->ivt[IV_IRQ(s->nr)].proc = proc;
-        return 0;
-    case SYSDRIVER_MMAP:
-        req = (struct sysdriver_mmap_req *)args;
-
-        /* Allocate virtual memory region */
-        order = bitwidth(DIV_CEIL(req->length, PAGESIZE));
-        vaddr = vmem_buddy_alloc_pages(proc->vmem, order);
-        if ( NULL == vaddr ) {
-            return -1;
-        }
-
-        paddr = req->addr;
-        for ( i = 0; i < (ssize_t)DIV_CEIL(req->length, PAGESIZE); i++ ) {
-            ret = arch_vmem_map(proc->vmem,
-                                (void *)(vaddr + PAGESIZE * i),
-                                paddr + PAGESIZE * i, VMEM_USABLE | VMEM_USED);
-            if ( ret < 0 ) {
-                vmem_free_pages(proc->vmem, vaddr);
-                return -1;
-            }
-        }
-        req->vaddr = vaddr;
-        return 0;
-    case SYSDRIVER_REG_DEV:
-        devfs = (struct sysdriver_devfs *)args;
-
-        devfs_ent = kmalloc(sizeof(struct devfs_entry));
-        if ( NULL == devfs_ent ) {
-            return -1;
-        }
-        devfs_ent->name = kstrdup(devfs->name);
-        if ( NULL == devfs_ent->name ) {
-            kfree(devfs_ent);
-            return -1;
-        }
-        devfs_ent->flags = devfs->flags;
-        devfs_ent->proc = proc;
-        devfs_ent->next = g_devfs.head;
-        g_devfs.head = devfs_ent;
-
-        devfs_ent->spec.chr.dev = kmalloc(PAGESIZE);
-        kmemset(devfs_ent->spec.chr.dev, 0, PAGESIZE);
-
-        /* Allocate virtual memory region */
-        vaddr = vmem_buddy_alloc_pages(proc->vmem, 0);
-        if ( NULL == vaddr ) {
-            return -1;
-        }
-        paddr = arch_kmem_addr_v2p(g_kmem, devfs_ent->spec.chr.dev);
-        for ( i = 0; i < (ssize_t)1; i++ ) {
-            ret = arch_vmem_map(proc->vmem,
-                                (void *)(vaddr + PAGESIZE * i),
-                                paddr + PAGESIZE * i, VMEM_USABLE | VMEM_USED);
-            if ( ret < 0 ) {
-                vmem_free_pages(proc->vmem, vaddr);
-                return -1;
-            }
-        }
-        devfs->dev = vaddr;
-
-        return 0;
-    default:
-        ;
-    }
-    return -1;
 }
 
 /*

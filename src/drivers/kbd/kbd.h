@@ -55,8 +55,6 @@
 #define KBD_ASCII_RIGHT         0x84
 #define KBD_ASCII_DOWN          0x85
 
-#define KBD_IBUF_SIZE           128
-
 /*
  * Key state
  */

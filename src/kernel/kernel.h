@@ -29,6 +29,7 @@
 #include <sys/resource.h>
 #include <sys/syscall.h>
 #include <time.h>
+#include <mki/driver.h>
 
 /* Architecture-specific configuration */
 #if defined(ARCH_X86_64) && ARCH_X86_64
@@ -182,17 +183,47 @@ struct kstring {
 };
 
 /*
+ * vfs interface
+ */
+struct fildes;
+struct vfs_interface {
+    ssize_t (*read)(struct fildes *, void *, size_t);
+    ssize_t (*write)(struct fildes *, const void *, size_t);
+    off_t (*lseek)(struct fildes *, off_t, int);
+};
+
+struct fildes_proc {
+    struct proc *proc;
+    struct fildes_proc *next;
+};
+
+/*
+ * Task list
+ */
+struct ktask_list_entry {
+    struct ktask *ktask;
+    struct ktask_list_entry *next;
+};
+
+struct fildes_list_entry {
+    struct fildes *fildes;
+    struct fildes_list_entry *next;
+};
+
+/*
  * File descriptor
  */
 struct fildes {
+    /* FS-specific data structure */
     void *data;
+
     off_t pos;
     ssize_t (*read)(struct fildes *, void *, size_t);
     ssize_t (*write)(struct fildes *, const void *, size_t);
     off_t (*lseek)(struct fildes *, off_t, int);
 
-    /* FS-specific data structure (to be fixed) */
-    struct devfs_entry *devfs;
+    /* Blocking tasks */
+    struct ktask_list_entry *blocking_tasks;
 
     /* Reference count */
     int refs;
@@ -525,7 +556,6 @@ struct proc {
     /* File descriptors */
     struct fildes *fds[FD_MAX];
 
-
     /* Code */
     void *code_paddr;
     size_t code_size;
@@ -597,30 +627,33 @@ struct ktask_root {
     } b;
 };
 
-/*
- * Special device
- */
-struct devfs_chr {
-    /* Also map to driver's virtual memory */
-    struct driver_device_chr *dev;
-};
-struct devfs_blk {
-    void *blk;
-};
+#define DEVFS_CHAR  0
+#define DEVFS_BLOCK 1
 struct devfs_entry {
+    /* Name of the entry */
     char *name;
+    /* Flags */
     int flags;
+    /* Owner process (driver) */
     struct proc *proc;
-    union {
-        /* Character device */
-        struct devfs_chr chr;
-        /* Block device */
-        struct devfs_blk blk;
-    } spec;
+
+    /* Memory mapped region */
+    int type;
+    struct driver_mapped_device *mapped;
+    void *mapped_integrity;
+
+    /* File descriptors that open this file */
+    struct fildes_list_entry *fildes;
+
+    /* Pointer to the next entry */
     struct devfs_entry *next;
 };
+/*
+ * devfs
+ */
 struct devfs {
     struct devfs_entry *head;
+    //struct vfs_interface vif;
 };
 
 /*
@@ -741,6 +774,11 @@ void pmem_prim_free_pages(void *);
 
 /* in ramfs.c */
 int ramfs_init(u64 *);
+
+/* in devfs.c (to be modularized) */
+ssize_t devfs_read(struct fildes *, void *, size_t);
+ssize_t devfs_write(struct fildes *, const void *, size_t);
+off_t devfs_lseek(struct fildes *, off_t, int);
 
 /* in syscall.c */
 void sys_exit(int);
