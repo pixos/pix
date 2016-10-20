@@ -90,7 +90,7 @@ serial_init(struct serial *serial, int nr, const char *ttyname)
     sysarch(SYSARCH_OUTB, &io);
 
     /* Enable IRQs, and set RTS/DSR */
-    io.port = serial->port + 4;
+    io.port = serial->port + 1;
     io.data = 0x0b;
     sysarch(SYSARCH_OUTB, &io);
 
@@ -110,6 +110,28 @@ serial_proc(struct serial *serial)
     struct sysarch_io io;
     int ascii;
     off_t next_tail;
+
+    /* Read line state to until the transmit buffer is empty */
+    for ( ;; ) {
+        io.port = serial->port + 5;
+        sysarch(SYSARCH_INB, &io);
+        if ( 0 != (io.data & 0x20) ) {
+            break;
+        }
+    }
+    while ( serial->dev->dev.chr.obuf.head
+            != serial->dev->dev.chr.obuf.tail ) {
+
+        /* and echo back */
+        io.port = serial->port;
+        io.data
+            = serial->dev->dev.chr.obuf.buf[serial->dev->dev.chr.obuf.head];
+        sysarch(SYSARCH_OUTB, &io);
+        serial->dev->dev.chr.obuf.head++;
+        serial->dev->dev.chr.obuf.head
+            = serial->dev->dev.chr.obuf.head < 512
+            ? serial->dev->dev.chr.obuf.head : 0;
+    }
 
     for ( ;; ) {
         /* Received? */
@@ -139,28 +161,6 @@ serial_proc(struct serial *serial)
         if ( '\r' == ascii ) {
             driver_interrupt(serial->dev);
         }
-    }
-
-    /* Read line state to until the transmit buffer is empty */
-    for ( ;; ) {
-        io.port = serial->port + 5;
-        sysarch(SYSARCH_INB, &io);
-        if ( 0 != (io.data & 0x20) ) {
-            break;
-        }
-    }
-    while ( serial->dev->dev.chr.obuf.head
-            != serial->dev->dev.chr.obuf.tail ) {
-
-        /* and echo back */
-        io.port = serial->port;
-        io.data
-            = serial->dev->dev.chr.obuf.buf[serial->dev->dev.chr.obuf.head];
-        sysarch(SYSARCH_OUTB, &io);
-        serial->dev->dev.chr.obuf.head++;
-        serial->dev->dev.chr.obuf.head
-            = serial->dev->dev.chr.obuf.head < 512
-            ? serial->dev->dev.chr.obuf.head : 0;
     }
 
     return 0;
