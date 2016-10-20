@@ -44,7 +44,7 @@ struct sysdriver_handler {
 
 struct sysdriver_devfs {
     /* Arguments */
-    char *name;
+    const char *name;
     int flags;
     /* Return value(s) */
     struct driver_mapped_device *dev;
@@ -89,9 +89,9 @@ struct driver_mapped_device {
 };
 
 int driver_register_irq_handler(int, void *);
-struct driver_device_chr * driver_register_device(char *, int);
+struct driver_mapped_device * driver_register_device(const char *, int);
 void * driver_mmap(void *, size_t);
-void driver_interrupt(struct driver_device_chr *);
+void driver_interrupt(struct driver_mapped_device *);
 
 #endif /* _MKI_DRIVER_H */
 

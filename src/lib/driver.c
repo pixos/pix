@@ -46,8 +46,8 @@ driver_register_irq_handler(int irq, void *func)
 /*
  * Register a device to devfs
  */
-struct driver_device_chr *
-driver_register_device(char *name, int flags)
+struct driver_mapped_device *
+driver_register_device(const char *name, int flags)
 {
     struct sysdriver_devfs req;
     int ret;
@@ -87,7 +87,7 @@ driver_mmap(void *addr, size_t length)
  * Invoke an interrupt
  */
 void
-driver_interrupt(struct driver_device_chr *dev)
+driver_interrupt(struct driver_mapped_device *dev)
 {
     syscall(SYS_driver, SYSDRIVER_INTERRUPT, dev);
 }

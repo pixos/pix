@@ -1,5 +1,5 @@
 /*_
- * Copyright (c) 2015 Hirochika Asai <asai@jar.jp>
+ * Copyright (c) 2015-2016 Hirochika Asai <asai@jar.jp>
  * All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -21,35 +21,31 @@
  * SOFTWARE.
  */
 
-#ifndef _AOS_TYPES_H
-#define _AOS_TYPES_H
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <unistd.h>
+#include <fcntl.h>
 
-#if __LP64__
+/*
+ * Entry point for pash
+ */
+int
+main(int argc, char *argv[])
+{
+    ssize_t rsz;
+    char buf[512];
 
-typedef signed long ssize_t;
-typedef unsigned long size_t;
-typedef signed long long off_t;
-typedef signed int pid_t;
-typedef signed int uid_t;
-typedef signed int gid_t;
+    while ( 1 ) {
+        rsz = read(STDIN_FILENO, buf, 128);
+        if ( rsz > 0 ) {
+            buf[rsz] = 0;
+            write(STDOUT_FILENO, buf, strlen(buf));
+        }
+    }
 
-/* Unsigned integer */
-typedef unsigned char uint8_t;
-typedef unsigned short uint16_t;
-typedef unsigned int uint32_t;
-typedef unsigned long long int uint64_t;
-
-/* Signed integer */
-typedef signed char int8_t;
-typedef signed short int16_t;
-typedef signed int int32_t;
-typedef signed long long int int64_t;
-
-#else
-#error "Must be LP64"
-#endif
-
-#endif /* _AOS_CONST_H */
+    exit(0);
+}
 
 /*
  * Local variables:

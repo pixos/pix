@@ -137,21 +137,27 @@ _irq_handler(u64 vec)
 {
     struct ktask *t;
     struct ktask *tmp;
+    struct interrupt_handler_list *e;
 
     /* Check whether the interrupt handler is registered */
-    if ( NULL != g_intr_table->ivt[vec].f ) {
+    if ( NULL != g_intr_table->ivt[vec].handlers ) {
         t = this_ktask();
-        tmp = g_intr_table->ivt[vec].proc->tasks;
-        while ( NULL != tmp ) {
-            tmp->state = KTASK_STATE_READY;
-            tmp = tmp->proc_task_next;
+
+        e = g_intr_table->ivt[vec].handlers;
+        while ( NULL != e ) {
+            tmp = e->proc->tasks;
+            while ( NULL != tmp ) {
+                tmp->state = KTASK_STATE_READY;
+                tmp = tmp->proc_task_next;
+            }
+            e = e->next;
         }
 
         /* Replace the page table with the driver's */
-        arch_switch_page_table(g_intr_table->ivt[vec].proc->vmem);
-        g_intr_table->ivt[vec].f();
+        //arch_switch_page_table(g_intr_table->ivt[vec].proc->vmem);
+        //g_intr_table->ivt[vec].f();
         /* Restore the page table */
-        arch_switch_page_table(NULL);
+        //arch_switch_page_table(NULL);
     }
 }
 

@@ -1,5 +1,5 @@
 /*_
- * Copyright (c) 2015 Hirochika Asai <asai@jar.jp>
+ * Copyright (c) 2016 Hirochika Asai <asai@jar.jp>
  * All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -21,35 +21,53 @@
  * SOFTWARE.
  */
 
-#ifndef _AOS_TYPES_H
-#define _AOS_TYPES_H
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <unistd.h>
+#include <limits.h>
+#include <fcntl.h>
+#include <time.h>
+#include <mki/driver.h>
+#include "tty.h"
 
-#if __LP64__
+#define VIDEO_RAM       0x000b8000ULL
 
-typedef signed long ssize_t;
-typedef unsigned long size_t;
-typedef signed long long off_t;
-typedef signed int pid_t;
-typedef signed int uid_t;
-typedef signed int gid_t;
+/*
+ * Initialize the data structure for console driver
+ */
+int
+console_init(struct console *con, const char *ttyname)
+{
+    int ret;
+    ssize_t i;
+    struct driver_mapped_device *dev;
 
-/* Unsigned integer */
-typedef unsigned char uint8_t;
-typedef unsigned short uint16_t;
-typedef unsigned int uint32_t;
-typedef unsigned long long int uint64_t;
+    /* Initialize keyboard */
+    ret = kbd_init(&con->kbd);
+    if ( ret < 0 ) {
+        return -1;
+    }
 
-/* Signed integer */
-typedef signed char int8_t;
-typedef signed short int16_t;
-typedef signed int int32_t;
-typedef signed long long int int64_t;
+    /* Memory mapped I/O */
+    con->video.vram = driver_mmap((void *)VIDEO_RAM, 4096);
+    if ( NULL == con->video.vram ) {
+        return -1;
+    }
+    /* Reset the video */
+    for ( i = 0; i < 80 * 25; i++ ) {
+        *(con->video.vram + i) = 0x0f00;
+    }
 
-#else
-#error "Must be LP64"
-#endif
+    /* Register the interrupt handler */
+    driver_register_irq_handler(1, NULL);
 
-#endif /* _AOS_CONST_H */
+    /* Register console device as a character device */
+    dev = driver_register_device(ttyname, 0);
+    con->dev = dev;
+
+    return 0;
+}
 
 /*
  * Local variables:

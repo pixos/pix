@@ -26,6 +26,7 @@
 
 #include <stdint.h>
 #include <sys/types.h>
+#include <mki/driver.h>
 
 #define KBD_KEY_CTRL_LEFT       0x1d
 #define KBD_KEY_SHIFT_LEFT      0x2a
@@ -96,6 +97,9 @@ static unsigned char keymap_shift[] =
     "                "          /* 0x50-0x5f */
     "                "          /* 0x60-0x6f */
     "                ";         /* 0x70-0x7f */
+
+int kbd_init(struct kbd *);
+int kbd_proc(struct kbd *, struct driver_mapped_device *);
 
 #endif /* _KBD_H */
 

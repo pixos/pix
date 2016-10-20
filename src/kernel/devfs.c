@@ -83,7 +83,6 @@ devfs_read(struct fildes *fildes, void *buf, size_t nbyte)
         return -1;
     }
 
-
     return -1;
 }
 
@@ -93,6 +92,46 @@ devfs_read(struct fildes *fildes, void *buf, size_t nbyte)
 ssize_t
 devfs_write(struct fildes *fildes, const void *buf, size_t nbyte)
 {
+    struct ktask *t;
+    struct devfs_entry *ent;
+    struct driver_device_fifo *q;
+    ssize_t len;
+    off_t next_tail;
+
+    /* Get the current process */
+    t = this_ktask();
+    if ( NULL == t ) {
+        return -1;
+    }
+
+    /* Obtain the file-system-specific data structure */
+    ent = (struct devfs_entry *)fildes->data;
+
+    switch ( ent->type ) {
+    case DEVFS_CHAR:
+        /* Character device */
+        q = &ent->mapped->dev.chr.obuf;
+
+        next_tail = q->tail + 1;
+        next_tail = next_tail < 512 ? next_tail : 0;
+        if ( q->head == next_tail ) {
+            /* Buffer is full. FIXME: Implement blocking write */
+            return 0;
+        }
+        len = 0;
+        while ( q->head != q->tail && len < (ssize_t)nbyte ) {
+            q->buf[q->tail] = *(char *)(buf + len);
+            len++;
+            q->tail++;
+            q->tail = q->tail < 512 ? q->tail : 0;
+        }
+        return len;
+
+    case DEVFS_BLOCK:
+        /* Block device */
+        return -1;
+    }
+
     return -1;
 }
 

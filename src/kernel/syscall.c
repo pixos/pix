@@ -247,6 +247,35 @@ sys_write(int fildes, const void *buf, size_t nbyte)
     ssize_t i;
     char *s;
 
+    struct ktask *t;
+    struct proc *proc;
+
+    /* Get the current process */
+    t = this_ktask();
+    if ( NULL == t ) {
+        return -1;
+    }
+    proc = t->proc;
+    if ( NULL == proc ) {
+        return -1;
+    }
+
+    /* Check the file descriptor number */
+    if ( fildes < 0 || fildes >= FD_MAX ) {
+        return -1;
+    }
+
+    if ( NULL == proc->fds[fildes] ) {
+        /* Invalid file descriptor (not opened) */
+        return -1;
+    }
+
+    if ( NULL != proc->fds[fildes] ) {
+        return proc->fds[fildes]->write(proc->fds[fildes], buf, nbyte);
+    }
+
+
+
     if ( 1 == fildes && NULL != buf ) {
         video = (u16 *)0xc00b8000;
         for ( i = 0; i < 80 * 25; i++ ) {

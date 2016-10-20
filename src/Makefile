@@ -103,8 +103,10 @@ fe: servers/fe/fe.o servers/fe/pci.o lib/arch/$(ARCH)/libc.o lib/arch/$(ARCH)/li
 fs: servers/fs/fs.o lib/arch/$(ARCH)/libc.o lib/arch/$(ARCH)/libcasm.o
 	$(LD) -N -e _entry -Ttext=$(ORG) --oformat binary -o $@ $^
 
-## tty driver
-tty: drivers/tty/tty.o lib/arch/$(ARCH)/libc.o lib/arch/$(ARCH)/libcasm.o
+## tty driver (including keyboard, video, and serial drivers)
+tty: drivers/tty/tty.o drivers/tty/console.o drivers/tty/kbd.o \
+	drivers/tty/serial.o \
+	lib/arch/$(ARCH)/libc.o lib/arch/$(ARCH)/libcasm.o lib/driver.o
 	$(LD) -N -e _entry -Ttext=$(ORG) --oformat binary -o $@ $^
 
 ## shell
@@ -117,16 +119,6 @@ pci: drivers/pci/pci.o lib/arch/$(ARCH)/libc.o lib/arch/$(ARCH)/libcasm.o
 
 ## e1000 driver
 e1000: drivers/e1000/e1000.o lib/arch/$(ARCH)/libc.o lib/arch/$(ARCH)/libcasm.o
-	$(LD) -N -e _entry -Ttext=$(ORG) --oformat binary -o $@ $^
-
-## video driver
-video: drivers/video/main.o lib/arch/$(ARCH)/libc.o lib/arch/$(ARCH)/libcasm.o \
-	lib/driver.o
-	$(LD) -N -e _entry -Ttext=$(ORG) --oformat binary -o $@ $^
-
-## keyboard driver
-kbd: drivers/kbd/main.o lib/arch/$(ARCH)/libc.o lib/arch/$(ARCH)/libcasm.o \
-	lib/driver.o
 	$(LD) -N -e _entry -Ttext=$(ORG) --oformat binary -o $@ $^
 
 ## VMX driver

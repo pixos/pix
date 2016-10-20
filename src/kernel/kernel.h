@@ -678,11 +678,17 @@ struct kevent_handlers {
 
 /* Interrupt handler */
 typedef void (*interrupt_handler_f)(void);
-struct interrupt_handler {
-    /* Interrupt handler */
-    interrupt_handler_f f;
-    /* Process to set an appropriate page table before call it */
+struct interrupt_handler_list {
+    /* Interrupt handler: obsolete */
+    //interrupt_handler_f f;
+    /* Process */
     struct proc *proc;
+    /* Pointer to next entry */
+    struct interrupt_handler_list *next;
+};
+struct interrupt_handler {
+    /* Process to set an appropriate page table before call it */
+    struct interrupt_handler_list *handlers;
 };
 struct interrupt_handler_table {
     struct interrupt_handler ivt[NR_IV];

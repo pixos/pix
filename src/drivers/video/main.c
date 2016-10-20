@@ -41,18 +41,28 @@ main(int argc, char *argv[])
     uint16_t *vram;
     char buf[512];
     ssize_t i;
+    struct driver_mapped_device *dev;
 
+    /* Memory mapped I/O */
     vram = driver_mmap((void *)VIDEO_RAM, 4096);
     if ( NULL == vram ) {
         exit(EXIT_FAILURE);
     }
+    /* Reset the video */
     for ( i = 0; i < 80 * 25; i++ ) {
         *(vram + i) = 0x0f00;
+    }
+
+    /* Register this driver to devfs */
+    dev = driver_register_device("video", 0);
+    if ( NULL == dev ) {
+        exit(EXIT_FAILURE);
     }
 
     tm.tv_sec = 1;
     tm.tv_nsec = 0;
     while ( 1 ) {
+#if 0
         snprintf(buf, 512, "Sleeping vram driver: %p.", vram);
         for ( i = 0; i < 80 * 25; i++ ) {
             *(vram + i) = 0x0f00;
@@ -60,6 +70,7 @@ main(int argc, char *argv[])
         for ( i = 0; i < (ssize_t)strlen(buf); i++ ) {
             *(vram + i) = 0x0f00 | (uint16_t)((char *)buf)[i];
         }
+#endif
         nanosleep(&tm, NULL);
     }
 

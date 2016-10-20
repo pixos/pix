@@ -33,10 +33,18 @@ static int
 _sysdriver_reg_irq(struct ktask *t, struct proc *proc, void *args)
 {
     struct sysdriver_handler *s;
+    struct interrupt_handler_list *e;
+
+    /* Allocate for this interrupt handler */
+    e = kmalloc(sizeof(struct interrupt_handler_list));
+    if ( NULL == e ) {
+        return -1;
+    }
 
     s = (struct sysdriver_handler *)args;
-    g_intr_table->ivt[IV_IRQ(s->nr)].f = s->handler;
-    g_intr_table->ivt[IV_IRQ(s->nr)].proc = proc;
+    e->proc = proc;
+    e->next = g_intr_table->ivt[IV_IRQ(s->nr)].handlers;
+    g_intr_table->ivt[IV_IRQ(s->nr)].handlers = e;
 
     return 0;
 }

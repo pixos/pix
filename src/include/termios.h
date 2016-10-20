@@ -1,5 +1,5 @@
 /*_
- * Copyright (c) 2015 Hirochika Asai <asai@jar.jp>
+ * Copyright (c) 2016 Hirochika Asai <asai@jar.jp>
  * All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -21,35 +21,37 @@
  * SOFTWARE.
  */
 
-#ifndef _AOS_TYPES_H
-#define _AOS_TYPES_H
+#ifndef _TERMIOS_H
+#define _TERMIOS_H
 
-#if __LP64__
+#include <aos/types.h>
 
-typedef signed long ssize_t;
-typedef unsigned long size_t;
-typedef signed long long off_t;
-typedef signed int pid_t;
-typedef signed int uid_t;
-typedef signed int gid_t;
+/* Baud rate definitions */
+#define B0      0
+#define B50     50
+#define B75     75
+#define B110    110
+#define B134    134
+#define B150    150
+#define B200    200
+#define B300    300
+#define B600    600
+#define B1200   1200
+#define B1800   1800
+#define B2400   2400
+#define B4800   4800
+#define B9600   9600
+#define B19200  19200
+#define B38400  38400
 
-/* Unsigned integer */
-typedef unsigned char uint8_t;
-typedef unsigned short uint16_t;
-typedef unsigned int uint32_t;
-typedef unsigned long long int uint64_t;
+struct termios;
 
-/* Signed integer */
-typedef signed char int8_t;
-typedef signed short int16_t;
-typedef signed int int32_t;
-typedef signed long long int int64_t;
+int tcgetattr(int fildes, struct termios *termios_p);
+int
+tcsetattr(int fildes, int optional_actions, const struct termios *termios_p);
 
-#else
-#error "Must be LP64"
-#endif
 
-#endif /* _AOS_CONST_H */
+#endif /* _TERMIOS_H */
 
 /*
  * Local variables:

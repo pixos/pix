@@ -307,8 +307,7 @@ bsp_init(void)
         return;
     }
     for ( i = 0; i < NR_IV; i++ ) {
-        g_intr_table->ivt[i].f = NULL;
-        g_intr_table->ivt[i].proc = NULL;
+        g_intr_table->ivt[i].handlers = NULL;
     }
 
     /* Initialize the task lists */

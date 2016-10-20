@@ -1,5 +1,5 @@
 /*_
- * Copyright (c) 2015 Hirochika Asai <asai@jar.jp>
+ * Copyright (c) 2016 Hirochika Asai <asai@jar.jp>
  * All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -21,35 +21,46 @@
  * SOFTWARE.
  */
 
-#ifndef _AOS_TYPES_H
-#define _AOS_TYPES_H
+#ifndef _TTY_H
+#define _TTY_H
 
-#if __LP64__
+#include <stdint.h>
+#include <sys/types.h>
+#include "kbd.h"
 
-typedef signed long ssize_t;
-typedef unsigned long size_t;
-typedef signed long long off_t;
-typedef signed int pid_t;
-typedef signed int uid_t;
-typedef signed int gid_t;
+/*
+ * Video
+ */
+struct video {
+    uint16_t *vram;
+};
 
-/* Unsigned integer */
-typedef unsigned char uint8_t;
-typedef unsigned short uint16_t;
-typedef unsigned int uint32_t;
-typedef unsigned long long int uint64_t;
+/*
+ * Console
+ */
+struct console {
+    /* Keyboard */
+    struct kbd kbd;
+    /* Video */
+    struct video video;
+    /* Character device */
+    struct driver_mapped_device *dev;
+};
 
-/* Signed integer */
-typedef signed char int8_t;
-typedef signed short int16_t;
-typedef signed int int32_t;
-typedef signed long long int int64_t;
+/*
+ * Serial
+ */
+struct serial {
+    int port;
+    int irq;
+    struct driver_mapped_device *dev;
+};
 
-#else
-#error "Must be LP64"
-#endif
+int console_init(struct console *, const char *);
+int serial_init(struct serial *, int, const char *);
+int serial_proc(struct serial *);
 
-#endif /* _AOS_CONST_H */
+#endif /* _TTY_H */
 
 /*
  * Local variables:
