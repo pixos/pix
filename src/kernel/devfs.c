@@ -97,6 +97,7 @@ devfs_write(struct fildes *fildes, const void *buf, size_t nbyte)
     struct driver_device_fifo *q;
     ssize_t len;
     off_t next_tail;
+    struct ktask *tmp;
 
     /* Get the current process */
     t = this_ktask();
@@ -119,11 +120,17 @@ devfs_write(struct fildes *fildes, const void *buf, size_t nbyte)
             return 0;
         }
         len = 0;
-        while ( q->head != q->tail && len < (ssize_t)nbyte ) {
+        while ( q->head != next_tail && len < (ssize_t)nbyte ) {
             q->buf[q->tail] = *(char *)(buf + len);
             len++;
-            q->tail++;
-            q->tail = q->tail < 512 ? q->tail : 0;
+            q->tail = next_tail;
+            next_tail = next_tail + 1 < 512 ? next_tail + 1 : 0;
+        }
+        /* Wake up the driver */
+        tmp = ent->proc->tasks;
+        while ( NULL != tmp ) {
+            tmp->state = KTASK_STATE_READY;
+            tmp = tmp->next;
         }
         return len;
 
