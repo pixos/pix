@@ -61,6 +61,7 @@ main(int argc, char *argv[])
                       strlen(TTY_CONSOLE_PREFIX)) ) {
         /* Console */
         struct console console;
+
         console_init(&console, ttyname);
         int fd[3];
 
@@ -91,8 +92,10 @@ main(int argc, char *argv[])
 
         for ( ;; ) {
             kbd_proc(&console.kbd, console.dev);
+            console_proc(&console);
             nanosleep(&tm, NULL);
         }
+#if 1
     } else if ( 0 == strncmp(ttyname, TTY_SERIAL_PREFIX,
                              strlen(TTY_SERIAL_PREFIX)) ) {
         /* Serial */
@@ -129,6 +132,7 @@ main(int argc, char *argv[])
             serial_proc(&serial);
             nanosleep(&tm, NULL);
         }
+#endif
     }
 
     /* Loop */

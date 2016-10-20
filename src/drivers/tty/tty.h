@@ -43,6 +43,9 @@ struct console {
     struct kbd kbd;
     /* Video */
     struct video video;
+    /* Console buffer */
+    int pos;
+    char buf[80 * 25];
     /* Character device */
     struct driver_mapped_device *dev;
 };
@@ -57,6 +60,7 @@ struct serial {
 };
 
 int console_init(struct console *, const char *);
+int console_proc(struct console *);
 int serial_init(struct serial *, int, const char *);
 int serial_proc(struct serial *);
 

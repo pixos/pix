@@ -27,7 +27,7 @@
 #include <unistd.h>
 #include <limits.h>
 #include <fcntl.h>
-#include <time.h>
+#include <machine/sysarch.h>
 #include <mki/driver.h>
 #include "tty.h"
 
@@ -65,6 +65,51 @@ console_init(struct console *con, const char *ttyname)
     /* Register console device as a character device */
     dev = driver_register_device(ttyname, 0);
     con->dev = dev;
+
+    con->pos = 0;
+    memset(con->buf, ' ', 80 * 25);
+
+    return 0;
+}
+
+static void
+_update_cursor(int pos)
+{
+    struct sysarch_io io;
+    uint16_t addr = 0x3d4;
+
+    /* Low */
+    io.port = addr;
+    io.data = ((pos & 0xff) << 8) | 0x0f;
+    sysarch(SYSARCH_OUTW, &io);
+    /* High */
+    io.port = addr;
+    io.data = (((pos >> 8) & 0xff) << 8) | 0x0e;
+    sysarch(SYSARCH_OUTW, &io);
+}
+
+int
+console_proc(struct console *con)
+{
+    ssize_t i;
+    int c;
+
+    while ( con->dev->dev.chr.obuf.head != con->dev->dev.chr.obuf.tail ) {
+
+        c = con->dev->dev.chr.obuf.buf[con->dev->dev.chr.obuf.head];
+
+        con->dev->dev.chr.obuf.head++;
+        con->dev->dev.chr.obuf.head
+            = con->dev->dev.chr.obuf.head < 512
+            ? con->dev->dev.chr.obuf.head : 0;
+
+        con->pos++;
+    }
+
+    _update_cursor(con->pos);
+    for ( i = 0; i < 80 * 25; i++ ) {
+        con->video.vram[i] = 0x0f00 | (uint16_t)con->buf[i];
+    }
 
     return 0;
 }

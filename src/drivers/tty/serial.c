@@ -94,6 +94,10 @@ serial_init(struct serial *serial, int nr, const char *ttyname)
     io.data = 0x0b;
     sysarch(SYSARCH_OUTB, &io);
 
+    io.port = serial->port + 4;
+    io.data = 0x01;
+    sysarch(SYSARCH_OUTB, &io);
+
     /* Register an interrupt handler */
     driver_register_irq_handler(serial->irq, NULL);
 
