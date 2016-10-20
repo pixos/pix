@@ -105,10 +105,6 @@ main(int argc, char *argv[])
         fd[1] = open(path, O_WRONLY);
         fd[2] = open(path, O_WRONLY);
 
-        char buf[128];
-        snprintf(buf, 128, "test %d %d %d", fd[0], fd[1], fd[2]);
-        write(STDOUT_FILENO, buf, strlen(buf));
-
         /* fork */
         pid = fork();
         switch ( pid ) {
@@ -136,8 +132,8 @@ main(int argc, char *argv[])
     }
 
     /* Loop */
-    tm.tv_sec = 0;
-    tm.tv_nsec = 100000000;
+    tm.tv_sec = 1;
+    tm.tv_nsec = 0;
     for ( ;; ) {
         nanosleep(&tm, NULL);
     }
