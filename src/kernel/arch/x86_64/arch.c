@@ -661,9 +661,19 @@ void
 isr_exception(int nr, void *ip, u64 cs, u64 flags, void *sp)
 {
     char buf[128];
+    struct ktask *t;
 
-    ksnprintf(buf, sizeof(buf), "#%d: ip=%llx, cs=%llx, flags=%llx, sp=%llx",
-              nr, ip, cs, flags, sp);
+    /* Get the current process */
+    t = this_ktask();
+    if ( NULL == t || NULL == t->proc ) {
+        ksnprintf(buf, sizeof(buf),
+                  "#%d: %ip=%llx, cs=%llx, flags=%llx, sp=%llx",
+                  nr, ip, cs, flags, sp);
+    } else {
+        ksnprintf(buf, sizeof(buf),
+                  "#%d: %s, ip=%llx, cs=%llx, flags=%llx, sp=%llx",
+                  nr, t->proc->name, ip, cs, flags, sp);
+    }
     panic(buf);
 }
 
@@ -674,9 +684,18 @@ void
 isr_exception_werror(int nr, u64 error, void *ip, u64 cs, u64 flags, void *sp)
 {
     char buf[128];
+    struct ktask *t;
 
-    ksnprintf(buf, sizeof(buf), "#%d (%llx): ip=%llx, cs=%llx, flags=%llx, "
-              "sp=%llx", nr, error, ip, cs, flags, sp);
+    /* Get the current process */
+    t = this_ktask();
+    if ( NULL == t || NULL == t->proc ) {
+        ksnprintf(buf, sizeof(buf), "#%d (%llx): ip=%llx, cs=%llx, flags=%llx, "
+                  "sp=%llx", nr, error, ip, cs, flags, sp);
+    } else {
+        ksnprintf(buf, sizeof(buf), "#%d (%llx): %s, ip=%llx, cs=%llx, "
+                  "flags=%llx, sp=%llx", nr, error, t->proc->name, ip, cs,
+                  flags, sp);
+    }
     panic(buf);
 }
 
