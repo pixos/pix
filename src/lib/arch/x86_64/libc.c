@@ -51,6 +51,7 @@ entry(int argc, char *argv[])
     int ret;
 
     ret = main(argc, argv);
+    (void)ret;
 
     while ( 1 ) {}
 }
@@ -282,7 +283,7 @@ static off_t _output_string(char *, size_t, struct strfmt_format *, va_list);
  * Parse the format chunk
  */
 static int
-_parse_format(const char **formatp, struct strfmt_format *strfmt)
+_parse_format(const char *__restrict__*formatp, struct strfmt_format *strfmt)
 {
     const char *format;
     /* Leading suffix */

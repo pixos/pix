@@ -97,6 +97,7 @@ console_proc(struct console *con)
     while ( con->dev->dev.chr.obuf.head != con->dev->dev.chr.obuf.tail ) {
 
         c = con->dev->dev.chr.obuf.buf[con->dev->dev.chr.obuf.head];
+        (void)c;
 
         con->dev->dev.chr.obuf.head++;
         con->dev->dev.chr.obuf.head

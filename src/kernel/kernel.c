@@ -139,9 +139,11 @@ _irq_handler(u64 vec)
     struct ktask *tmp;
     struct interrupt_handler_list *e;
 
+    t = this_ktask();
+    (void)t;
+
     /* Check whether the interrupt handler is registered */
     if ( NULL != g_intr_table->ivt[vec].handlers ) {
-        t = this_ktask();
 
         e = g_intr_table->ivt[vec].handlers;
         while ( NULL != e ) {

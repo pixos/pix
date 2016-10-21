@@ -69,6 +69,7 @@ main(int argc, char *argv[])
         fd[0] = open(path, O_RDONLY);
         fd[1] = open(path, O_WRONLY);
         fd[2] = open(path, O_WRONLY);
+        (void)fd[0];
 
         /* fork */
         pid = fork();
@@ -95,7 +96,6 @@ main(int argc, char *argv[])
             console_proc(&console);
             nanosleep(&tm, NULL);
         }
-#if 1
     } else if ( 0 == strncmp(ttyname, TTY_SERIAL_PREFIX,
                              strlen(TTY_SERIAL_PREFIX)) ) {
         /* Serial */
@@ -107,6 +107,7 @@ main(int argc, char *argv[])
         fd[0] = open(path, O_RDONLY);
         fd[1] = open(path, O_WRONLY);
         fd[2] = open(path, O_WRONLY);
+        (void)fd[0];
 
         /* fork */
         pid = fork();
@@ -132,7 +133,6 @@ main(int argc, char *argv[])
             serial_proc(&serial);
             nanosleep(&tm, NULL);
         }
-#endif
     }
 
     /* Loop */

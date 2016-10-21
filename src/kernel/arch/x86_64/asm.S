@@ -617,8 +617,8 @@ _sys_task_switch:
 	movq	TASK_XREGS(%rax),%rdi
 	movq	$5,%rax
 	movq	$0,%rdx
-	xsave64	(%rdi)
 	clts
+	xsave64	(%rdi)
 
 	/* Notify that the current task is switched (to the kernel) */
 	movq	CPU_CUR_TASK_OFFSET(%rbx),%rdi
@@ -920,6 +920,7 @@ _intr_dna:
 	movq	24(%rbp),%r8	/* rflags */
 	movq	32(%rbp),%r9	/* rsp */
 	/* 48(%rbp): ss */
+	call	_isr_exception
 	popq	%rbx
 	popq	%r11
 	popq	%r10
@@ -1287,8 +1288,8 @@ _task_restart:
 	movq	TASK_XREGS(%rax),%rdi
 	movq	$5,%rax
 	movq	$0,%rdx
-	xsave64	(%rdi)
 	clts
+	xsave64	(%rdi)
 1:
 	/* Notify that the current task is switched (to the kernel) */
 	movq	CPU_CUR_TASK_OFFSET(%rbp),%rdi

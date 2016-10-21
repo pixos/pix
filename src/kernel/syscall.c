@@ -180,7 +180,7 @@ sys_read(int fildes, void *buf, size_t nbyte)
 
     struct ktask *t;
     struct proc *proc;
-    struct driver_mapped_device_chr *dc;
+    //struct driver_mapped_device_chr *dc;
 
     /* Get the current process */
     t = this_ktask();
@@ -351,7 +351,6 @@ sys_open(const char *path, int oflag, ...)
     int i;
     int fd;
     struct fildes *fildes;
-    struct fildes_proc *fdproc;
 
     /* Get the current task information */
     t = this_ktask();
@@ -1114,7 +1113,6 @@ sys_sysarch(int number, void *args)
 {
     struct sysarch_io *io;
     struct sysarch_msr *msr;
-    u64 reg;
 
     switch ( number ) {
     case SYSARCH_INB:

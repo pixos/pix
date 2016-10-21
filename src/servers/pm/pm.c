@@ -1,5 +1,5 @@
 /*_
- * Copyright (c) 2015 Hirochika Asai <asai@jar.jp>
+ * Copyright (c) 2015-2016 Hirochika Asai <asai@jar.jp>
  * All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -26,12 +26,6 @@
 #include <sys/syscall.h>
 #include <time.h>
 
-void
-sysxpsleep(void)
-{
-    __asm__ __volatile__ ("syscall" :: "a"(SYS_xpsleep));
-}
-
 /*
  * Entry point for the process manager program
  */
@@ -39,15 +33,10 @@ int
 main(int argc, char *argv[])
 {
     struct timespec tm;
+
     tm.tv_sec = 1;
     tm.tv_nsec = 0;
-
     while ( 1 ) {
-        //write(0, NULL, 0);
-        //sysxpsleep();
-        //read(0, NULL, 0);
-        //__asm__ ("hlt");
-        //sysxpsleep();
         nanosleep(&tm, NULL);
     }
     exit(0);

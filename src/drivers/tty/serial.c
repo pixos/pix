@@ -108,6 +108,24 @@ serial_init(struct serial *serial, int nr, const char *ttyname)
     return 0;
 }
 
+/*
+ * Put a character to serial console
+ */
+static int
+_serial_putc(struct serial *serial, int c)
+{
+    struct sysarch_io io;
+
+    io.port = serial->port;
+    io.data = c;
+    sysarch(SYSARCH_OUTB, &io);
+
+    return 0;
+}
+
+/*
+ * Run serial driver
+ */
 int
 serial_proc(struct serial *serial)
 {
@@ -123,14 +141,11 @@ serial_proc(struct serial *serial)
             break;
         }
     }
+
     while ( serial->dev->dev.chr.obuf.head
             != serial->dev->dev.chr.obuf.tail ) {
-
-        /* and echo back */
-        io.port = serial->port;
-        io.data
-            = serial->dev->dev.chr.obuf.buf[serial->dev->dev.chr.obuf.head];
-        sysarch(SYSARCH_OUTB, &io);
+        ascii = serial->dev->dev.chr.obuf.buf[serial->dev->dev.chr.obuf.head];
+        _serial_putc(serial, ascii);
         serial->dev->dev.chr.obuf.head++;
         serial->dev->dev.chr.obuf.head
             = serial->dev->dev.chr.obuf.head < 512

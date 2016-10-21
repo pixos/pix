@@ -74,7 +74,9 @@ devfs_read(struct fildes *fildes, void *buf, size_t nbyte)
             *(char *)(buf + len) = q->buf[q->head];
             len++;
             q->head++;
+            __asm__ __volatile__ ("mfence");
             q->head = q->head < 512 ? q->head : 0;
+            __asm__ __volatile__ ("mfence");
         }
         return len;
 
@@ -123,7 +125,9 @@ devfs_write(struct fildes *fildes, const void *buf, size_t nbyte)
         while ( q->head != next_tail && len < (ssize_t)nbyte ) {
             q->buf[q->tail] = *(char *)(buf + len);
             len++;
+            __asm__ __volatile__ ("mfence");
             q->tail = next_tail;
+            __asm__ __volatile__ ("mfence");
             next_tail = next_tail + 1 < 512 ? next_tail + 1 : 0;
         }
         /* Wake up the driver */

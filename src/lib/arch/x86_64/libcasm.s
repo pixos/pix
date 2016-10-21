@@ -36,6 +36,7 @@ _start:
 
 /* int syscall(arg0, ..., arg5) */
 _syscall:
+	pushq	%rbp
 	movq	%rdi,%rax
 	movq	%rsi,%rdi
 	movq	%rdx,%rsi
@@ -44,6 +45,7 @@ _syscall:
 	movq	%r9,%r8
 	movq	-8(%rsp),%r9
 	syscall
+	popq	%rbp
 	ret
 
 /* void * memset(void *b, int c, size_t len) */

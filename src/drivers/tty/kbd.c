@@ -35,10 +35,6 @@
 #define KBD_ERROR       -1
 #define KBD_MAX_RETRY   0x01000000
 
-#define KBD_ENCODER     0x0060
-#define KBD_ENC_BUFFER  KBD_ENCODER
-#define KBD_ENC_COMMAND KBD_ENCODER
-
 #define KBD_CONTROLLER  0x0064
 #define KBD_CTRL_STATUS KBD_CONTROLLER
 #define KBD_CTRL_COMMAND KBD_CONTROLLER
@@ -80,6 +76,27 @@
  * Prototype declarations
  */
 int kbd_wait_until_outbuf_full(void);
+
+
+static unsigned char keymap_base[] =
+    "  1234567890-=\x08\t"      /* 0x00-0x0f */
+    "qwertyuiop[]\r as"         /* 0x10-0x1f */
+    "dfghjkl;'` \\zxcv"         /* 0x20-0x2f */
+    "bnm,./          "          /* 0x30-0x3f */
+    "                "          /* 0x40-0x4f */
+    "                "          /* 0x50-0x5f */
+    "                "          /* 0x60-0x6f */
+    "                ";         /* 0x70-0x7f */
+
+static unsigned char keymap_shift[] =
+    "  !@#$%^&*()_+\x08\t"      /* 0x00-0x0f */
+    "QWERTYUIOP{}\r AS"         /* 0x10-0x1f */
+    "DFGHJKL:\"~ |ZXCV"         /* 0x20-0x2f */
+    "BNM<>?          "          /* 0x30-0x3f */
+    "                "          /* 0x40-0x4f */
+    "                "          /* 0x50-0x5f */
+    "                "          /* 0x60-0x6f */
+    "                ";         /* 0x70-0x7f */
 
 
 /*
@@ -290,9 +307,11 @@ kbd_init(struct kbd *kbd)
     kbd->disabled = 0;
 
     /* Set LED */
-    stat = kbd_set_led(KBD_LED_NONE);
+    //stat = kbd_set_led(KBD_LED_NONE);
+    (void)stat;
+    kbd_read_ctrl_status();
 
-    return stat;
+    return 0;
 }
 
 
@@ -421,7 +440,7 @@ kbd_proc(struct kbd *kbd, struct driver_mapped_device *dev)
         /* Read a scan code from the buffer of the keyboard controller */
         scan_code = kbd_enc_read_buf();
         /* Convert the scan code to an ascii code */
-        ascii = kbd_parse_scan_code(&kbd, scan_code);
+        ascii = kbd_parse_scan_code(kbd, scan_code);
 
         if ( ascii >= 0 ) {
             /* Valid ascii code, then enqueue it to the buffer of the

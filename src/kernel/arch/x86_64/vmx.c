@@ -206,7 +206,7 @@ vmx_enable(void)
         /* Not locked, then enable VMX */
         wrmsr(IA32_FEATURE_CONTROL, f | 5);
     }
-    phyaddr = arch_vmem_addr_v2p(g_kmem->space, vmcs);
+    phyaddr = arch_kmem_addr_v2p(g_kmem, vmcs);
     ret = vmxon(&phyaddr);
     if ( ret ) {
         return -1;
@@ -368,7 +368,7 @@ vmx_initialize_vmcs(void)
 
     vmx = rdmsr(IA32_VMX_BASIC);
     vmcs[0] = vmx & 0x7fffffff;
-    phyaddr = arch_vmem_addr_v2p(g_kmem->space, vmcs);
+    phyaddr = arch_kmem_addr_v2p(g_kmem, vmcs);
     /* Clear */
     if ( vmclear(&phyaddr) ) {
         kfree(vmcs);
@@ -413,15 +413,15 @@ vmx_initialize_vmcs(void)
         return -1;
     }
     kmemset(ept, 0, 4096 * 4);
-    ept[0] = 0x07 | (u64)arch_vmem_addr_v2p(g_kmem->space, &ept[512]);
-    ept[512] = 0x07 | (u64)arch_vmem_addr_v2p(g_kmem->space, &ept[1024]);
+    ept[0] = 0x07 | (u64)arch_kmem_addr_v2p(g_kmem, &ept[512]);
+    ept[512] = 0x07 | (u64)arch_kmem_addr_v2p(g_kmem, &ept[1024]);
     for ( i = 0; i < 128; i++ ) {
-        phyaddr = arch_vmem_addr_v2p(g_kmem->space, mem);
+        phyaddr = arch_kmem_addr_v2p(g_kmem, mem);
         ept[1024 + i] = 0xb7 | ((u64)phyaddr + i * 1024 * 1024 * 2);
     }
 
     /* EPTP */
-    phyaddr = arch_vmem_addr_v2p(g_kmem->space, ept);
+    phyaddr = arch_kmem_addr_v2p(g_kmem, ept);
     vmx_control_ept_pointer_full = 0x1e | (u64)phyaddr;
 
     /* Pin-based VM-execution controls
@@ -640,7 +640,7 @@ vmx_initialize_vmcs(void)
 
 #if 0
     vmx_control_executive_vmcs_pointer_full
-        = arch_vmem_addr_v2p(g_kmem->space, vmxon_vmcs);
+        = arch_kmem_addr_v2p(g_kmem, vmxon_vmcs);
     vmx_control_executive_vmcs_pointer_full = 0;
 #endif
 

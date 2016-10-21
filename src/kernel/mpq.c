@@ -58,6 +58,7 @@ mpq_push(struct mpq *mpq, struct mp *mp)
     if ( mpq->head == mpq->tail ) {
         return -1;
     }
+    (void)tail_saved;
 
     /* Compare and swap: */
     mpq->mps[mpq->tail] = mp;

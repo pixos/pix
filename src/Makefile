@@ -23,8 +23,8 @@ pxeboot: ASFLAGS=-nostdlib -I./boot/arch/$(ARCH)/
 
 kpack: ASFLAGS=-nostdlib -I./kernel/arch/$(ARCH)/
 kpack: CFLAGS=-I./include \
-	-Wall -fleading-underscore -mcmodel=large -nostdlib -nodefaultlibs -fno-builtin -O3 -m64 \
-	-DARCH_X86_64=1
+	-Wall -fleading-underscore -mcmodel=large -nostdlib -nodefaultlibs \
+	-fno-builtin -O3 -m64 -DARCH_X86_64=1
 
 ## IPL
 diskboot: boot/arch/$(ARCH)/diskboot.o
