@@ -47,7 +47,7 @@ void
 i8254_stop_timer(void)
 {
     /* Reset to the BIOS default */
-    outb(I8254_REG_CTRL, 0x36);
+    outb(I8254_REG_CTRL, 0x30);
     outb(I8254_REG_CNTR0, 0x0);
     outb(I8254_REG_CNTR0, 0x0);
 }
