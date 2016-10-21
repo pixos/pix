@@ -935,8 +935,11 @@ _intr_dna:
 	iretq
 /* Double Fault (#DF) */
 	intr_exception_werror df 0x08
-/* Coprocessor Segment Overrun */
-	intr_exception_generic cso 0x09
+/* Coprocessor Segment Overrun: To be ignored */
+	//intr_exception_generic cso 0x09
+.globl	_intr_cso
+_intr_cso:
+	iretq
 /* Invalid TSS (#TS) */
 	intr_exception_werror invtss 0x0a
 /* Segment Not Present (#NP) */

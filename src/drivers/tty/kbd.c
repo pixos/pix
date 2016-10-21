@@ -307,11 +307,9 @@ kbd_init(struct kbd *kbd)
     kbd->disabled = 0;
 
     /* Set LED */
-    //stat = kbd_set_led(KBD_LED_NONE);
-    (void)stat;
-    kbd_read_ctrl_status();
+    stat = kbd_set_led(KBD_LED_NONE);
 
-    return 0;
+    return stat;
 }
 
 

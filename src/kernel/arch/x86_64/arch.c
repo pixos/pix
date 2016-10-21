@@ -346,9 +346,6 @@ bsp_init(void)
     /* Initialize the kernel */
     kinit();
 
-    void *test = kmalloc(64);
-    kfree(test);
-
 #if 0
     if ( vmx_enable() < 0 ) {
         panic("Failed to initialize VMX.");
