@@ -145,7 +145,12 @@ serial_proc(struct serial *serial)
     while ( serial->dev->dev.chr.obuf.head
             != serial->dev->dev.chr.obuf.tail ) {
         ascii = serial->dev->dev.chr.obuf.buf[serial->dev->dev.chr.obuf.head];
-        _serial_putc(serial, ascii);
+        if ( '\r'== ascii ) {
+            _serial_putc(serial, ascii);
+            _serial_putc(serial, '\n');
+        } else {
+            _serial_putc(serial, ascii);
+        }
         serial->dev->dev.chr.obuf.head++;
         serial->dev->dev.chr.obuf.head
             = serial->dev->dev.chr.obuf.head < 512

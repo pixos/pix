@@ -227,6 +227,8 @@ bsp_init(void)
     int prox;
     int ret;
 
+    cli();
+
     /* Reset */
     mp_enabled = 0;
 
@@ -363,6 +365,8 @@ bsp_init(void)
 
     /* Enable MP */
     mp_enabled = 1;
+
+    sti();
 
     /* Send INIT IPI */
     lapic_send_init_ipi();

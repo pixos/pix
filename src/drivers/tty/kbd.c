@@ -102,10 +102,12 @@ static unsigned char keymap_shift[] =
 /*
  * sysdebug
  */
+unsigned long long syscall(int, ...);
 void
 sysdebug(int nr)
 {
-    __asm__ __volatile__ ("syscall" :: "a"(SYS_debug), "D"(nr));
+    syscall(SYS_debug, nr);
+    //__asm__ __volatile__ ("syscall" :: "a"(SYS_debug), "D"(nr));
 }
 
 /*
@@ -464,6 +466,9 @@ kbd_proc(struct kbd *kbd, struct driver_mapped_device *dev)
         }
         if ( scan_code == KBD_KEY_F3 ) {
             sysdebug(2);
+        }
+        if ( scan_code == KBD_KEY_F4 ) {
+            sysdebug(3);
         }
 
         if ( scan_code == 0x01 ) {

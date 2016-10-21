@@ -274,7 +274,7 @@ sys_write(int fildes, const void *buf, size_t nbyte)
         return proc->fds[fildes]->write(proc->fds[fildes], buf, nbyte);
     }
 
-
+#if 0
     if ( 1 == fildes && NULL != buf ) {
         video = (u16 *)0xc00b8000;
         for ( i = 0; i < 80 * 25; i++ ) {
@@ -301,6 +301,7 @@ sys_write(int fildes, const void *buf, size_t nbyte)
         s++;
         video++;
     }
+#endif
 
     return -1;
 }

@@ -174,6 +174,7 @@ apstart64:
 
 /* void halt(void) */
 _halt:
+	sti
 	hlt
 	ret
 

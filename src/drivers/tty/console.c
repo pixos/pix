@@ -109,7 +109,7 @@ console_proc(struct console *con)
 
     _update_cursor(con->pos);
     for ( i = 0; i < 80 * 25; i++ ) {
-        con->video.vram[i] = 0x0f00 | (uint16_t)con->buf[i];
+        //con->video.vram[i] = 0x0f00 | (uint16_t)con->buf[i];
     }
 
     return 0;
