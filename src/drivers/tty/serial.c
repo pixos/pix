@@ -65,6 +65,11 @@ serial_init(struct serial *serial, int nr, const char *ttyname)
     io.data = 0x00;
     sysarch(SYSARCH_OUTB, &io);
 
+    /* Disable FIFO */
+    io.port = serial->port + 2;
+    io.data = 0xc6;
+    sysarch(SYSARCH_OUTB, &io);
+
     /* Enable Divisor Latch Access Bit (DLAB) and set baud rate divisor to 12;
        i.e., set baud rate to 115200 / 12 = 9600 */
     io.port = serial->port + 3;
@@ -95,8 +100,12 @@ serial_init(struct serial *serial, int nr, const char *ttyname)
     sysarch(SYSARCH_OUTB, &io);
 
     io.port = serial->port + 1;
-    io.data = 0x0f;
+    io.data = 0x01;
     sysarch(SYSARCH_OUTB, &io);
+
+    /* Read buffer once */
+    io.port = serial->port;
+    sysarch(SYSARCH_INB, &io);
 
     /* Register an interrupt handler */
     driver_register_irq_handler(serial->irq, NULL);
