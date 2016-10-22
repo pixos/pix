@@ -89,13 +89,13 @@ serial_init(struct serial *serial, int nr, const char *ttyname)
     io.data = 0xc7;
     sysarch(SYSARCH_OUTB, &io);
 
-    /* Enable IRQs, and set RTS/DSR */
+    /* Enable IRQs */
     io.port = serial->port + 1;
-    io.data = 0x0b;
+    io.data = 0x0f;
     sysarch(SYSARCH_OUTB, &io);
 
     io.port = serial->port + 4;
-    io.data = 0x01;
+    io.data = 0x0b;             /* Bit 3 must be set for most of UARTs. */
     sysarch(SYSARCH_OUTB, &io);
 
     /* Register an interrupt handler */

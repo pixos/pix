@@ -161,6 +161,19 @@ _irq_handler(u64 vec)
         /* Restore the page table */
         //arch_switch_page_table(NULL);
     }
+
+    u16 *video;
+    ssize_t i;
+    video = (u16 *)0xc00b8000;
+    for ( i = 0; i < 80 * 25; i++ ) {
+        *(video + i) = 0x0f00;
+    }
+    char buf[512];
+    ksnprintf(buf, 512, "vec=%x @%d", vec, g_jiffies);
+    for ( i = 0; i < (ssize_t)kstrlen(buf); i++ ) {
+        *video = 0x0f00 | (u16)buf[i];
+        video++;
+    }
 }
 
 /*
