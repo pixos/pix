@@ -45,24 +45,6 @@ bootmon:
 	/* Initialize serial */
 	call	init_serial
 
-	movb	$0x20,%al	/* Notify */
-	outb	%al,$0x20	/*  End-Of-Interrupt (EOI) */
-	pushw	%dx
-1:
-	movw	$(0x3f8+5),%dx
-	inb	%dx,%al
-	bt	$1,%ax
-	jnc	2f
-	movw	$(0x3f8+0),%dx
-	inb	%dx,%al
-2:
-
-	movb	$'*',%al
-	movw	$(0x3f8+0),%dx
-	outb	%al,%dx
-
-	popw	%dx
-
 	/* Get drive parameters */
 get_drive_params:
 	xorw	%ax,%ax
@@ -284,9 +266,6 @@ intr_irq1:
 intr_irq4:
 	pushw	%ax
 	pushw	%dx
-	movb	$'/',%al
-	movw	$(0x3f8+0),%dx
-	outb	%al,%dx
 	movb	$0x20,%al	/* Notify */
 	outb	%al,$0x20	/*  End-Of-Interrupt (EOI) */
 	popw	%dx
