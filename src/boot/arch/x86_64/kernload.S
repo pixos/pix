@@ -308,7 +308,7 @@ find_file:
 	movw	%si,-26(%bp)
 	/* u32 current base -32(%bp) */
 	/* u32 counter -36(%bp) */
-	subw	$32,%sp
+	subw	$36,%sp
 1:
 	movl	%eax,-32(%bp)	/* current base address */
 	movl	%ecx,-36(%bp)	/* the remaining entries */
@@ -496,6 +496,9 @@ read_file_fat16:
 	movl	-12(%bp),%ecx
 	movl	-16(%bp),%edx
 	movl	-20(%bp),%edi
+	movl	-24(%bp),%esi
+	movw	-26(%bp),%ds
+	movw	-28(%bp),%es
 	movw	%bp,%sp
 	popw	%bp
 	ret
@@ -775,6 +778,7 @@ read_sector:
 	xorw	%ax,%ax
 	movw	%ax,-4(%bp)
 1:
+	clc			/* Ensure that no error occurred */
 	/* Read a sector from the drive */
 	movb	$0x02,%ah	/* Function: Read sectors from drive */
 	movb	$0x01,%al	/* # of sectors to be read */
@@ -788,18 +792,10 @@ read_sector:
 	movw	-6(%bp),%ax	/* Restore the return code */
 	ja	2f		/* Exceeding the maximum number of retries */
 	cmpb	$ERRCODE_TIMEOUT,%ah
-	je	2f		/* Timeout */
-	clc			/* Ensure that no error occurred */
-	jmp	3f
+	je	1b		/* Timeout, then try again */
 2:
 	stc			/* Set carry flag to notify the error */
 3:
-	/* Restore the saved registers */
-	movw	-2(%bp),%ax
-	movw	%bp,%sp		/* Restore the stack pointer and base pointer */
-	popw	%bp
-	ret
-
 	/* Restore the saved registers */
 	movw	-2(%bp),%ax
 	movw	%bp,%sp		/* Restore the stack pointer and base pointer */
