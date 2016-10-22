@@ -100,7 +100,7 @@ serial_init(struct serial *serial, int nr, const char *ttyname)
     sysarch(SYSARCH_OUTB, &io);
 
     io.port = serial->port + 1;
-    io.data = 0x01;
+    io.data = 0x01;             /* Bit 0: Received Data Available Interrupt */
     sysarch(SYSARCH_OUTB, &io);
 
     /* Read buffer once */
