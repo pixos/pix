@@ -28,6 +28,8 @@
 	.code16
 	.globl	entry16
 
+	.align	16
+
 /* Entry point */
 entry16:
 	cli
