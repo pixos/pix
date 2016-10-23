@@ -131,6 +131,7 @@ get_drive_params:
 	call	load_mm		/* Load system address map to %es:%di */
 	movw	%ax,(BOOTINFO_MM_NUM)
 	/* Load the kernel */
+	sti
 	movb	(drive),%dl
 	call	kernload
 	/* Disable PIC */
