@@ -731,7 +731,8 @@ isr_page_fault(void *addr, u64 error, void *rip, u64 cs, u64 flags, void *sp)
         return;
     }
 
-    ksnprintf(buf, sizeof(buf), "Page Fault (%c%c%c%c[%d]): %016x @%016x %d",
+    ksnprintf(buf, sizeof(buf), "Page Fault %s (%c%c%c%c[%d]): %016x @%016x %d",
+              t->proc->name,
               (error & 0x10) ? 'I' : 'D', (error & 0x4) ? 'U' : 'S',
               (error & 0x2) ? 'W' : 'R', (error & 0x1) ? 'P' : '*',
               error, y, x,

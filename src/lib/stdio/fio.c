@@ -1,5 +1,5 @@
 /*_
- * Copyright (c) 2015 Hirochika Asai <asai@jar.jp>
+ * Copyright (c) 2016 Hirochika Asai <asai@jar.jp>
  * All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -21,31 +21,67 @@
  * SOFTWARE.
  */
 
-#ifndef _STDIO_H
-#define _STDIO_H
+#include <stdio.h>
+#include <unistd.h>
 
-#include <aos/types.h>
+FILE *stdin;
+FILE *stdout;
+FILE *stderr;
 
-#define EOF     -1
+/*
+ * fgetc
+ */
+int
+fgetc(FILE *stream)
+{
+    ssize_t sz;
+    char c;
 
-typedef struct {
-    int fd;
-} FILE;
+    sz = read(stream->fd, &c, 1);
+    if ( 0 == sz ) {
+        /* EOF */
+        return EOF;
+    } else if ( sz < 0 ) {
+        /* Error: FIXME */
+        return -1;
+    } else {
+        return c;
+    }
+}
 
-extern FILE *stdin;
-extern FILE *stdout;
-extern FILE *stderr;
+/*
+ * getchar
+ */
+int
+getchar(void)
+{
+    return fgetc(stdin);
+}
 
-int snprintf(char *__restrict__, size_t, const char *__restrict__, ...);
+/*
+ * fputc
+ */
+int
+fputc(int c, FILE *stream)
+{
+    ssize_t sz;
 
-int fgetc(FILE *stream);
-int getc(FILE *stream);
-int getchar(void);
-int fputc(int c, FILE *stream);
-int putc(int c, FILE *stream);
-int putchar(int c);
+    sz = write(stream->fd, &c, 1);
+    if ( sz <= 0 ) {
+        return EOF;
+    } else {
+        return c;
+    }
+}
 
-#endif /* _STDIO_H */
+/*
+ * putchar
+ */
+int
+putchar(int c)
+{
+    return fputc(c, stdout);
+}
 
 /*
  * Local variables:

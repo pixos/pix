@@ -33,14 +33,15 @@
 int
 main(int argc, char *argv[])
 {
-    ssize_t rsz;
-    char buf[512];
+    int c;
+
+    putchar('>');
+    putchar(' ');
 
     while ( 1 ) {
-        rsz = read(STDIN_FILENO, buf, 128);
-        if ( rsz > 0 ) {
-            buf[rsz] = 0;
-            write(STDOUT_FILENO, buf, strlen(buf));
+        c = getchar();
+        if ( c >= 0 ) {
+            putchar(c);
         }
     }
 

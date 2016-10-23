@@ -191,9 +191,7 @@ serial_proc(struct serial *serial)
         serial->dev->dev.chr.ibuf.tail = next_tail;
         __asm__ __volatile__ ("mfence");
 
-        if ( '\r' == ascii ) {
-            driver_interrupt(serial->dev);
-        }
+        driver_interrupt(serial->dev);
     }
 
     return 0;

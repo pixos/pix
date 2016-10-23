@@ -87,42 +87,45 @@ kpack: kernel/arch/$(ARCH)/asm.o \
 	$(LD) -N -e kstart64 -Ttext=0xc0010000 --oformat binary -o $@ $^
 	$(LD) -N -e kstart64 -Ttext=0xc0010000 -o kpack.dbg $^
 
+## libc
+LIBCOBJS=lib/crt0.o lib/arch/$(ARCH)/libc.o lib/arch/$(ARCH)/libcasm.o \
+	lib/stdio/fio.o
+
 ## init server
-init: servers/init/init.o lib/arch/$(ARCH)/libc.o lib/arch/$(ARCH)/libcasm.o
+init: servers/init/init.o $(LIBCOBJS)
 	$(LD) -N -e _entry -Ttext=$(ORG) --oformat binary -o $@ $^
 
 ## process manager
-pm: servers/pm/pm.o lib/arch/$(ARCH)/libc.o lib/arch/$(ARCH)/libcasm.o
+pm: servers/pm/pm.o $(LIBCOBJS)
 	$(LD) -N -e _entry -Ttext=$(ORG) --oformat binary -o $@ $^
 
 ## forwarding engine
-fe: servers/fe/fe.o servers/fe/pci.o lib/arch/$(ARCH)/libc.o lib/arch/$(ARCH)/libcasm.o
+fe: servers/fe/fe.o servers/fe/pci.o $(LIBCOBJS)
 	$(LD) -N -e _entry -Ttext=$(ORG) --oformat binary -o $@ $^
 
 ## file system
-fs: servers/fs/fs.o lib/arch/$(ARCH)/libc.o lib/arch/$(ARCH)/libcasm.o
+fs: servers/fs/fs.o $(LIBCOBJS)
 	$(LD) -N -e _entry -Ttext=$(ORG) --oformat binary -o $@ $^
 
 ## tty driver (including keyboard, video, and serial drivers)
 tty: drivers/tty/tty.o drivers/tty/console.o drivers/tty/kbd.o \
-	drivers/tty/serial.o \
-	lib/arch/$(ARCH)/libc.o lib/arch/$(ARCH)/libcasm.o lib/driver.o
+	drivers/tty/serial.o $(LIBCOBJS) lib/driver.o
 	$(LD) -N -e _entry -Ttext=$(ORG) --oformat binary -o $@ $^
 
 ## shell
-pash: bin/pash/pash.o lib/arch/$(ARCH)/libc.o lib/arch/$(ARCH)/libcasm.o
-	$(LD) -N -e _entry -Ttext=$(ORG) --oformat binary -o $@ $^
+pash: bin/pash/pash.o $(LIBCOBJS)
+	$(LD) -T app.ld -o $@ $^
 
 ## PCI driver
-pci: drivers/pci/pci.o lib/arch/$(ARCH)/libc.o lib/arch/$(ARCH)/libcasm.o
+pci: drivers/pci/pci.o $(LIBCOBJS)
 	$(LD) -N -e _entry -Ttext=$(ORG) --oformat binary -o $@ $^
 
 ## e1000 driver
-e1000: drivers/e1000/e1000.o lib/arch/$(ARCH)/libc.o lib/arch/$(ARCH)/libcasm.o
+e1000: drivers/e1000/e1000.o $(LIBCOBJS)
 	$(LD) -N -e _entry -Ttext=$(ORG) --oformat binary -o $@ $^
 
 ## VMX driver
-vmx: drivers/vmx/vmx.o lib/arch/$(ARCH)/libc.o lib/arch/$(ARCH)/libcasm.o
+vmx: drivers/vmx/vmx.o $(LIBCOBJS)
 	$(LD) -N -e _entry -Ttext=$(ORG) --oformat binary -o $@ $^
 
 ## Clean
