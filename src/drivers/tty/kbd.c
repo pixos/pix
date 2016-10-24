@@ -513,6 +513,16 @@ kbd_getchar(struct kbd *kbd, struct driver_mapped_device *dev)
                 /* Backspace */
                 ascii = '\x8';
                 break;
+            case 'b':
+            case 'B':
+                /* Backword */
+                ascii = KBD_ASCII_LEFT;
+                break;
+            case 'f':
+            case 'F':
+                /* Forward */
+                ascii = KBD_ASCII_RIGHT;
+                break;
             default:
                 ;
             }

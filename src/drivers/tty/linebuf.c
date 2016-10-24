@@ -43,7 +43,7 @@ _insert_char(struct tty_line_buffer *buf, int c)
         /* Buffer is full. */
         return -1;
     }
-    if ( buf->len > (size_t)buf->cur ) {
+    if ( buf->len < (size_t)buf->cur ) {
         /* Invalid parameter */
         return -1;
     }
@@ -66,7 +66,7 @@ _insert_char(struct tty_line_buffer *buf, int c)
 static int
 _backspace(struct tty_line_buffer *buf)
 {
-    if ( buf->len > (size_t)buf->cur ) {
+    if ( buf->len < (size_t)buf->cur ) {
         /* Invalid parameter */
         return -1;
     }
@@ -88,6 +88,45 @@ _backspace(struct tty_line_buffer *buf)
     return 0;
 }
 
+static int
+_move_left(struct tty_line_buffer *buf)
+{
+    if ( buf->len < (size_t)buf->cur ) {
+        /* Invalid parameter */
+        return -1;
+    }
+    if ( 0 == buf->cur ) {
+        /* Already at the head */
+        return 0;
+    }
+
+    buf->cur--;
+
+    return 0;
+}
+
+static int
+_move_right(struct tty_line_buffer *buf)
+{
+    if ( buf->len < (size_t)buf->cur ) {
+        /* Invalid parameter */
+        return -1;
+    }
+    if ( buf->len == (size_t)buf->cur ) {
+        /* Already at the head */
+        return 0;
+    }
+
+    buf->cur++;
+
+    return 0;
+}
+
+#define ASCII_UP            0x86
+#define ASCII_LEFT          0x83
+#define ASCII_RIGHT         0x84
+#define ASCII_DOWN          0x85
+
 /*
  * Put a character
  */
@@ -101,6 +140,12 @@ tty_line_buffer_putc(struct tty_line_buffer *buf, int c)
         break;
     case '\n':
         buf->cur = 0;
+        break;
+    case ASCII_LEFT:
+        _move_left(buf);
+        break;
+    case ASCII_RIGHT:
+        _move_right(buf);
         break;
     default:
         _insert_char(buf, c);

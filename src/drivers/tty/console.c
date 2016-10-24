@@ -152,8 +152,8 @@ _update_line_buffer(struct console *con, struct tty *tty)
     ssize_t i;
 
     len = con->screen.eob - con->screen.lmark;
-    if ( len > 0 ) {
-        memset(con->video.vram + con->screen.lmark, 0, len * 2);
+    for ( i = 0; i < (ssize_t)len; i++ ) {
+        con->video.vram[con->screen.lmark + i] = 0x0f20;
     }
 
     for ( i = 0; i < (ssize_t)tty->lbuf.len; i++ ) {
