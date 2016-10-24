@@ -1,5 +1,5 @@
 /*_
- * Copyright (c) 2015 Hirochika Asai <asai@jar.jp>
+ * Copyright (c) 2015-2016 Hirochika Asai <asai@jar.jp>
  * All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -29,6 +29,7 @@
 	.globl	_memset
 	.globl	_memcmp
 	.globl	_memcpy
+	.globl	_memmove
 
 /* starting point */
 _start:
@@ -36,6 +37,7 @@ _start:
 
 /* int syscall(arg0, ..., arg5) */
 _syscall:
+	pushq	%rbp
 	movq	%rdi,%rax
 	movq	%rsi,%rdi
 	movq	%rdx,%rsi
@@ -44,6 +46,7 @@ _syscall:
 	movq	%r9,%r8
 	movq	-8(%rsp),%r9
 	syscall
+	popq	%rbp
 	ret
 
 /* void * memset(void *b, int c, size_t len) */
@@ -79,4 +82,18 @@ _memcpy:
 	movq	%rdx,%rcx	/* n */
 	cld			/* Ensure the DF cleared */
 	rep	movsb		/* Copy byte at (%rsi) to (%rdi) */
+	ret
+
+/* int memmove(void *dst, void *src, size_t len) */
+_memmove:
+	cmpq	%rdi,%rsi	/* Compare the addresses of dst/src */
+	ja	_memcpy		/* If %rsi > %rdi, just execute memcpy() */
+	/* Copy backwards */
+	movq	%rdi,%rax	/* Return value */
+	movq	%rdx,%rcx	/* n */
+	std			/* Ensure the DF set */
+	addq	%rcx,%rdi
+	addq	%rcx,%rsi
+	rep	movsb		/* Copy byte at (%rsi) to (%rdi), backwards */
+	cld			/* Reset DF flag */
 	ret

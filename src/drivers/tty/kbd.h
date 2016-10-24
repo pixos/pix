@@ -26,6 +26,7 @@
 
 #include <stdint.h>
 #include <sys/types.h>
+#include <mki/driver.h>
 
 #define KBD_KEY_CTRL_LEFT       0x1d
 #define KBD_KEY_SHIFT_LEFT      0x2a
@@ -77,25 +78,9 @@ struct kbd {
     struct kbd_key_state key_state;
 };
 
-static unsigned char keymap_base[] =
-    "  1234567890-=\x08\t"      /* 0x00-0x0f */
-    "qwertyuiop[]\r as"         /* 0x10-0x1f */
-    "dfghjkl;'` \\zxcv"         /* 0x20-0x2f */
-    "bnm,./          "          /* 0x30-0x3f */
-    "                "          /* 0x40-0x4f */
-    "                "          /* 0x50-0x5f */
-    "                "          /* 0x60-0x6f */
-    "                ";         /* 0x70-0x7f */
-
-static unsigned char keymap_shift[] =
-    "  !@#$%^&*()_+\x08\t"      /* 0x00-0x0f */
-    "QWERTYUIOP{}\r AS"         /* 0x10-0x1f */
-    "DFGHJKL:\"~ |ZXCV"         /* 0x20-0x2f */
-    "BNM<>?          "          /* 0x30-0x3f */
-    "                "          /* 0x40-0x4f */
-    "                "          /* 0x50-0x5f */
-    "                "          /* 0x60-0x6f */
-    "                ";         /* 0x70-0x7f */
+int kbd_init(struct kbd *);
+int kbd_proc(struct kbd *, struct driver_mapped_device *);
+int kbd_getchar(struct kbd *, struct driver_mapped_device *);
 
 #endif /* _KBD_H */
 

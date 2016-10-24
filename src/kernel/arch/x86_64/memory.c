@@ -50,17 +50,13 @@
  */
 static struct kmem *
 _kmem_init(struct kstring *, struct kstring *, struct kstring *);
-static int _kmem_pgt_init(struct arch_vmem_space **, u64 *);
-static int _kmem_pgt_init2(struct arch_kmem_space **, u64 *);
+static int _kmem_pgt_init(struct arch_kmem_space **, u64 *);
 static void * _kmem_mm_page_alloc(struct kmem *);
 static void _kmem_mm_page_free(struct kmem *, void *);
 static int _kmem_space_init(struct kmem *, struct kstring *, u64 *);
-static struct vmem_space * _kmem_vmem_space_create(void *, u64, u64 *);
 static int _kmem_space_pgt_reflect(struct kmem *);
-static int _kmem_vmem_map(struct kmem *, u64, u64, int);
 static int _kmem_map(struct kmem *, u64, u64, int);
 static int _kmem_unmap(struct kmem *, u64);
-static int _kmem_superpage_map(struct kmem *, u64, u64, int);
 static int
 _pmem_init_stage1(struct bootinfo *, struct acpi *, struct kstring *,
                   struct kstring *, struct kstring *);
@@ -366,7 +362,7 @@ _kmem_init(struct kstring *region, struct kstring *pmem,
     off = 0;
 
     /* Prepare the minimum page table */
-    ret = _kmem_pgt_init2(&akmem, &off);
+    ret = _kmem_pgt_init(&akmem, &off);
     if ( ret < 0 ) {
         return NULL;
     }
@@ -439,132 +435,8 @@ _kmem_init(struct kstring *region, struct kstring *pmem,
  *      If successful, the _kmem_pgt_init() function returns the value of 0.  It
  *      returns the value of -1 on failure.
  */
-#define KMEM_VMEM_NPD   6
 static int
-_kmem_pgt_init(struct arch_vmem_space **avmem, u64 *off)
-{
-    void *pgt;
-    u64 *parr[VMEM_NENT(KMEM_VMEM_NPD)];
-    u64 *vls[KMEM_VMEM_NPD];
-    int i;
-    u64 *ptr;
-    int nspg;
-    int pgtsz;
-
-    /* Ensure KMEM_VMEM_NPD <= 512 */
-    if ( KMEM_VMEM_NPD > 512 ) {
-        return -1;
-    }
-
-    /* Architecture-specific kernel memory management  */
-    *avmem = (struct arch_vmem_space *)KMEM_LOW_P2V(KMEM_BASE + *off);
-    *off += sizeof(struct arch_vmem_space)
-        + sizeof(u64 *) * (VMEM_NENT(KMEM_VMEM_NPD) + KMEM_VMEM_NPD);
-    if ( *off > KMEM_MAX_SIZE ) {
-        return -1;
-    }
-
-    /* Page-alignment */
-    *off = CEIL(*off, PAGESIZE);
-
-    /* Page table: Allocate 14 blocks (8 for keeping physical address, and 6 for
-       keeping virtual address) */
-    pgtsz = PAGESIZE * (VMEM_NENT(KMEM_VMEM_NPD) + KMEM_VMEM_NPD);
-    ptr = (u64 *)(KMEM_BASE + *off);
-    *off += pgtsz;
-    if ( *off > KMEM_MAX_SIZE ) {
-        return -1;
-    }
-    kmemset(ptr, 0, pgtsz);
-
-    /* Set physical addresses to page directories */
-    pgt = ptr;
-    VMEM_PML4(parr) = ptr;
-    VMEM_PDPT(parr, 0) = ptr + 512;
-    for ( i = 0; i < KMEM_VMEM_NPD; i++ ) {
-        VMEM_PD(parr, i) = ptr + 1024 + 512 * i;
-    }
-    /* Page directories with virtual address */
-    for ( i = 0; i < KMEM_VMEM_NPD; i++ ) {
-        vls[i] = (u64 *)KMEM_LOW_P2V(ptr + 512 * VMEM_NENT(KMEM_VMEM_NPD)
-                                     + 512 * i);
-    }
-
-    /* Setup physical page table */
-    VMEM_PML4(parr)[0] = KMEM_DIR_RW((u64)VMEM_PDPT(parr, 0));
-    for ( i = 0; i < KMEM_VMEM_NPD; i++ ) {
-        VMEM_PDPT(parr, 0)[i] = KMEM_DIR_RW((u64)VMEM_PD(parr, i));
-    }
-    /* Superpage for the region from 0-32 MiB */
-    nspg = DIV_CEIL(PMEM_LBOUND, SUPERPAGESIZE);
-    if ( nspg > 512 ) {
-        /* The low memory address space for kernel memory is too large. */
-        return -1;
-    }
-    /* Page directories for 0-32 MiB; must be consistent with KMEM_LOW_P2V */
-    for ( i = 0; i < nspg; i++ ) {
-        VMEM_PD(parr, 0)[i] = KMEM_PG_GRW(SUPERPAGE_ADDR(i));
-    }
-    /* Page directories from 32 MiB to 1 GiB */
-    for ( ; i < 512; i++ ) {
-        VMEM_PD(parr, 0)[i] = 0;
-    }
-
-    /* Disable the global page feature */
-    _disable_page_global();
-
-    /* Set the constructured page table */
-    set_cr3(pgt);
-
-    /* Enable the global page feature */
-    _enable_page_global();
-
-    /* Setup virtual page table */
-    for ( i = 0; i < KMEM_VMEM_NPD; i++ ) {
-        kmemset(vls[i], 0, PAGESIZE);
-    }
-
-    for ( i = 0; i < nspg; i++ ) {
-        vls[0][i] = KMEM_PG_GRW(KMEM_LOW_P2V(SUPERPAGE_ADDR(i)));
-    }
-
-    /* Set the address */
-    (*avmem)->pgt = pgt;
-    (*avmem)->nr = KMEM_VMEM_NPD;
-    (*avmem)->array = (u64 **)(*avmem + sizeof(int));
-    (*avmem)->vls = (u64 **)(*avmem + sizeof(int)
-                             + sizeof(u64 *) * VMEM_NENT(KMEM_VMEM_NPD));
-
-    /* Convert to virtual address */
-    for ( i = 0; i < VMEM_NENT(KMEM_VMEM_NPD); i++ ) {
-        (*avmem)->array[i] = (u64 *)KMEM_LOW_P2V(parr[i]);
-    }
-    /* Copy */
-    kmemcpy((*avmem)->vls, vls, sizeof(u64 *) * KMEM_VMEM_NPD);
-
-    return 0;
-}
-
-/*
- * Initialize virtual memory space for kernel (minimal initialization)
- *
- * SYNOPSIS
- *      static int
- *      _kmem_pgt_init(struct arch_vmem_space **avmem, u64 *off);
- *
- * DESCRIPTION
- *      The _kmem_pgt_init() function initializes the page table for the kernel
- *      memory.  It creates the mapping entries from 0 to 4 GiB memory space of
- *      virtual memory with 2 MiB paging, and enables the low address space
- *      (0-32 MiB).  (FIXME: Temporarily use 5 GiB space to support hundreds
- *      gigabytes memory)
- *
- * RETURN VALUES
- *      If successful, the _kmem_pgt_init() function returns the value of 0.  It
- *      returns the value of -1 on failure.
- */
-static int
-_kmem_pgt_init2(struct arch_kmem_space **akmem, u64 *off)
+_kmem_pgt_init(struct arch_kmem_space **akmem, u64 *off)
 {
     void *pgt;
     int i;
@@ -710,6 +582,7 @@ _kmem_space_init(struct kmem *kmem, struct kstring *region, u64 *off)
     return 0;
 }
 
+#if 0
 /*
  * Create virtual memory space for the kernel memory
  */
@@ -876,6 +749,7 @@ _kmem_vmem_space_create(void *pmbase, u64 pmsz, u64 *off)
 
     return space;
 }
+#endif
 
 /*
  * Reflect the virtual memory regions to the page table
@@ -1051,67 +925,6 @@ _kmem_unmap(struct kmem *kmem, u64 vaddr)
     akmem->pd->entries[idxp] = 0;
 
     /* Invalidate the page to activate it */
-    invlpg((void *)vaddr);
-
-    return 0;
-}
-
-/*
- * Map a virtual page to a physical super page
- */
-static int
-_kmem_superpage_map(struct kmem *kmem, u64 vaddr, u64 paddr, int flags)
-{
-    struct arch_vmem_space *avmem;
-    int idxpd;
-    int idxp;
-    u64 *pt;
-    u64 *vpt;
-
-    /* Check the flags */
-    if ( !(VMEM_USABLE & flags) || !(VMEM_USED & flags) ) {
-        /* This page is not usable nor used, then do nothing. */
-        return -1;
-    }
-
-    /* Get the architecture-specific kernel memory manager */
-    avmem = (struct arch_vmem_space *)kmem->space->arch;
-
-    /* Index to page directory */
-    idxpd = (vaddr >> 30);
-    if ( idxpd >= 4 ) {
-        return -1;
-    }
-    /* Index to page table */
-    idxp = (vaddr >> 21) & 0x1ff;
-
-    /* Check the physical address argument */
-    if ( 0 != (paddr % SUPERPAGESIZE) || 0 != (vaddr % SUPERPAGESIZE) ) {
-        /* Invalid physical address */
-        return -1;
-    }
-
-    /* Check whether the page presented */
-    if ( VMEM_IS_PRESENT(VMEM_PD(avmem->array, idxpd)[idxp])
-         && !VMEM_IS_PAGE(VMEM_PD(avmem->array, idxpd)[idxp]) ) {
-        /* Present and 4 KiB paging, then remove the descendant table */
-        pt = VMEM_PT(VMEM_PD(avmem->array, idxpd)[idxp]);
-        vpt = VMEM_PT(avmem->vls[idxpd][idxp]);
-
-        /* Delete descendant table */
-        _kmem_mm_page_free(kmem, vpt);
-    }
-
-    /* Remapping */
-    if ( flags & VMEM_GLOBAL ) {
-        VMEM_PD(avmem->array, idxpd)[idxp] = KMEM_PG_GRW(paddr);
-        avmem->vls[idxpd][idxp] = KMEM_PG_GRW(vaddr);
-    } else {
-        VMEM_PD(avmem->array, idxpd)[idxp] = KMEM_PG_RW(paddr);
-        avmem->vls[idxpd][idxp] = KMEM_PG_RW(vaddr);
-    }
-
-    /* Invalidate the page */
     invlpg((void *)vaddr);
 
     return 0;
@@ -1388,7 +1201,7 @@ arch_kmem_addr_v2p(struct kmem *kmem, void *vaddr)
     struct arch_kmem_space *akmem;
     int idxpd;
     int idxp;
-    int idx;
+    //int idx;
     reg_t off;
 
     /* Get the architecture-specific kernel memory manager */
@@ -1399,7 +1212,7 @@ arch_kmem_addr_v2p(struct kmem *kmem, void *vaddr)
     /* Index to page table */
     idxp = ((reg_t)vaddr >> 21) & 0x1ff;
     /* Index to page entry */
-    idx = ((reg_t)vaddr >> 12) & 0x1ffULL;
+    //idx = ((reg_t)vaddr >> 12) & 0x1ffULL;
 
     /* The virtual address must be in the range of kernel memory space */
     if ( 3 != idxpd ) {

@@ -26,7 +26,26 @@
 
 #include <aos/types.h>
 
+#define EOF     -1
+
+typedef struct {
+    int fd;
+} FILE;
+
+extern FILE *stdin;
+extern FILE *stdout;
+extern FILE *stderr;
+
 int snprintf(char *__restrict__, size_t, const char *__restrict__, ...);
+
+char * fgets(char * __restrict__, int size, FILE * __restrict__);
+int fgetc(FILE *stream);
+int getc(FILE *stream);
+int getchar(void);
+int fputs(const char *__restrict__, FILE *__restrict__);
+int fputc(int c, FILE *stream);
+int putc(int c, FILE *stream);
+int putchar(int c);
 
 #endif /* _STDIO_H */
 

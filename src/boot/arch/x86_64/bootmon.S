@@ -42,6 +42,9 @@ bootmon:
 	movb	$0x00,%ah
 	int	$0x10
 
+	/* Initialize serial */
+	call	init_serial
+
 	/* Get drive parameters */
 get_drive_params:
 	xorw	%ax,%ax
@@ -86,6 +89,13 @@ get_drive_params:
 	movw	$(IVT_IRQ0+1),%bx
 	call	setup_intvec
 
+	/* Setup the serial interrupt handler */
+	xorw	%ax,%ax
+	movw	%ax,%es
+	movw	$intr_irq4,%ax
+	movw	$(IVT_IRQ0+4),%bx
+	call	setup_intvec
+
 	/* Initialize the counter */
 	movw	$BOOT_TIMEOUT*100,(counter)	/* 99 seconds (in centisecond) */
 
@@ -107,6 +117,7 @@ get_drive_params:
 	jmp	1b
 2:
 	/* Boot */
+	cli
 	xorl	%eax,%eax
 	movl	%eax,(BOOTINFO_MM_NUM)
 	movl	%eax,(BOOTINFO_MM_NUM+4)
@@ -120,6 +131,7 @@ get_drive_params:
 	call	load_mm		/* Load system address map to %es:%di */
 	movw	%ax,(BOOTINFO_MM_NUM)
 	/* Load the kernel */
+	sti
 	movb	(drive),%dl
 	call	kernload
 	/* Disable PIC */
@@ -196,8 +208,7 @@ intr_irq0:
 
 	/* Restore registers */
 	popw	%si
-	popw	%dx
-	movw	%dx,%ds
+	popw	%ds
 	popw	%dx
 	popw	%cx
 	popw	%bx
@@ -250,6 +261,17 @@ intr_irq1:
 	popw	%ax
 	iret
 
+/*
+ * Serial port (COM1) IRQ handler
+ */
+intr_irq4:
+	pushw	%ax
+	pushw	%dx
+	movb	$0x20,%al	/* Notify */
+	outb	%al,$0x20	/*  End-Of-Interrupt (EOI) */
+	popw	%dx
+	popw	%ax
+	iret
 
 /* Power off the machine using APM */
 poweroff:
@@ -280,6 +302,70 @@ poweroff:
 1:
 	ret			/* Return on error */
 
+/*
+ * Initialize serial
+ */
+init_serial:
+	pushw	%ax
+	pushw	%dx
+	xorb	%al,%al
+	movw	$(0x3f8+1),%dx
+	outb	%al,%dx		/* Disable interrupts */
+	movb	$0x80,%al
+	movw	$(0x3f8+3),%dx
+	outb	%al,%dx		/* Set Divisor Latch Access Bit */
+	movb	$0x0c,%al
+	movw	$(0x3f8+0),%dx
+	outb	%al,%dx		/* 115200 / 0xc = 9600 bps baud rate */
+	xorb	%al,%al
+	movw	$(0x3f8+1),%dx
+	outb	%al,%dx
+	movb	$0x03,%al
+	movw	$(0x3f8+3),%dx
+	outb	%al,%dx		/* 8 bits, no parity, one stop bit */
+	movb	$0xc7,%al
+	movw	$(0x3f8+2),%dx
+	outb	%al,%dx		/* Enable FIFO */
+	/* Clear interrupts */
+	movw	$(0x3f8+2),%dx
+	inb	%dx,%al		/* Read IIR to reset Tx interrupt */
+	shrb	$1,%al
+	andb	$0x7,%al
+	cmpb	$0,%al		/* Model Status Interrupt */
+	je	1f
+	cmpb	$1,%al		/* Transmit Holding Register Empty Interrupt */
+	je	2f
+	cmpb	$2,%al		/* Received Data Available Interrupt */
+	je	3f
+	cmpb	$3,%al		/* Receiver Line Status Interrupt  */
+	je	4f
+	cmpb	$6,%al		/* Time-out Interrupt Pending */
+	je	3f
+	jmp	5f
+1:
+	movw	$(0x3f8+6),%dx
+	inb	%dx,%al		/* Read MSR to reset MSI */
+	jmp	5f
+2:	/* Cleared by reading IIR */
+	jmp	5f
+3:
+	movw	$(0x3f8+0),%dx
+	inb	%dx,%al		/* Read RBR to reset RDAI */
+	jmp	5f
+4:
+	movw	$(0x3f8+5),%dx
+	inb	%dx,%al		/* Read LSR to reset RLSI */
+	jmp	5f
+5:
+	movb	$0x0b,%al
+	movw	$(0x3f8+4),%dx
+	outb	%al,%dx
+	movb	$0x0f,%al
+	movw	$(0x3f8+1),%dx
+	outb	%al,%dx		/* Enable all interrupts */
+	popw	%dx
+	popw	%ax
+	ret
 
 /* Disable i8259 PIC */
 disable_pic:
@@ -571,7 +657,8 @@ lba2chs:
 	ret
 
 
-	.data
+
+//	.data
 
 /* Messages */
 msg_bootopt:

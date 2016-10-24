@@ -23,8 +23,8 @@ pxeboot: ASFLAGS=-nostdlib -I./boot/arch/$(ARCH)/
 
 kpack: ASFLAGS=-nostdlib -I./kernel/arch/$(ARCH)/
 kpack: CFLAGS=-I./include \
-	-Wall -fleading-underscore -mcmodel=large -nostdlib -nodefaultlibs -fno-builtin -O3 -m64 \
-	-DARCH_X86_64=1
+	-Wall -fleading-underscore -mcmodel=large -nostdlib -nodefaultlibs \
+	-fno-builtin -O3 -m64 -DARCH_X86_64=1
 
 ## IPL
 diskboot: boot/arch/$(ARCH)/diskboot.o
@@ -87,51 +87,46 @@ kpack: kernel/arch/$(ARCH)/asm.o \
 	$(LD) -N -e kstart64 -Ttext=0xc0010000 --oformat binary -o $@ $^
 	$(LD) -N -e kstart64 -Ttext=0xc0010000 -o kpack.dbg $^
 
+## libc
+LIBCOBJS=lib/arch/$(ARCH)/libc.o lib/arch/$(ARCH)/libcasm.o lib/stdio/fio.o
+lib/arch/$(ARCH)/libc.o: lib/crt0.o
+
 ## init server
-init: servers/init/init.o lib/arch/$(ARCH)/libc.o lib/arch/$(ARCH)/libcasm.o
-	$(LD) -N -e _entry -Ttext=$(ORG) --oformat binary -o $@ $^
+init: servers/init/init.o $(LIBCOBJS)
+	$(LD) -T app.ld -o $@ $^
 
 ## process manager
-pm: servers/pm/pm.o lib/arch/$(ARCH)/libc.o lib/arch/$(ARCH)/libcasm.o
-	$(LD) -N -e _entry -Ttext=$(ORG) --oformat binary -o $@ $^
+pm: servers/pm/pm.o $(LIBCOBJS)
+	$(LD) -T app.ld -o $@ $^
 
 ## forwarding engine
-fe: servers/fe/fe.o servers/fe/pci.o lib/arch/$(ARCH)/libc.o lib/arch/$(ARCH)/libcasm.o
-	$(LD) -N -e _entry -Ttext=$(ORG) --oformat binary -o $@ $^
+fe: servers/fe/fe.o servers/fe/pci.o $(LIBCOBJS)
+	$(LD) -T app.ld -o $@ $^
 
 ## file system
-fs: servers/fs/fs.o lib/arch/$(ARCH)/libc.o lib/arch/$(ARCH)/libcasm.o
-	$(LD) -N -e _entry -Ttext=$(ORG) --oformat binary -o $@ $^
+fs: servers/fs/fs.o $(LIBCOBJS)
+	$(LD) -T app.ld -o $@ $^
 
-## tty driver
-tty: drivers/tty/tty.o lib/arch/$(ARCH)/libc.o lib/arch/$(ARCH)/libcasm.o
-	$(LD) -N -e _entry -Ttext=$(ORG) --oformat binary -o $@ $^
+## tty driver (including keyboard, video, and serial drivers)
+tty: drivers/tty/tty.o drivers/tty/console.o drivers/tty/kbd.o \
+	drivers/tty/serial.o drivers/tty/linebuf.o $(LIBCOBJS) lib/driver.o
+	$(LD) -T app.ld -o $@ $^
 
 ## shell
-pash: bin/pash/pash.o lib/arch/$(ARCH)/libc.o lib/arch/$(ARCH)/libcasm.o
-	$(LD) -N -e _entry -Ttext=$(ORG) --oformat binary -o $@ $^
+pash: bin/pash/pash.o $(LIBCOBJS)
+	$(LD) -T app.ld -o $@ $^
 
 ## PCI driver
-pci: drivers/pci/pci.o lib/arch/$(ARCH)/libc.o lib/arch/$(ARCH)/libcasm.o
-	$(LD) -N -e _entry -Ttext=$(ORG) --oformat binary -o $@ $^
+pci: drivers/pci/pci.o $(LIBCOBJS)
+	$(LD) -T app.ld -o $@ $^
 
 ## e1000 driver
-e1000: drivers/e1000/e1000.o lib/arch/$(ARCH)/libc.o lib/arch/$(ARCH)/libcasm.o
-	$(LD) -N -e _entry -Ttext=$(ORG) --oformat binary -o $@ $^
-
-## video driver
-video: drivers/video/main.o lib/arch/$(ARCH)/libc.o lib/arch/$(ARCH)/libcasm.o \
-	lib/driver.o
-	$(LD) -N -e _entry -Ttext=$(ORG) --oformat binary -o $@ $^
-
-## keyboard driver
-kbd: drivers/kbd/main.o lib/arch/$(ARCH)/libc.o lib/arch/$(ARCH)/libcasm.o \
-	lib/driver.o
-	$(LD) -N -e _entry -Ttext=$(ORG) --oformat binary -o $@ $^
+e1000: drivers/e1000/e1000.o $(LIBCOBJS)
+	$(LD) -T app.ld -o $@ $^
 
 ## VMX driver
-vmx: drivers/vmx/vmx.o lib/arch/$(ARCH)/libc.o lib/arch/$(ARCH)/libcasm.o
-	$(LD) -N -e _entry -Ttext=$(ORG) --oformat binary -o $@ $^
+vmx: drivers/vmx/vmx.o $(LIBCOBJS)
+	$(LD) -T app.ld -o $@ $^
 
 ## Clean
 clean:

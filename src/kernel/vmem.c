@@ -917,7 +917,7 @@ vmem_buddy_alloc_pages(struct vmem_space *space, int order)
             vpage = reg->pgheads[order];
             reg->pgheads[order] = vpage->next;
             if ( NULL != reg->pgheads[order] ) {
-                reg->spgheads[order]->prev = NULL;
+                reg->pgheads[order]->prev = NULL;
             }
 
             /* Validate all the pages are not used */

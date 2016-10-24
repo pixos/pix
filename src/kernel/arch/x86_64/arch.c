@@ -227,6 +227,8 @@ bsp_init(void)
     int prox;
     int ret;
 
+    cli();
+
     /* Reset */
     mp_enabled = 0;
 
@@ -307,8 +309,7 @@ bsp_init(void)
         return;
     }
     for ( i = 0; i < NR_IV; i++ ) {
-        g_intr_table->ivt[i].f = NULL;
-        g_intr_table->ivt[i].proc = NULL;
+        g_intr_table->ivt[i].handlers = NULL;
     }
 
     /* Initialize the task lists */
@@ -347,9 +348,6 @@ bsp_init(void)
     /* Initialize the kernel */
     kinit();
 
-    void *test = kmalloc(64);
-    kfree(test);
-
 #if 0
     if ( vmx_enable() < 0 ) {
         panic("Failed to initialize VMX.");
@@ -367,6 +365,8 @@ bsp_init(void)
 
     /* Enable MP */
     mp_enabled = 1;
+
+    sti();
 
     /* Send INIT IPI */
     lapic_send_init_ipi();
@@ -662,9 +662,19 @@ void
 isr_exception(int nr, void *ip, u64 cs, u64 flags, void *sp)
 {
     char buf[128];
+    struct ktask *t;
 
-    ksnprintf(buf, sizeof(buf), "#%d: ip=%llx, cs=%llx, flags=%llx, sp=%llx",
-              nr, ip, cs, flags, sp);
+    /* Get the current process */
+    t = this_ktask();
+    if ( NULL == t || NULL == t->proc ) {
+        ksnprintf(buf, sizeof(buf),
+                  "#%d: %ip=%llx, cs=%llx, flags=%llx, sp=%llx",
+                  nr, ip, cs, flags, sp);
+    } else {
+        ksnprintf(buf, sizeof(buf),
+                  "#%d: %s, ip=%llx, cs=%llx, flags=%llx, sp=%llx",
+                  nr, t->proc->name, ip, cs, flags, sp);
+    }
     panic(buf);
 }
 
@@ -675,9 +685,18 @@ void
 isr_exception_werror(int nr, u64 error, void *ip, u64 cs, u64 flags, void *sp)
 {
     char buf[128];
+    struct ktask *t;
 
-    ksnprintf(buf, sizeof(buf), "#%d (%llx): ip=%llx, cs=%llx, flags=%llx, "
-              "sp=%llx", nr, error, ip, cs, flags, sp);
+    /* Get the current process */
+    t = this_ktask();
+    if ( NULL == t || NULL == t->proc ) {
+        ksnprintf(buf, sizeof(buf), "#%d (%llx): ip=%llx, cs=%llx, flags=%llx, "
+                  "sp=%llx", nr, error, ip, cs, flags, sp);
+    } else {
+        ksnprintf(buf, sizeof(buf), "#%d (%llx): %s, ip=%llx, cs=%llx, "
+                  "flags=%llx, sp=%llx", nr, error, t->proc->name, ip, cs,
+                  flags, sp);
+    }
     panic(buf);
 }
 
@@ -712,7 +731,8 @@ isr_page_fault(void *addr, u64 error, void *rip, u64 cs, u64 flags, void *sp)
         return;
     }
 
-    ksnprintf(buf, sizeof(buf), "Page Fault (%c%c%c%c[%d]): %016x @%016x %d",
+    ksnprintf(buf, sizeof(buf), "Page Fault %s (%c%c%c%c[%d]): %016x @%016x %d",
+              t->proc->name,
               (error & 0x10) ? 'I' : 'D', (error & 0x4) ? 'U' : 'S',
               (error & 0x2) ? 'W' : 'R', (error & 0x1) ? 'P' : '*',
               error, y, x,

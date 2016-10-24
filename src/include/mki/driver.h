@@ -37,6 +37,8 @@
 
 #define SYSDRIVER_INTERRUPT     20
 
+#define SYSDRIVER_DEV_BUFSIZE   512
+
 struct sysdriver_handler {
     int nr;
     void *handler;
@@ -44,7 +46,7 @@ struct sysdriver_handler {
 
 struct sysdriver_devfs {
     /* Arguments */
-    char *name;
+    const char *name;
     int flags;
     /* Return value(s) */
     struct driver_mapped_device *dev;
@@ -59,7 +61,7 @@ struct sysdriver_mmap_req {
  * Ring buffer
  */
 struct driver_device_fifo {
-    uint8_t buf[512];
+    uint8_t buf[SYSDRIVER_DEV_BUFSIZE];
     volatile off_t head;
     volatile off_t tail;
 };
@@ -89,9 +91,167 @@ struct driver_mapped_device {
 };
 
 int driver_register_irq_handler(int, void *);
-struct driver_device_chr * driver_register_device(char *, int);
+struct driver_mapped_device * driver_register_device(const char *, int);
 void * driver_mmap(void *, size_t);
-void driver_interrupt(struct driver_device_chr *);
+void driver_interrupt(struct driver_mapped_device *);
+
+/*
+ * Put one character to the input buffer
+ */
+static __inline__ int
+driver_chr_ibuf_putc(struct driver_mapped_device *dev, int c)
+{
+    off_t cur;
+    off_t next;
+
+    __sync_synchronize();
+
+    cur = dev->dev.chr.ibuf.tail;
+    next = cur + 1 < SYSDRIVER_DEV_BUFSIZE ? cur + 1 : 0;
+
+    if  ( dev->dev.chr.ibuf.head == next ) {
+        /* Buffer is full */
+        return -1;
+    }
+
+    dev->dev.chr.ibuf.buf[cur] = c;
+    dev->dev.chr.ibuf.tail = next;
+
+    __sync_synchronize();
+
+    return c;
+}
+
+/*
+ * Get one character from the input buffer
+ */
+static __inline__ int
+driver_chr_ibuf_getc(struct driver_mapped_device *dev)
+{
+    int c;
+    off_t cur;
+    off_t next;
+
+    __sync_synchronize();
+
+    if  ( dev->dev.chr.ibuf.head == dev->dev.chr.ibuf.tail ) {
+        /* Buffer is empty */
+        return -1;
+    }
+    cur = dev->dev.chr.ibuf.head;
+    next = cur + 1 < SYSDRIVER_DEV_BUFSIZE ? cur + 1 : 0;
+
+    c = dev->dev.chr.ibuf.buf[cur];
+    dev->dev.chr.ibuf.head = next;
+
+    __sync_synchronize();
+
+    return c;
+}
+
+/*
+ * Put one character to the output buffer
+ */
+static __inline__ int
+driver_chr_obuf_putc(struct driver_mapped_device *dev, int c)
+{
+    off_t cur;
+    off_t next;
+
+    __sync_synchronize();
+
+    cur = dev->dev.chr.obuf.tail;
+    next = cur + 1 < SYSDRIVER_DEV_BUFSIZE ? cur + 1 : 0;
+
+    if  ( dev->dev.chr.obuf.head == next ) {
+        /* Buffer is full */
+        return -1;
+    }
+
+    dev->dev.chr.obuf.buf[cur] = c;
+    dev->dev.chr.obuf.tail = next;
+
+    __sync_synchronize();
+
+    return c;
+}
+
+/*
+ * Get one character from the output buffer
+ */
+static __inline__ int
+driver_chr_obuf_getc(struct driver_mapped_device *dev)
+{
+    int c;
+    off_t cur;
+    off_t next;
+
+    __sync_synchronize();
+
+    if  ( dev->dev.chr.obuf.head == dev->dev.chr.obuf.tail ) {
+        /* Buffer is empty */
+        return -1;
+    }
+    cur = dev->dev.chr.obuf.head;
+    next = cur + 1 < SYSDRIVER_DEV_BUFSIZE ? cur + 1 : 0;
+
+    c = dev->dev.chr.obuf.buf[cur];
+    dev->dev.chr.obuf.head = next;
+
+    __sync_synchronize();
+
+    return c;
+}
+
+/*
+ * Get the queued length for the input buffer of a character device
+ */
+static __inline__ int
+driver_chr_ibuf_length(struct driver_mapped_device *dev)
+{
+    __sync_synchronize();
+
+    if ( dev->dev.chr.ibuf.tail >= dev->dev.chr.ibuf.head ) {
+        return dev->dev.chr.ibuf.tail - dev->dev.chr.ibuf.head;
+    } else {
+        return SYSDRIVER_DEV_BUFSIZE + dev->dev.chr.ibuf.tail
+            - dev->dev.chr.ibuf.head;
+    }
+}
+static __inline__ int
+driver_chr_ibuf_available(struct driver_mapped_device *dev)
+{
+    if ( driver_chr_ibuf_length(dev) >= SYSDRIVER_DEV_BUFSIZE - 1 ) {
+        return 0;
+    } else {
+        return 1;
+    }
+}
+
+/*
+ * Get the queued length for the output buffer of a character device
+ */
+static __inline__ int
+driver_chr_obuf_length(struct driver_mapped_device *dev)
+{
+    __sync_synchronize();
+
+    if ( dev->dev.chr.obuf.tail >= dev->dev.chr.obuf.head ) {
+        return dev->dev.chr.obuf.tail - dev->dev.chr.obuf.head;
+    } else {
+        return SYSDRIVER_DEV_BUFSIZE + dev->dev.chr.obuf.tail
+            - dev->dev.chr.obuf.head;
+    }
+}
+static __inline__ int
+driver_chr_obuf_available(struct driver_mapped_device *dev)
+{
+    if ( driver_chr_obuf_length(dev) >= SYSDRIVER_DEV_BUFSIZE - 1 ) {
+        return 0;
+    } else {
+        return 1;
+    }
+}
 
 #endif /* _MKI_DRIVER_H */
 

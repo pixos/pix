@@ -174,6 +174,7 @@ apstart64:
 
 /* void halt(void) */
 _halt:
+	sti
 	hlt
 	ret
 
@@ -617,8 +618,8 @@ _sys_task_switch:
 	movq	TASK_XREGS(%rax),%rdi
 	movq	$5,%rax
 	movq	$0,%rdx
-	xsave64	(%rdi)
 	clts
+	xsave64	(%rdi)
 
 	/* Notify that the current task is switched (to the kernel) */
 	movq	CPU_CUR_TASK_OFFSET(%rbx),%rdi
@@ -920,6 +921,7 @@ _intr_dna:
 	movq	24(%rbp),%r8	/* rflags */
 	movq	32(%rbp),%r9	/* rsp */
 	/* 48(%rbp): ss */
+	call	_isr_exception
 	popq	%rbx
 	popq	%r11
 	popq	%r10
@@ -934,8 +936,11 @@ _intr_dna:
 	iretq
 /* Double Fault (#DF) */
 	intr_exception_werror df 0x08
-/* Coprocessor Segment Overrun */
-	intr_exception_generic cso 0x09
+/* Coprocessor Segment Overrun: To be ignored */
+	//intr_exception_generic cso 0x09
+.globl	_intr_cso
+_intr_cso:
+	iretq
 /* Invalid TSS (#TS) */
 	intr_exception_werror invtss 0x0a
 /* Segment Not Present (#NP) */
@@ -1025,7 +1030,7 @@ _intr_pf:
 	rdmsr			/* Read APIC info to [%edx:%eax]; N.B., higer */
 				/*  32 bits of %rax and %rdx are cleared */
 				/*  bit [35:12]: APIC Base, [11]: EN */
-				/*  [10]: EXTD, and [8]:BSP*/
+				/*  [10]: EXTD, and [8]:BSP */
 	shlq	$32,%rdx
 	addq	%rax,%rdx
 	andq	$0xfffffffffffff000,%rdx	/* APIC Base */
@@ -1287,8 +1292,8 @@ _task_restart:
 	movq	TASK_XREGS(%rax),%rdi
 	movq	$5,%rax
 	movq	$0,%rdx
-	xsave64	(%rdi)
 	clts
+	xsave64	(%rdi)
 1:
 	/* Notify that the current task is switched (to the kernel) */
 	movq	CPU_CUR_TASK_OFFSET(%rbp),%rdi

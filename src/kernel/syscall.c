@@ -174,13 +174,8 @@ sys_fork_c(u64 *task, u64 *ret0, u64 *ret1)
 ssize_t
 sys_read(int fildes, void *buf, size_t nbyte)
 {
-    u16 *video;
-    int i;
-    char *s;
-
     struct ktask *t;
     struct proc *proc;
-    struct driver_mapped_device_chr *dc;
 
     /* Get the current process */
     t = this_ktask();
@@ -206,21 +201,6 @@ sys_read(int fildes, void *buf, size_t nbyte)
         return proc->fds[fildes]->read(proc->fds[fildes], buf, nbyte);
     }
 
-
-    s = "read";
-
-    video = (u16 *)0xc00b8000;
-    for ( i = 0; i < 80 * 25; i++ ) {
-        //*(video + i) = 0xe000;
-        *(video + i) = 0x2000;
-    }
-    while ( *s ) {
-        //*video = 0xe000 | (u16)*s;
-        *video = 0x2f00 | (u16)*s;
-        s++;
-        video++;
-    }
-
     return -1;
 }
 
@@ -243,35 +223,31 @@ sys_read(int fildes, void *buf, size_t nbyte)
 ssize_t
 sys_write(int fildes, const void *buf, size_t nbyte)
 {
-    u16 *video;
-    ssize_t i;
-    char *s;
+    struct ktask *t;
+    struct proc *proc;
 
-    if ( 1 == fildes && NULL != buf ) {
-        video = (u16 *)0xc00b8000;
-        for ( i = 0; i < 80 * 25; i++ ) {
-            *(video + i) = 0x0f00;
-        }
-        for ( i = 0; i < (ssize_t)nbyte; i++ ) {
-            *video = 0x0f00 | (u16)((char *)buf)[i];
-            //*video = 0x2f00 | (u16)*s;
-            video++;
-        }
-        return i;
+    /* Get the current process */
+    t = this_ktask();
+    if ( NULL == t ) {
+        return -1;
+    }
+    proc = t->proc;
+    if ( NULL == proc ) {
+        return -1;
     }
 
-    s = "write";
-
-    video = (u16 *)0xc00b8000;
-    for ( i = 0; i < 80 * 25; i++ ) {
-        *(video + i) = 0xe000;
-        //*(video + i) = 0x2000;
+    /* Check the file descriptor number */
+    if ( fildes < 0 || fildes >= FD_MAX ) {
+        return -1;
     }
-    while ( *s ) {
-        *video = 0xe000 | (u16)*s;
-        //*video = 0x2f00 | (u16)*s;
-        s++;
-        video++;
+
+    if ( NULL == proc->fds[fildes] ) {
+        /* Invalid file descriptor (not opened) */
+        return -1;
+    }
+
+    if ( NULL != proc->fds[fildes] ) {
+        return proc->fds[fildes]->write(proc->fds[fildes], buf, nbyte);
     }
 
     return -1;
@@ -323,7 +299,6 @@ sys_open(const char *path, int oflag, ...)
     int i;
     int fd;
     struct fildes *fildes;
-    struct fildes_proc *fdproc;
 
     /* Get the current task information */
     t = this_ktask();
@@ -1086,7 +1061,6 @@ sys_sysarch(int number, void *args)
 {
     struct sysarch_io *io;
     struct sysarch_msr *msr;
-    u64 reg;
 
     switch ( number ) {
     case SYSARCH_INB:

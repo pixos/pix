@@ -49,7 +49,7 @@ task_new(void)
         return NULL;
     }
     kmemset(t->xregs, 0, 4096);
-    xsave(t->xregs, 5, 0);
+    //xsave(t->xregs, 5, 0);
     /* Allocate the kernel task structure of a new task */
     t->kstack = kmalloc(KSTACK_SIZE);
     if ( NULL == t->kstack ) {
@@ -131,7 +131,7 @@ proc_fork(struct proc *op, struct ktask *ot, struct ktask **ntp)
         return NULL;
     }
     kmemset(t->xregs, 0, 4096);
-    xsave(t->xregs, 5, 0);
+    kmemcpy(t->xregs, ((struct arch_task *)ot->arch)->xregs, 4096);
     /* Allocate the kernel task structure of a new task */
     t->kstack = kmalloc(KSTACK_SIZE);
     if ( NULL == t->kstack ) {
@@ -315,7 +315,7 @@ task_create_idle(void)
         return NULL;
     }
     kmemset(t->xregs, 0, 4096);
-    xsave(t->xregs, 5, 0);
+    //xsave(t->xregs, 5, 0);
 
     /* Kernel stack */
     t->kstack = kmalloc(KSTACK_SIZE);
@@ -452,7 +452,7 @@ proc_create(const char *path, const char *name, pid_t pid)
         goto error_task;
     }
     kmemset(t->xregs, 0, 4096);
-    xsave(t->xregs, 5, 0);
+    //xsave(t->xregs, 5, 0);
 
     /* Create a task */
     t->ktask = kmalloc(sizeof(struct ktask));

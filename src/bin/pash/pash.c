@@ -1,5 +1,5 @@
 /*_
- * Copyright (c) 2015 Hirochika Asai <asai@jar.jp>
+ * Copyright (c) 2015-2016 Hirochika Asai <asai@jar.jp>
  * All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -21,35 +21,32 @@
  * SOFTWARE.
  */
 
-#include <aos/const.h>
-#include "arch.h"
-#include "i8254.h"
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <unistd.h>
+#include <fcntl.h>
 
 /*
- * Start i8254 timer
+ * Entry point for pash
  */
-void
-i8254_start_timer(int hz)
+int
+main(int argc, char *argv[])
 {
-    int counter;
+    char buf[256];
 
-    /* Start the timer of counter 0 with the specified rate */
-    counter = I8254_HZ / hz;
-    outb(I8254_REG_CTRL, I8254_CTRL_RL_16BIT | I8254_CTRL_SQUAREWAVE);
-    outb(I8254_REG_CNTR0, counter & 0xff);
-    outb(I8254_REG_CNTR0, counter >> 8);
-}
+    putchar('>');
+    putchar(' ');
 
-/*
- * Stop i8254 timer
- */
-void
-i8254_stop_timer(void)
-{
-    /* Reset to the BIOS default */
-    outb(I8254_REG_CTRL, 0x30);
-    outb(I8254_REG_CNTR0, 0x0);
-    outb(I8254_REG_CNTR0, 0x0);
+    while ( 1 ) {
+        if ( fgets(buf, sizeof(buf), stdin) ) {
+            fputs(buf, stdout);
+            putchar('>');
+            putchar(' ');
+        }
+    }
+
+    exit(0);
 }
 
 /*

@@ -21,75 +21,122 @@
  * SOFTWARE.
  */
 
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <sys/syscall.h>
-#include <mki/driver.h>
+#include <unistd.h>
 
-/* in libcasm.s */
-unsigned long long syscall(int, ...);
+FILE *stdin;
+FILE *stdout;
+FILE *stderr;
 
 /*
- * Request IRQ and register an interrupt handler
+ * fgets
+ */
+char *
+fgets(char * __restrict__ str, int size, FILE * __restrict__ stream)
+{
+    ssize_t sz;
+
+    sz = read(stream->fd, str, size - 1);
+    if ( 0 == sz ) {
+        /* EOF */
+        return NULL;
+    } else if ( sz < 0 ) {
+        /* Error: FIXME */
+        return NULL;
+    } else {
+        str[sz] = '\0';
+        return str;
+    }
+}
+
+/*
+ * fgetc
  */
 int
-driver_register_irq_handler(int irq, void *func)
+fgetc(FILE *stream)
 {
-    struct sysdriver_handler handler;
+    ssize_t sz;
+    char c;
 
-    handler.nr = irq;
-    handler.handler = func;
-
-    return syscall(SYS_driver, SYSDRIVER_REG_IRQ, &handler);
+    sz = read(stream->fd, &c, 1);
+    if ( 0 == sz ) {
+        /* EOF */
+        return EOF;
+    } else if ( sz < 0 ) {
+        /* Error: FIXME */
+        return -1;
+    } else {
+        return c;
+    }
 }
 
 /*
- * Register a device to devfs
+ * getchar
  */
-struct driver_mapped_device *
-driver_register_device(const char *name, int flags)
+int
+getchar(void)
 {
-    struct sysdriver_devfs req;
+    return fgetc(stdin);
+}
+
+/*
+ * fputs
+ */
+int
+fputs(const char *__restrict__ s, FILE *__restrict__ stream)
+{
+    ssize_t sz;
+    size_t len;
+
+    len = strlen(s);
+
+    sz = write(stream->fd, s, len);
+    if ( sz <= 0 ) {
+        return EOF;
+    } else {
+        return 0;
+    }
+}
+
+/*
+ * fputc
+ */
+int
+fputc(int c, FILE *stream)
+{
+    ssize_t sz;
+
+    sz = write(stream->fd, &c, 1);
+    if ( sz <= 0 ) {
+        return EOF;
+    } else {
+        return c;
+    }
+}
+
+/*
+ * putchar
+ */
+int
+putchar(int c)
+{
+    return fputc(c, stdout);
+}
+
+int
+puts(const char *s)
+{
     int ret;
 
-    req.name = name;
-    req.flags = flags;
-
-    ret = syscall(SYS_driver, SYSDRIVER_REG_DEV, &req);
+    ret = fputs(s, stdout);
     if ( ret < 0 ) {
-        return NULL;
+        return ret;
     }
+    putchar('\n');
 
-    return req.dev;
-}
-
-/*
- * Allocate virtual pages that are mapped to the physical memory space
- * specified by addr and length
- */
-void *
-driver_mmap(void *addr, size_t length)
-{
-    struct sysdriver_mmap_req req;
-    int ret;
-
-    req.addr = addr;
-    req.length = length;
-    ret = syscall(SYS_driver, SYSDRIVER_MMAP, &req);
-    if ( ret < 0 ) {
-        return NULL;
-    }
-
-    return req.vaddr;
-}
-
-/*
- * Invoke an interrupt
- */
-void
-driver_interrupt(struct driver_mapped_device *dev)
-{
-    syscall(SYS_driver, SYSDRIVER_INTERRUPT, dev);
+    return ret;
 }
 
 /*

@@ -35,10 +35,6 @@
 #define KBD_ERROR       -1
 #define KBD_MAX_RETRY   0x01000000
 
-#define KBD_ENCODER     0x0060
-#define KBD_ENC_BUFFER  KBD_ENCODER
-#define KBD_ENC_COMMAND KBD_ENCODER
-
 #define KBD_CONTROLLER  0x0064
 #define KBD_CTRL_STATUS KBD_CONTROLLER
 #define KBD_CTRL_COMMAND KBD_CONTROLLER
@@ -82,13 +78,36 @@
 int kbd_wait_until_outbuf_full(void);
 
 
+static unsigned char keymap_base[] =
+    "  1234567890-=\x08\t"      /* 0x00-0x0f */
+    "qwertyuiop[]\r as"         /* 0x10-0x1f */
+    "dfghjkl;'` \\zxcv"         /* 0x20-0x2f */
+    "bnm,./          "          /* 0x30-0x3f */
+    "                "          /* 0x40-0x4f */
+    "                "          /* 0x50-0x5f */
+    "                "          /* 0x60-0x6f */
+    "                ";         /* 0x70-0x7f */
+
+static unsigned char keymap_shift[] =
+    "  !@#$%^&*()_+\x08\t"      /* 0x00-0x0f */
+    "QWERTYUIOP{}\r AS"         /* 0x10-0x1f */
+    "DFGHJKL:\"~ |ZXCV"         /* 0x20-0x2f */
+    "BNM<>?          "          /* 0x30-0x3f */
+    "                "          /* 0x40-0x4f */
+    "                "          /* 0x50-0x5f */
+    "                "          /* 0x60-0x6f */
+    "                ";         /* 0x70-0x7f */
+
+
 /*
  * sysdebug
  */
+unsigned long long syscall(int, ...);
 void
 sysdebug(int nr)
 {
-    __asm__ __volatile__ ("syscall" :: "a"(SYS_debug), "D"(nr));
+    syscall(SYS_debug, nr);
+    //__asm__ __volatile__ ("syscall" :: "a"(SYS_debug), "D"(nr));
 }
 
 /*
@@ -403,86 +422,136 @@ kbd_parse_scan_code(struct kbd *kbd, int scan_code)
     return ascii;
 }
 
-/*
- * Entry point for the process manager program
- */
+
 int
-main(int argc, char *argv[])
+kbd_proc(struct kbd *kbd, struct driver_mapped_device *dev)
 {
-    char buf[512];
     struct sysarch_io io;
-    struct timespec tm;
-    struct kbd kbd;
     unsigned char scan_code;
     int ascii;
-    off_t next_tail;
-    struct driver_mapped_device *dev;
 
-    /* Initialize the keyboard driver */
-    kbd_init(&kbd);
+    for ( ;; ) {
+        io.port = KBD_CTRL_STAT;
+        sysarch(SYSARCH_INB, &io);
+        if ( !(io.data & 1) ) {
+            break;
+        }
+        /* Read a scan code from the buffer of the keyboard controller */
+        scan_code = kbd_enc_read_buf();
+        /* Convert the scan code to an ascii code */
+        ascii = kbd_parse_scan_code(kbd, scan_code);
 
-    /* Print out the interrupt handler */
-    driver_register_irq_handler(1, kbd_intr);
-    snprintf(buf, 512, "Registered an interrupt handler of %s driver.", "kbd");
-    write(STDOUT_FILENO, buf, strlen(buf));
-
-    dev = driver_register_device("kbd", 0);
-    if ( NULL == dev ) {
-        exit(EXIT_FAILURE);
-    }
-
-    tm.tv_sec = 1;
-    tm.tv_nsec = 0;
-    while ( 1 ) {
-        for ( ;; ) {
-            io.port = KBD_CTRL_STAT;
-            sysarch(SYSARCH_INB, &io);
-            if ( !(io.data & 1) ) {
-                break;
-            }
-            /* Read a scan code from the buffer of the keyboard controller */
-            scan_code = kbd_enc_read_buf();
-            /* Convert the scan code to an ascii code */
-            ascii = kbd_parse_scan_code(&kbd, scan_code);
-
-            if ( ascii >= 0 ) {
-                /* Valid ascii code, then enqueue it to the buffer of the
-                   character device */
-                next_tail = dev->dev.chr.ibuf.tail + 1;
-                next_tail = next_tail < 512 ? next_tail : 0;
-                if ( dev->dev.chr.ibuf.head == next_tail ) {
-                    /* Buffer full */
+        if ( ascii >= 0 ) {
+            /* Valid ascii code, then enqueue it to the buffer of the
+               character device */
+            if ( kbd->key_state.lctrl || kbd->key_state.rctrl ) {
+                switch ( ascii ) {
+                case 'h':
+                case 'H':
+                    /* Backspace */
+                    ascii = '\x8';
                     break;
+                default:
+                    ;
                 }
-                /* Enqueue to the buffer */
-                dev->dev.chr.ibuf.buf[dev->dev.chr.ibuf.tail] = ascii;
-                __asm__ __volatile__ ("mfence");
-                dev->dev.chr.ibuf.tail = next_tail;
-                __asm__ __volatile__ ("mfence");
             }
 
-
-            if ( scan_code == KBD_KEY_F1 ) {
-                sysdebug(0);
-            }
-            if ( scan_code == KBD_KEY_F2 ) {
-                sysdebug(1);
-            }
-            if ( scan_code == KBD_KEY_F3 ) {
-                sysdebug(2);
+            if ( '\r' == ascii ) {
+                ascii = '\n';
             }
 
-            if ( scan_code == 0x01 ) {
-                kbd_power_reset();
-            }
+            //driver_chr_ibuf_putc(dev, ascii);
         }
-        if ( dev->dev.chr.ibuf.head != dev->dev.chr.ibuf.tail ) {
-            driver_interrupt(dev);
+
+        if ( scan_code == KBD_KEY_F1 ) {
+            sysdebug(0);
         }
-        nanosleep(&tm, NULL);
+        if ( scan_code == KBD_KEY_F2 ) {
+            sysdebug(1);
+        }
+        if ( scan_code == KBD_KEY_F3 ) {
+            sysdebug(2);
+        }
+        if ( scan_code == KBD_KEY_F4 ) {
+            sysdebug(3);
+        }
+
+        if ( scan_code == 0x01 ) {
+            kbd_power_reset();
+        }
+
+        driver_interrupt(dev);
     }
 
-    exit(0);
+    return 0;
+}
+
+int
+kbd_getchar(struct kbd *kbd, struct driver_mapped_device *dev)
+{
+    struct sysarch_io io;
+    unsigned char scan_code;
+    int ascii;
+
+    io.port = KBD_CTRL_STAT;
+    sysarch(SYSARCH_INB, &io);
+    if ( !(io.data & 1) ) {
+        return -1;
+    }
+    /* Read a scan code from the buffer of the keyboard controller */
+    scan_code = kbd_enc_read_buf();
+    /* Convert the scan code to an ascii code */
+    ascii = kbd_parse_scan_code(kbd, scan_code);
+
+    if ( ascii >= 0 ) {
+        /* Valid ascii code, then enqueue it to the buffer of the
+           character device */
+        if ( kbd->key_state.lctrl || kbd->key_state.rctrl ) {
+            switch ( ascii ) {
+            case 'h':
+            case 'H':
+                /* Backspace */
+                ascii = '\x8';
+                break;
+            case 'b':
+            case 'B':
+                /* Backword */
+                ascii = KBD_ASCII_LEFT;
+                break;
+            case 'f':
+            case 'F':
+                /* Forward */
+                ascii = KBD_ASCII_RIGHT;
+                break;
+            default:
+                ;
+            }
+        }
+
+        if ( '\r' == ascii ) {
+            ascii = '\n';
+        }
+    }
+
+    if ( scan_code == KBD_KEY_F1 ) {
+        sysdebug(0);
+    }
+    if ( scan_code == KBD_KEY_F2 ) {
+        sysdebug(1);
+    }
+    if ( scan_code == KBD_KEY_F3 ) {
+        sysdebug(2);
+    }
+    if ( scan_code == KBD_KEY_F4 ) {
+        sysdebug(3);
+    }
+    if ( scan_code == 0x01 ) {
+        kbd_power_reset();
+    }
+
+    driver_interrupt(dev);
+
+    return ascii;
 }
 
 /*

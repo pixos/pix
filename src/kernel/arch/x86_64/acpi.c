@@ -180,7 +180,10 @@ _parse_apic(struct acpi *acpi, struct acpi_sdt_hdr *sdt)
         case 1:
             /* I/O APIC */
             ioapic = (struct acpi_sdt_apic_ioapic *)hdr;
-            acpi->acpi_ioapic_base = ioapic->addr;
+            if ( !acpi->acpi_ioapic_base ) {
+                /* First I/O APIC is used */
+                acpi->acpi_ioapic_base = ioapic->addr;
+            }
             break;
         case 2:
             /* Interrupt Source Override */

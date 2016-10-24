@@ -21,61 +21,87 @@
  * SOFTWARE.
  */
 
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <unistd.h>
-#include <sys/syscall.h>
-#include <time.h>
-#include <mki/driver.h>
+#ifndef _TTY_H
+#define _TTY_H
 
-#define VIDEO_RAM       0x000b8000ULL
+#include <stdint.h>
+#include <sys/types.h>
+#include <termios.h>
+#include "kbd.h"
+
+#define TTY_LINEBUFSIZE 4096
 
 /*
- * Entry point for the process manager program
+ * Line buffer
  */
-int
-main(int argc, char *argv[])
-{
-    struct timespec tm;
+struct tty_line_buffer {
+    /* Cursor */
+    off_t cur;
+    /* Length */
+    size_t len;
+    /* Buffer */
+    char buf[TTY_LINEBUFSIZE];
+};
+
+/*
+ * TTY
+ */
+struct tty {
+    struct tty_line_buffer lbuf;
+    struct termios term;
+};
+
+/*
+ * Video
+ */
+struct video {
     uint16_t *vram;
-    char buf[512];
-    ssize_t i;
+};
+
+/*
+ * Console
+ */
+struct console {
+    /* Keyboard */
+    struct kbd kbd;
+    /* Video */
+    struct video video;
+    /* Console (screen) buffer */
+    struct {
+        /* Buffer size */
+        size_t size;
+        /* Width */
+        size_t width;
+        /* Height */
+        size_t height;
+        /* Cursor position */
+        off_t cur;
+        /* End-of-buffer */
+        off_t eob;
+        /* Line buffer marker */
+        off_t lmark;
+    } screen;
+    /* Character device */
     struct driver_mapped_device *dev;
+};
 
-    /* Memory mapped I/O */
-    vram = driver_mmap((void *)VIDEO_RAM, 4096);
-    if ( NULL == vram ) {
-        exit(EXIT_FAILURE);
-    }
-    /* Reset the video */
-    for ( i = 0; i < 80 * 25; i++ ) {
-        *(vram + i) = 0x0f00;
-    }
+/*
+ * Serial
+ */
+struct serial {
+    int port;
+    int irq;
+    struct driver_mapped_device *dev;
+};
 
-    /* Register this driver to devfs */
-    dev = driver_register_device("video", 0);
-    if ( NULL == dev ) {
-        exit(EXIT_FAILURE);
-    }
+int tty_line_buffer_init(struct tty_line_buffer *);
+int tty_line_buffer_putc(struct tty_line_buffer *, int c);
+int console_init(struct console *, const char *);
+int console_proc(struct console *, struct tty *);
+int serial_init(struct serial *, int, const char *);
+int serial_proc(struct serial *, struct tty *);
 
-    tm.tv_sec = 1;
-    tm.tv_nsec = 0;
-    while ( 1 ) {
-#if 0
-        snprintf(buf, 512, "Sleeping vram driver: %p.", vram);
-        for ( i = 0; i < 80 * 25; i++ ) {
-            *(vram + i) = 0x0f00;
-        }
-        for ( i = 0; i < (ssize_t)strlen(buf); i++ ) {
-            *(vram + i) = 0x0f00 | (uint16_t)((char *)buf)[i];
-        }
-#endif
-        nanosleep(&tm, NULL);
-    }
-
-    exit(0);
-}
+#endif /* _TTY_H */
 
 /*
  * Local variables:

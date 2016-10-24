@@ -26,8 +26,8 @@
 
 #if __LP64__
 
-typedef signed long long ssize_t;
-typedef unsigned long long size_t;
+typedef signed long ssize_t;
+typedef unsigned long size_t;
 typedef signed long long off_t;
 typedef signed int pid_t;
 typedef signed int uid_t;
