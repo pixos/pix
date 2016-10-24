@@ -174,13 +174,8 @@ sys_fork_c(u64 *task, u64 *ret0, u64 *ret1)
 ssize_t
 sys_read(int fildes, void *buf, size_t nbyte)
 {
-    u16 *video;
-    int i;
-    char *s;
-
     struct ktask *t;
     struct proc *proc;
-    //struct driver_mapped_device_chr *dc;
 
     /* Get the current process */
     t = this_ktask();
@@ -204,21 +199,6 @@ sys_read(int fildes, void *buf, size_t nbyte)
 
     if ( NULL != proc->fds[fildes] ) {
         return proc->fds[fildes]->read(proc->fds[fildes], buf, nbyte);
-    }
-
-
-    s = "read";
-
-    video = (u16 *)0xc00b8000;
-    for ( i = 0; i < 80 * 25; i++ ) {
-        //*(video + i) = 0xe000;
-        *(video + i) = 0x2000;
-    }
-    while ( *s ) {
-        //*video = 0xe000 | (u16)*s;
-        *video = 0x2f00 | (u16)*s;
-        s++;
-        video++;
     }
 
     return -1;

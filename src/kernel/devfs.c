@@ -38,6 +38,7 @@ devfs_read(struct fildes *fildes, void *buf, size_t nbyte)
     struct driver_device_fifo *q;
     ssize_t len;
     struct ktask_list_entry *tle;
+    int c;
 
     /* Get the current process */
     t = this_ktask();
@@ -51,10 +52,9 @@ devfs_read(struct fildes *fildes, void *buf, size_t nbyte)
     switch ( ent->type ) {
     case DEVFS_CHAR:
         /* Character device */
-        q = &ent->mapped->dev.chr.ibuf;
-        if ( q->head == q->tail ) {
-            /* Add this task to the blocking task list for this file descriptor
-             */
+        if ( 0 == driver_chr_ibuf_length(ent->mapped) ) {
+            /* Empty buffer, then add this task to the blocking task list for
+               this file descriptor and switch to another task */
             tle = kmalloc(sizeof(struct ktask_list_entry));
             if ( NULL == tle ) {
                 return -1;
@@ -68,15 +68,16 @@ devfs_read(struct fildes *fildes, void *buf, size_t nbyte)
 
             /* Switch this task to another */
             sys_task_switch();
+            /* Will resume from here */
         }
         len = 0;
-        while ( q->head != q->tail && len < (ssize_t)nbyte ) {
-            *(char *)(buf + len) = q->buf[q->head];
+        while ( len < (ssize_t)nbyte ) {
+            if ( (c = driver_chr_ibuf_getc(ent->mapped)) < 0 ) {
+                /* No more buffer */
+                break;
+            }
+            *(char *)(buf + len) = c;
             len++;
-            q->head++;
-            __asm__ __volatile__ ("mfence");
-            q->head = q->head < 512 ? q->head : 0;
-            __asm__ __volatile__ ("mfence");
         }
         return len;
 
@@ -96,10 +97,9 @@ devfs_write(struct fildes *fildes, const void *buf, size_t nbyte)
 {
     struct ktask *t;
     struct devfs_entry *ent;
-    struct driver_device_fifo *q;
     ssize_t len;
-    off_t next_tail;
     struct ktask *tmp;
+    int c;
 
     /* Get the current process */
     t = this_ktask();
@@ -113,22 +113,18 @@ devfs_write(struct fildes *fildes, const void *buf, size_t nbyte)
     switch ( ent->type ) {
     case DEVFS_CHAR:
         /* Character device */
-        q = &ent->mapped->dev.chr.obuf;
-
-        next_tail = q->tail + 1;
-        next_tail = next_tail < 512 ? next_tail : 0;
-        if ( q->head == next_tail ) {
+        if ( !driver_chr_obuf_available(ent->mapped) ) {
             /* Buffer is full. FIXME: Implement blocking write */
             return 0;
         }
         len = 0;
-        while ( q->head != next_tail && len < (ssize_t)nbyte ) {
-            q->buf[q->tail] = *(char *)(buf + len);
+        while ( len < (ssize_t)nbyte ) {
+            c = *(const char *)(buf + len);
+            if ( driver_chr_obuf_putc(ent->mapped, c) < 0 ) {
+                /* Buffer becomes full, then exit from the loop. */
+                break;
+            }
             len++;
-            __asm__ __volatile__ ("mfence");
-            q->tail = next_tail;
-            __asm__ __volatile__ ("mfence");
-            next_tail = next_tail + 1 < 512 ? next_tail + 1 : 0;
         }
         /* Wake up the driver */
         tmp = ent->proc->tasks;
@@ -154,8 +150,6 @@ devfs_lseek(struct fildes *fildes, off_t offset, int whence)
 {
     return -1;
 }
-
-
 
 /*
  * Local variables:

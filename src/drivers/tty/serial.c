@@ -139,8 +139,7 @@ int
 serial_proc(struct serial *serial)
 {
     struct sysarch_io io;
-    int ascii;
-    off_t next_tail;
+    int c;
 
     /* Read line state to until the transmit buffer is empty */
     for ( ;; ) {
@@ -151,19 +150,14 @@ serial_proc(struct serial *serial)
         }
     }
 
-    while ( serial->dev->dev.chr.obuf.head
-            != serial->dev->dev.chr.obuf.tail ) {
-        ascii = serial->dev->dev.chr.obuf.buf[serial->dev->dev.chr.obuf.head];
-        if ( '\r'== ascii ) {
-            _serial_putc(serial, ascii);
+    /* Write to the device */
+    while ( (c = driver_chr_obuf_getc(serial->dev)) >= 0 ) {
+        if ( '\r'== c ) {
+            _serial_putc(serial, c);
             _serial_putc(serial, '\n');
         } else {
-            _serial_putc(serial, ascii);
+            _serial_putc(serial, c);
         }
-        serial->dev->dev.chr.obuf.head++;
-        serial->dev->dev.chr.obuf.head
-            = serial->dev->dev.chr.obuf.head < 512
-            ? serial->dev->dev.chr.obuf.head : 0;
     }
 
     for ( ;; ) {
@@ -177,20 +171,9 @@ serial_proc(struct serial *serial)
         /* Read */
         io.port = serial->port;
         sysarch(SYSARCH_INB, &io);
-        ascii = io.data;
+        c = io.data;
 
-        next_tail = serial->dev->dev.chr.ibuf.tail + 1;
-        next_tail = next_tail < 512 ? next_tail : 0;
-        if ( serial->dev->dev.chr.ibuf.head == next_tail ) {
-            /* Buffer full */
-            break;
-        }
-        /* Enqueue to the buffer */
-        serial->dev->dev.chr.ibuf.buf[serial->dev->dev.chr.ibuf.tail] = ascii;
-        __asm__ __volatile__ ("mfence");
-        serial->dev->dev.chr.ibuf.tail = next_tail;
-        __asm__ __volatile__ ("mfence");
-
+        driver_chr_ibuf_putc(serial->dev, c);
         driver_interrupt(serial->dev);
     }
 
