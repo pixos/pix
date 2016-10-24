@@ -172,17 +172,24 @@ int
 console_proc(struct console *con, struct tty *tty)
 {
     int c;
+    ssize_t i;
 
     /* Read characters from the device (i.e., keyboard) */
     while ( (c = kbd_getchar(&con->kbd, con->dev)) >= 0 ) {
         tty_line_buffer_putc(&tty->lbuf, c);
 
-        if ( tty->term.c_lflag & ECHO & 0 ) {
+        if ( tty->term.c_lflag & ECHO ) {
             /* Echo is enabled. */
             _update_line_buffer(con, tty);
         }
         if ( '\n' == c ) {
             _console_putc(con, '\n');
+
+            /* To the input buffer */
+            for ( i = 0; i < (ssize_t)tty->lbuf.len; i++ ) {
+                driver_chr_ibuf_putc(con->dev, tty->lbuf.buf[i]);
+            }
+            driver_chr_ibuf_putc(con->dev, '\n');
             tty->lbuf.len = 0;
         }
     }
