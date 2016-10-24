@@ -429,7 +429,6 @@ kbd_proc(struct kbd *kbd, struct driver_mapped_device *dev)
     struct sysarch_io io;
     unsigned char scan_code;
     int ascii;
-    off_t next_tail;
 
     for ( ;; ) {
         io.port = KBD_CTRL_STAT;
@@ -445,21 +444,23 @@ kbd_proc(struct kbd *kbd, struct driver_mapped_device *dev)
         if ( ascii >= 0 ) {
             /* Valid ascii code, then enqueue it to the buffer of the
                character device */
-            next_tail = dev->dev.chr.ibuf.tail + 1;
-            next_tail = next_tail < 512 ? next_tail : 0;
-            if ( dev->dev.chr.ibuf.head == next_tail ) {
-                /* Buffer full */
-                break;
+            if ( kbd->key_state.lctrl || kbd->key_state.rctrl ) {
+                switch ( ascii ) {
+                case 'h':
+                case 'H':
+                    /* Backspace */
+                    ascii = '\x8';
+                    break;
+                default:
+                    ;
+                }
             }
+
             if ( '\r' == ascii ) {
                 ascii = '\n';
             }
 
-            /* Enqueue to the buffer */
-            dev->dev.chr.ibuf.buf[dev->dev.chr.ibuf.tail] = ascii;
-            __asm__ __volatile__ ("mfence");
-            dev->dev.chr.ibuf.tail = next_tail;
-            __asm__ __volatile__ ("mfence");
+            driver_chr_ibuf_putc(dev, ascii);
         }
 
         if ( scan_code == KBD_KEY_F1 ) {

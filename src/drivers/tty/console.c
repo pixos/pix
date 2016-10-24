@@ -104,11 +104,12 @@ _console_putc(struct console *con, int c)
     size_t n;
 
     if ( '\n' == c ) {
+        /* New line */
         line = con->screen.pos / con->screen.width;
         col = con->screen.pos % con->screen.width;
         /* # of characters to put */
         n = con->screen.width - col;
-        if ( line + 1 == con->screen.height ) {
+        if ( line + 1 == (off_t)con->screen.height ) {
             /* Need to scroll the buffer */
             memmove(con->video.vram,
                     con->video.vram + con->screen.width,
@@ -121,11 +122,23 @@ _console_putc(struct console *con, int c)
             con->screen.pos += n;
         }
         _update_cursor(con->screen.pos);
-    } else {
-        con->video.vram[con->screen.pos] = 0x0f00 | (uint16_t)c;
-        con->screen.pos++;
-        _update_cursor(con->screen.pos);
+        return;
+    } else if ( '\x8' == c ) {
+        if ( con->screen.pos > 0 ) {
+            /* Backspace */
+            con->screen.pos--;
+            con->video.vram[con->screen.pos] = 0x0f20;
+            _update_cursor(con->screen.pos);
+        }
+        return;
     }
+    if ( '\t' == c ) {
+        c = ' ';
+    }
+
+    con->video.vram[con->screen.pos] = 0x0f00 | (uint16_t)c;
+    con->screen.pos++;
+    _update_cursor(con->screen.pos);
 }
 
 /*
