@@ -33,6 +33,7 @@
 
 #define VIDEO_RAM       0x000b8000ULL
 #define VIDEO_PORT      0x3d4
+#define VIDEO_BUFSIZE   4096
 
 /*
  * Initialize the data structure for console driver
@@ -67,8 +68,12 @@ console_init(struct console *con, const char *ttyname)
     dev = driver_register_device(ttyname, 0);
     con->dev = dev;
 
-    con->pos = 0;
-    memset(con->buf, ' ', 80 * 25);
+    con->screen.width = 80;
+    con->screen.height = 25;
+    con->screen.pos = 0;
+
+    /* Set line buffer */
+    con->line.pos = 0;
 
     return 0;
 }
@@ -91,31 +96,49 @@ _update_cursor(int pos)
     sysarch(SYSARCH_OUTW, &io);
 }
 
+static void
+_console_putc(struct console *con, int c)
+{
+    off_t line;
+    off_t col;
+    size_t n;
+
+    if ( '\n' == c ) {
+        line = con->screen.pos / con->screen.width;
+        col = con->screen.pos % con->screen.width;
+        /* # of characters to put */
+        n = con->screen.width - col;
+        if ( line + 1 == con->screen.height ) {
+            /* Need to scroll the buffer */
+            memmove(con->video.vram,
+                    con->video.vram + con->screen.width,
+                    con->screen.width * (con->screen.height - 1) * 2);
+            /* Clear last line */
+            memset(con->video.vram + con->screen.width
+                   * (con->screen.height - 1), 0x00, con->screen.width * 2);
+            con->screen.pos -= col;
+        } else {
+            con->screen.pos += n;
+        }
+        _update_cursor(con->screen.pos);
+    } else {
+        con->video.vram[con->screen.pos] = 0x0f00 | (uint16_t)c;
+        con->screen.pos++;
+        _update_cursor(con->screen.pos);
+    }
+}
+
 /*
  * Process console I/O
  */
 int
 console_proc(struct console *con)
 {
-    ssize_t i;
     int c;
 
-    while ( con->dev->dev.chr.obuf.head != con->dev->dev.chr.obuf.tail ) {
-
-        c = con->dev->dev.chr.obuf.buf[con->dev->dev.chr.obuf.head];
-        con->buf[con->pos++] = c;
-
-        __asm__ __volatile__ ("mfence");
-        con->dev->dev.chr.obuf.head++;
-        con->dev->dev.chr.obuf.head
-            = con->dev->dev.chr.obuf.head < 512
-            ? con->dev->dev.chr.obuf.head : 0;
-        __asm__ __volatile__ ("mfence");
-    }
-
-    _update_cursor(con->pos);
-    for ( i = 0; i < 80 * 25; i++ ) {
-        con->video.vram[i] = 0x0f00 | (uint16_t)con->buf[i];
+    /* Write to the device */
+    while ( (c = driver_chr_obuf_getc(con->dev)) >= 0 ) {
+        _console_putc(con, c);
     }
 
     return 0;

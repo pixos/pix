@@ -43,9 +43,27 @@ struct console {
     struct kbd kbd;
     /* Video */
     struct video video;
-    /* Console buffer */
-    int pos;
-    char buf[80 * 25];
+    /* Console (screen) buffer */
+    struct {
+        /* Buffer size */
+        size_t size;
+        /* Width */
+        size_t width;
+        /* Height */
+        size_t height;
+        /* Cursor position */
+        off_t pos;
+
+        /* Offset */
+        //off_t offset;
+        /* Buffer (not video RAM buffer) */
+        //char *buf;
+    } screen;
+    /* Line buffer */
+    struct {
+        off_t pos;
+        char buf[4096];
+    } line;
     /* Character device */
     struct driver_mapped_device *dev;
 };

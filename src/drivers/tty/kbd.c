@@ -451,6 +451,10 @@ kbd_proc(struct kbd *kbd, struct driver_mapped_device *dev)
                 /* Buffer full */
                 break;
             }
+            if ( '\r' == ascii ) {
+                ascii = '\n';
+            }
+
             /* Enqueue to the buffer */
             dev->dev.chr.ibuf.buf[dev->dev.chr.ibuf.tail] = ascii;
             __asm__ __volatile__ ("mfence");
@@ -475,9 +479,7 @@ kbd_proc(struct kbd *kbd, struct driver_mapped_device *dev)
             kbd_power_reset();
         }
 
-        if ( '\r' == ascii ) {
-            driver_interrupt(dev);
-        }
+        driver_interrupt(dev);
     }
 
     return 0;
