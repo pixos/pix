@@ -460,7 +460,7 @@ kbd_proc(struct kbd *kbd, struct driver_mapped_device *dev)
                 ascii = '\n';
             }
 
-            driver_chr_ibuf_putc(dev, ascii);
+            //driver_chr_ibuf_putc(dev, ascii);
         }
 
         if ( scan_code == KBD_KEY_F1 ) {

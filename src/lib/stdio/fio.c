@@ -22,11 +22,34 @@
  */
 
 #include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
 #include <unistd.h>
 
 FILE *stdin;
 FILE *stdout;
 FILE *stderr;
+
+/*
+ * fgets
+ */
+char *
+fgets(char * __restrict__ str, int size, FILE * __restrict__ stream)
+{
+    ssize_t sz;
+
+    sz = read(stream->fd, str, size - 1);
+    if ( 0 == sz ) {
+        /* EOF */
+        return NULL;
+    } else if ( sz < 0 ) {
+        /* Error: FIXME */
+        return NULL;
+    } else {
+        str[sz] = '\0';
+        return str;
+    }
+}
 
 /*
  * fgetc
@@ -59,6 +82,25 @@ getchar(void)
 }
 
 /*
+ * fputs
+ */
+int
+fputs(const char *__restrict__ s, FILE *__restrict__ stream)
+{
+    ssize_t sz;
+    size_t len;
+
+    len = strlen(s);
+
+    sz = write(stream->fd, s, len);
+    if ( sz <= 0 ) {
+        return EOF;
+    } else {
+        return 0;
+    }
+}
+
+/*
  * fputc
  */
 int
@@ -81,6 +123,20 @@ int
 putchar(int c)
 {
     return fputc(c, stdout);
+}
+
+int
+puts(const char *s)
+{
+    int ret;
+
+    ret = fputs(s, stdout);
+    if ( ret < 0 ) {
+        return ret;
+    }
+    putchar('\n');
+
+    return ret;
 }
 
 /*

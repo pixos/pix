@@ -33,15 +33,16 @@
 int
 main(int argc, char *argv[])
 {
-    int c;
+    char buf[256];
 
     putchar('>');
     putchar(' ');
 
     while ( 1 ) {
-        c = getchar();
-        if ( c >= 0 ) {
-            putchar(c);
+        if ( fgets(buf, sizeof(buf), stdin) ) {
+            fputs(buf, stdout);
+            putchar('>');
+            putchar(' ');
         }
     }
 
