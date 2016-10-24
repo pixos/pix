@@ -88,29 +88,29 @@ kpack: kernel/arch/$(ARCH)/asm.o \
 	$(LD) -N -e kstart64 -Ttext=0xc0010000 -o kpack.dbg $^
 
 ## libc
-LIBCOBJS=lib/crt0.o lib/arch/$(ARCH)/libc.o lib/arch/$(ARCH)/libcasm.o \
-	lib/stdio/fio.o
+LIBCOBJS=lib/arch/$(ARCH)/libc.o lib/arch/$(ARCH)/libcasm.o lib/stdio/fio.o
+lib/arch/$(ARCH)/libc.o: lib/crt0.o
 
 ## init server
 init: servers/init/init.o $(LIBCOBJS)
-	$(LD) -N -e _entry -Ttext=$(ORG) --oformat binary -o $@ $^
+	$(LD) -T app.ld -o $@ $^
 
 ## process manager
 pm: servers/pm/pm.o $(LIBCOBJS)
-	$(LD) -N -e _entry -Ttext=$(ORG) --oformat binary -o $@ $^
+	$(LD) -T app.ld -o $@ $^
 
 ## forwarding engine
 fe: servers/fe/fe.o servers/fe/pci.o $(LIBCOBJS)
-	$(LD) -N -e _entry -Ttext=$(ORG) --oformat binary -o $@ $^
+	$(LD) -T app.ld -o $@ $^
 
 ## file system
 fs: servers/fs/fs.o $(LIBCOBJS)
-	$(LD) -N -e _entry -Ttext=$(ORG) --oformat binary -o $@ $^
+	$(LD) -T app.ld -o $@ $^
 
 ## tty driver (including keyboard, video, and serial drivers)
 tty: drivers/tty/tty.o drivers/tty/console.o drivers/tty/kbd.o \
 	drivers/tty/serial.o $(LIBCOBJS) lib/driver.o
-	$(LD) -N -e _entry -Ttext=$(ORG) --oformat binary -o $@ $^
+	$(LD) -T app.ld -o $@ $^
 
 ## shell
 pash: bin/pash/pash.o $(LIBCOBJS)
@@ -118,15 +118,15 @@ pash: bin/pash/pash.o $(LIBCOBJS)
 
 ## PCI driver
 pci: drivers/pci/pci.o $(LIBCOBJS)
-	$(LD) -N -e _entry -Ttext=$(ORG) --oformat binary -o $@ $^
+	$(LD) -T app.ld -o $@ $^
 
 ## e1000 driver
 e1000: drivers/e1000/e1000.o $(LIBCOBJS)
-	$(LD) -N -e _entry -Ttext=$(ORG) --oformat binary -o $@ $^
+	$(LD) -T app.ld -o $@ $^
 
 ## VMX driver
 vmx: drivers/vmx/vmx.o $(LIBCOBJS)
-	$(LD) -N -e _entry -Ttext=$(ORG) --oformat binary -o $@ $^
+	$(LD) -T app.ld -o $@ $^
 
 ## Clean
 clean:
