@@ -152,14 +152,15 @@ serial_proc(struct serial *serial)
 
     /* Write to the device */
     while ( (c = driver_chr_obuf_getc(serial->dev)) >= 0 ) {
-        if ( '\r'== c ) {
-            _serial_putc(serial, c);
+        if ( '\n'== c ) {
+            _serial_putc(serial, '\r');
             _serial_putc(serial, '\n');
         } else {
             _serial_putc(serial, c);
         }
     }
 
+    /* Read from the device */
     for ( ;; ) {
         /* Received? */
         io.port = serial->port + 5;
@@ -172,6 +173,11 @@ serial_proc(struct serial *serial)
         io.port = serial->port;
         sysarch(SYSARCH_INB, &io);
         c = io.data;
+
+        /* Cook */
+        if ( '\r' == c ) {
+            c = '\n';
+        }
 
         driver_chr_ibuf_putc(serial->dev, c);
         driver_interrupt(serial->dev);
