@@ -80,6 +80,7 @@ struct kbd {
 
 int kbd_init(struct kbd *);
 int kbd_proc(struct kbd *, struct driver_mapped_device *);
+int kbd_getchar(struct kbd *, struct driver_mapped_device *);
 
 #endif /* _KBD_H */
 

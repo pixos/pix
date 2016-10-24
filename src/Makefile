@@ -109,7 +109,7 @@ fs: servers/fs/fs.o $(LIBCOBJS)
 
 ## tty driver (including keyboard, video, and serial drivers)
 tty: drivers/tty/tty.o drivers/tty/console.o drivers/tty/kbd.o \
-	drivers/tty/serial.o $(LIBCOBJS) lib/driver.o
+	drivers/tty/serial.o drivers/tty/linebuf.o $(LIBCOBJS) lib/driver.o
 	$(LD) -T app.ld -o $@ $^
 
 ## shell

@@ -136,7 +136,7 @@ _serial_putc(struct serial *serial, int c)
  * Run serial driver
  */
 int
-serial_proc(struct serial *serial)
+serial_proc(struct serial *serial, struct tty *tty)
 {
     struct sysarch_io io;
     int c;

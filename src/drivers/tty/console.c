@@ -29,6 +29,7 @@
 #include <fcntl.h>
 #include <machine/sysarch.h>
 #include <mki/driver.h>
+#include "kbd.h"
 #include "tty.h"
 
 #define VIDEO_RAM       0x000b8000ULL
@@ -70,10 +71,10 @@ console_init(struct console *con, const char *ttyname)
 
     con->screen.width = 80;
     con->screen.height = 25;
-    con->screen.pos = 0;
+    con->screen.eob = 0;
+    con->screen.cur = 0;
 
-    /* Set line buffer */
-    con->line.pos = 0;
+    con->screen.lmark = 0;
 
     return 0;
 }
@@ -105,8 +106,8 @@ _console_putc(struct console *con, int c)
 
     if ( '\n' == c ) {
         /* New line */
-        line = con->screen.pos / con->screen.width;
-        col = con->screen.pos % con->screen.width;
+        line = con->screen.eob / con->screen.width;
+        col = con->screen.eob % con->screen.width;
         /* # of characters to put */
         n = con->screen.width - col;
         if ( line + 1 == (off_t)con->screen.height ) {
@@ -117,39 +118,76 @@ _console_putc(struct console *con, int c)
             /* Clear last line */
             memset(con->video.vram + con->screen.width
                    * (con->screen.height - 1), 0x00, con->screen.width * 2);
-            con->screen.pos -= col;
+            con->screen.eob -= col;
         } else {
-            con->screen.pos += n;
+            con->screen.eob += n;
         }
-        _update_cursor(con->screen.pos);
+        con->screen.lmark = con->screen.eob;
+        _update_cursor(con->screen.eob);
         return;
     } else if ( '\x8' == c ) {
-        if ( con->screen.pos > 0 ) {
+        if ( con->screen.eob > 0 ) {
             /* Backspace */
-            con->screen.pos--;
-            con->video.vram[con->screen.pos] = 0x0f20;
-            _update_cursor(con->screen.pos);
+            con->screen.eob--;
+            con->video.vram[con->screen.eob] = 0x0f20;
+            _update_cursor(con->screen.eob);
         }
+        con->screen.lmark = con->screen.eob;
         return;
     }
     if ( '\t' == c ) {
         c = ' ';
     }
 
-    con->video.vram[con->screen.pos] = 0x0f00 | (uint16_t)c;
-    con->screen.pos++;
-    _update_cursor(con->screen.pos);
+    con->video.vram[con->screen.eob] = 0x0f00 | (uint16_t)c;
+    con->screen.eob++;
+    con->screen.lmark = con->screen.eob;
+    _update_cursor(con->screen.eob);
 }
+
+static void
+_update_line_buffer(struct console *con, struct tty *tty)
+{
+    size_t len;
+    ssize_t i;
+
+    len = con->screen.eob - con->screen.lmark;
+    if ( len > 0 ) {
+        memset(con->video.vram + con->screen.lmark, 0, len * 2);
+    }
+
+    for ( i = 0; i < (ssize_t)tty->lbuf.len; i++ ) {
+        con->video.vram[con->screen.lmark + i]
+            = 0x0f00 | (uint16_t)tty->lbuf.buf[i];
+    }
+    con->screen.eob = con->screen.lmark + tty->lbuf.len;
+    _update_cursor(con->screen.lmark + tty->lbuf.cur);
+}
+
 
 /*
  * Process console I/O
  */
 int
-console_proc(struct console *con)
+console_proc(struct console *con, struct tty *tty)
 {
     int c;
 
-    /* Write to the device */
+    /* Read characters from the device (i.e., keyboard) */
+    while ( (c = kbd_getchar(&con->kbd, con->dev)) >= 0 ) {
+        tty_line_buffer_putc(&tty->lbuf, c);
+
+        if ( tty->term.c_lflag & ECHO & 0 ) {
+            /* Echo is enabled. */
+            _update_line_buffer(con, tty);
+        }
+        if ( '\n' == c ) {
+            _console_putc(con, '\n');
+            tty->lbuf.len = 0;
+        }
+    }
+
+    /* Write characters to the video */
     while ( (c = driver_chr_obuf_getc(con->dev)) >= 0 ) {
         _console_putc(con, c);
     }

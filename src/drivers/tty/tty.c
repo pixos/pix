@@ -45,6 +45,7 @@ main(int argc, char *argv[])
     int ret;
     pid_t pid;
     char *shell_args[] = {"/bin/pash", NULL};
+    struct tty tty;
 
     tm.tv_sec = 0;
     tm.tv_nsec = 100000000;
@@ -55,6 +56,15 @@ main(int argc, char *argv[])
     }
     ttyname = argv[1];
     snprintf(path, PATH_MAX, "/dev/%s", ttyname);
+
+    /* Initialize the tty */
+    tty_line_buffer_init(&tty.lbuf);
+    tty.term.c_iflag = 0;
+    tty.term.c_oflag = 0;
+    tty.term.c_cflag = 0;
+    tty.term.c_lflag = ECHO;
+    tty.term.ispeed = 0;
+    tty.term.ospeed = 0;
 
     /* Check the type */
     if ( 0 == strncmp(ttyname, TTY_CONSOLE_PREFIX,
@@ -92,8 +102,7 @@ main(int argc, char *argv[])
         }
 
         for ( ;; ) {
-            kbd_proc(&console.kbd, console.dev);
-            console_proc(&console);
+            console_proc(&console, &tty);
             nanosleep(&tm, NULL);
         }
     } else if ( 0 == strncmp(ttyname, TTY_SERIAL_PREFIX,
@@ -130,7 +139,7 @@ main(int argc, char *argv[])
         }
 
         for ( ;; ) {
-            serial_proc(&serial);
+            serial_proc(&serial, &tty);
             nanosleep(&tm, NULL);
         }
     }

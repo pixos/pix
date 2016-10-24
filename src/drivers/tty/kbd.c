@@ -486,6 +486,64 @@ kbd_proc(struct kbd *kbd, struct driver_mapped_device *dev)
     return 0;
 }
 
+int
+kbd_getchar(struct kbd *kbd, struct driver_mapped_device *dev)
+{
+    struct sysarch_io io;
+    unsigned char scan_code;
+    int ascii;
+
+    io.port = KBD_CTRL_STAT;
+    sysarch(SYSARCH_INB, &io);
+    if ( !(io.data & 1) ) {
+        return -1;
+    }
+    /* Read a scan code from the buffer of the keyboard controller */
+    scan_code = kbd_enc_read_buf();
+    /* Convert the scan code to an ascii code */
+    ascii = kbd_parse_scan_code(kbd, scan_code);
+
+    if ( ascii >= 0 ) {
+        /* Valid ascii code, then enqueue it to the buffer of the
+           character device */
+        if ( kbd->key_state.lctrl || kbd->key_state.rctrl ) {
+            switch ( ascii ) {
+            case 'h':
+            case 'H':
+                /* Backspace */
+                ascii = '\x8';
+                break;
+            default:
+                ;
+            }
+        }
+
+        if ( '\r' == ascii ) {
+            ascii = '\n';
+        }
+    }
+
+    if ( scan_code == KBD_KEY_F1 ) {
+        sysdebug(0);
+    }
+    if ( scan_code == KBD_KEY_F2 ) {
+        sysdebug(1);
+    }
+    if ( scan_code == KBD_KEY_F3 ) {
+        sysdebug(2);
+    }
+    if ( scan_code == KBD_KEY_F4 ) {
+        sysdebug(3);
+    }
+    if ( scan_code == 0x01 ) {
+        kbd_power_reset();
+    }
+
+    driver_interrupt(dev);
+
+    return ascii;
+}
+
 /*
  * Local variables:
  * tab-width: 4

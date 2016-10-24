@@ -26,7 +26,30 @@
 
 #include <stdint.h>
 #include <sys/types.h>
+#include <termios.h>
 #include "kbd.h"
+
+#define TTY_LINEBUFSIZE 4096
+
+/*
+ * Line buffer
+ */
+struct tty_line_buffer {
+    /* Cursor */
+    off_t cur;
+    /* Length */
+    size_t len;
+    /* Buffer */
+    char buf[TTY_LINEBUFSIZE];
+};
+
+/*
+ * TTY
+ */
+struct tty {
+    struct tty_line_buffer lbuf;
+    struct termios term;
+};
 
 /*
  * Video
@@ -52,13 +75,12 @@ struct console {
         /* Height */
         size_t height;
         /* Cursor position */
-        off_t pos;
+        off_t cur;
+        /* End-of-buffer */
+        off_t eob;
+        /* Line buffer marker */
+        off_t lmark;
     } screen;
-    /* Line buffer */
-    struct {
-        off_t pos;
-        char buf[4096];
-    } line;
     /* Character device */
     struct driver_mapped_device *dev;
 };
@@ -72,10 +94,12 @@ struct serial {
     struct driver_mapped_device *dev;
 };
 
+int tty_line_buffer_init(struct tty_line_buffer *);
+int tty_line_buffer_putc(struct tty_line_buffer *, int c);
 int console_init(struct console *, const char *);
-int console_proc(struct console *);
+int console_proc(struct console *, struct tty *);
 int serial_init(struct serial *, int, const char *);
-int serial_proc(struct serial *);
+int serial_proc(struct serial *, struct tty *);
 
 #endif /* _TTY_H */
 
