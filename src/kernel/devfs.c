@@ -35,7 +35,6 @@ devfs_read(struct fildes *fildes, void *buf, size_t nbyte)
 {
     struct ktask *t;
     struct devfs_entry *ent;
-    struct driver_device_fifo *q;
     ssize_t len;
     struct ktask_list_entry *tle;
     int c;

@@ -53,11 +53,6 @@ struct console {
         size_t height;
         /* Cursor position */
         off_t pos;
-
-        /* Offset */
-        //off_t offset;
-        /* Buffer (not video RAM buffer) */
-        //char *buf;
     } screen;
     /* Line buffer */
     struct {
