@@ -133,7 +133,7 @@ _sysdriver_reg_dev(struct ktask *t, struct proc *proc, void *args)
         return -1;
     }
     paddr = arch_kmem_addr_v2p(g_kmem, ent->mapped);
-    for ( i = 0; i < (ssize_t)mapsz / PAGESIZE; i++ ) {
+    for ( i = 0; i < (ssize_t)(mapsz / PAGESIZE); i++ ) {
         ret = arch_vmem_map(proc->vmem,
                             (void *)(vaddr + PAGESIZE * i),
                             paddr + PAGESIZE * i, VMEM_USABLE | VMEM_USED);
