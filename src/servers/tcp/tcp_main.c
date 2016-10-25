@@ -200,6 +200,16 @@ _ip_checksum(const uint8_t *data, int len)
 }
 
 /*
+ * Send an ack packet
+ */
+int
+tcp_send_ack(struct tcp_session *sess, uint32_t seq, int syn, int fin)
+{
+    return -1;
+}
+
+
+/*
  * Send
  */
 int
