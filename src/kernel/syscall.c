@@ -941,7 +941,7 @@ sys_nanosleep(const struct timespec *rqtp, struct timespec *rmtp)
 void
 sys_xpsleep(void)
 {
-    __asm__ __volatile__ ("sti;hlt;cli");
+    __asm__ __volatile__ ("sti;hlt");
 }
 
 /*
