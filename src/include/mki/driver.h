@@ -77,7 +77,7 @@ struct driver_mapped_device_chr {
  * Block device
  */
 struct driver_mapped_device_blk {
-    uint8_t buf[2048];
+    uint8_t buf[SYSDRIVER_DEV_BUFSIZE];
 };
 /*
  * Mapped device (also referred from struct devfs_entry)
