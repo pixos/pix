@@ -76,7 +76,7 @@ _memcmp:
 1:
 	ret
 
-/* int memcpy(void *__restrict dst, void *__restrict src, size_t n) */
+/* void * memcpy(void *__restrict dst, const void *__restrict src, size_t n) */
 _memcpy:
 	movq	%rdi,%rax	/* Return value */
 	movq	%rdx,%rcx	/* n */

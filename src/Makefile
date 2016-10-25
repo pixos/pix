@@ -108,6 +108,10 @@ fe: servers/fe/fe.o servers/fe/pci.o $(LIBCOBJS)
 fs: servers/fs/fs.o $(LIBCOBJS)
 	$(LD) -T app.ld -o $@ $^
 
+## TCP server
+tcp: servers/tcp/tcp_main.o $(LIBCOBJS)
+	$(LD) -T app.ld -o $@ $^
+
 ## tty driver (including keyboard, video, and serial drivers)
 tty: drivers/tty/tty.o drivers/tty/console.o drivers/tty/kbd.o \
 	drivers/tty/serial.o drivers/tty/linebuf.o $(LIBCOBJS) lib/driver.o

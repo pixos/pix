@@ -29,6 +29,75 @@
 #include <sys/mman.h>
 #include "pci.h"
 
+
+/* Ethernet header */
+struct ethhdr {
+    uint64_t dst:48;
+    uint64_t src:48;
+    uint16_t type;
+} __attribute__ ((packed));
+/* IEEE 802.1Q */
+struct ethhdr1q {
+    uint16_t vlan;
+    uint16_t type;
+} __attribute__ ((packed));
+
+/* IP header */
+struct iphdr {
+    uint8_t ip_ihl:4;           /* Little endian */
+    uint8_t ip_version:4;
+    uint8_t ip_tos;
+    uint16_t ip_len;
+    uint16_t ip_id;
+    uint16_t ip_off;
+    uint16_t ip_ttl;
+    uint8_t ip_proto;
+    uint16_t ip_sum;
+    uint32_t ip_src;
+    uint32_t ip_dst;
+} __attribute__ ((packed));
+
+/* ICMP header */
+struct icmp_hdr {
+    uint8_t type;
+    uint8_t code;
+    uint16_t checksum;
+    uint16_t ident;
+    uint16_t seq;
+    // data...
+} __attribute__ ((packed));
+
+/* IPv6 header */
+struct ip6hdr {
+    uint32_t ip6_vtf;
+    uint16_t ip6_len;
+    uint8_t ip6_next;
+    uint8_t ip6_limit;
+    uint8_t ip6_src[16];
+    uint8_t ip6_dst[16];
+} __attribute__ ((packed));
+
+/* ICMPv6 header */
+struct icmp6_hdr {
+    uint8_t type;
+    uint8_t code;
+    uint16_t checksum;
+    // data...
+} __attribute__ ((packed));
+
+/* ARP */
+struct ip_arp {
+    uint16_t hw_type;
+    uint16_t protocol;
+    uint8_t hlen;
+    uint8_t plen;
+    uint16_t opcode;
+    uint64_t src_mac:48;
+    uint32_t src_ip;
+    uint64_t dst_mac:48;
+    uint32_t dst_ip;
+} __attribute__ ((packed));
+
 void
 sysxpsleep(void)
 {
