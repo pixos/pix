@@ -25,6 +25,10 @@
 #include <sys/syscall.h>
 #include "kernel.h"
 
+/*
+ * Initialize the kernel (called from the bootstrap processor initialization
+ * sequence)
+ */
 void
 kinit(void)
 {
@@ -393,7 +397,6 @@ kstrdup(const char *s1)
 
     return s;
 }
-
 
 /*
  * kvsscanf
