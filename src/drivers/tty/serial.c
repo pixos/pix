@@ -140,6 +140,7 @@ serial_proc(struct serial *serial, struct tty *tty)
 {
     struct sysarch_io io;
     int c;
+    ssize_t i;
 
     /* Read line state to until the transmit buffer is empty */
     for ( ;; ) {
@@ -179,8 +180,25 @@ serial_proc(struct serial *serial, struct tty *tty)
             c = '\n';
         }
 
-        driver_chr_ibuf_putc(serial->dev, c);
+        //driver_chr_ibuf_putc(serial->dev, c);
         driver_interrupt(serial->dev);
+
+        tty_line_buffer_putc(&tty->lbuf, c);
+
+        if ( tty->term.c_lflag & ECHO ) {
+            /* Echo is enabled. */
+            if ( '\n' == c ) {
+                _serial_putc(serial, '\r');
+            }
+            _serial_putc(serial, c);
+        }
+        if ( '\n' == c ) {
+            for ( i = 0; i < (ssize_t)tty->lbuf.len; i++ ) {
+                driver_chr_ibuf_putc(serial->dev, tty->lbuf.buf[i]);
+            }
+            driver_chr_ibuf_putc(serial->dev, '\n');
+            tty->lbuf.len = 0;
+        }
     }
 
     return 0;
