@@ -88,7 +88,8 @@ kpack: kernel/arch/$(ARCH)/asm.o \
 	$(LD) -N -e kstart64 -Ttext=0xc0010000 -o kpack.dbg $^
 
 ## libc
-LIBCOBJS=lib/arch/$(ARCH)/libc.o lib/arch/$(ARCH)/libcasm.o lib/stdio/fio.o
+LIBCOBJS=lib/arch/$(ARCH)/libc.o lib/arch/$(ARCH)/libcasm.o lib/stdio/fio.o \
+	lib/stdio/print.o lib/string/str.o
 lib/arch/$(ARCH)/libc.o: lib/crt0.o
 
 ## init server

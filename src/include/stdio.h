@@ -37,6 +37,7 @@ extern FILE *stdout;
 extern FILE *stderr;
 
 int snprintf(char *__restrict__, size_t, const char *__restrict__, ...);
+int printf(const char * __restrict__, ...);
 
 char * fgets(char * __restrict__, int size, FILE * __restrict__);
 int fgetc(FILE *stream);
