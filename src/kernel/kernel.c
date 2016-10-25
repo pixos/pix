@@ -150,6 +150,7 @@ _irq_handler(u64 vec)
             tmp = e->proc->tasks;
             while ( NULL != tmp ) {
                 tmp->state = KTASK_STATE_READY;
+                tmp->signaled = 0;
                 tmp = tmp->proc_task_next;
             }
             e = e->next;

@@ -153,6 +153,7 @@ proc_fork(struct proc *op, struct ktask *ot, struct ktask **ntp)
     t->ktask->arch = t;
     t->ktask->proc = np;
     t->ktask->state = KTASK_STATE_READY;
+    t->ktask->signaled = 0;
     t->ktask->proc_task_next = NULL;
     t->ktask->proc->tasks = t->ktask;
     t->ktask->next = NULL;
@@ -355,6 +356,7 @@ task_create_idle(void)
 
     /* Set the task state to ready */
     t->ktask->state = KTASK_STATE_READY;
+    t->ktask->signaled = 0;
 
     /* Setup the restart point */
     t->rp = t->kstack + KSTACK_SIZE - 16 - sizeof(struct stackframe64);
@@ -526,6 +528,7 @@ proc_create(const char *path, const char *name, pid_t pid)
     t->rp = t->kstack + KSTACK_SIZE - 16 - sizeof(struct stackframe64);
     kmemset(t->rp, 0, sizeof(struct stackframe64));
     t->ktask->state = KTASK_STATE_READY;
+    t->ktask->signaled = 0;
 
     /* Kernel task */
     l = kmalloc(sizeof(struct ktask_list));

@@ -592,6 +592,7 @@ struct ktask {
     void *arch;
     /* State */
     enum ktask_state state;
+    int signaled;
 
     /* Process */
     struct proc *proc;
