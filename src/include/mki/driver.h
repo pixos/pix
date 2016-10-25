@@ -37,7 +37,7 @@
 
 #define SYSDRIVER_INTERRUPT     20
 
-#define SYSDRIVER_DEV_BUFSIZE   512
+#define SYSDRIVER_DEV_BUFSIZE   8192
 
 struct sysdriver_handler {
     int nr;
