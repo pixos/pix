@@ -33,7 +33,7 @@ initrd:
 #       Create an image
 	@./create_initrd.sh init:/servers/init pm:/servers/pm fs:/servers/fs \
 		tty:/drivers/tty pash:/bin/pash pci:/drivers/pci \
-		fe:/servers/fe vmx:/drivers/vmx
+		fe:/ids/fe vmx:/drivers/vmx
 
 ## Compile boot loader
 bootloader:

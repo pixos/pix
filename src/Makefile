@@ -101,7 +101,7 @@ pm: servers/pm/pm.o $(LIBCOBJS)
 	$(LD) -T app.ld -o $@ $^
 
 ## forwarding engine
-fe: servers/fe/fe.o servers/fe/pci.o $(LIBCOBJS)
+fe: ids/fe/fe.o ids/fe/pci.o $(LIBCOBJS)
 	$(LD) -T app.ld -o $@ $^
 
 ## file system

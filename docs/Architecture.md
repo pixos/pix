@@ -25,3 +25,8 @@
 * tcp: TCP/IP
 
 ## Integrated Driver Servers for Fast Path Processor (Exclusive Processor)
+* fe: Forwarding Engine
+  * e1000
+  * e1000e
+  * ixgbe
+  * i40e
