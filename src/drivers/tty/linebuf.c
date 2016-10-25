@@ -89,6 +89,9 @@ _backspace(struct tty_line_buffer *buf)
     return 0;
 }
 
+/*
+ * Try to move backward
+ */
 static int
 _move_left(struct tty_line_buffer *buf)
 {
@@ -106,6 +109,9 @@ _move_left(struct tty_line_buffer *buf)
     return 0;
 }
 
+/*
+ * Try to move forward
+ */
 static int
 _move_right(struct tty_line_buffer *buf)
 {
@@ -140,15 +146,19 @@ tty_line_buffer_putc(struct tty_line_buffer *buf, int c)
         _backspace(buf);
         break;
     case '\n':
+        /* New line */
         buf->cur = 0;
         break;
     case ASCII_LEFT:
+        /* Move backward */
         _move_left(buf);
         break;
     case ASCII_RIGHT:
+        /* Move forward */
         _move_right(buf);
         break;
     default:
+        /* Other character */
         _insert_char(buf, c);
     }
 
