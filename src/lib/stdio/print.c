@@ -567,6 +567,26 @@ snprintf(char *__restrict__ str, size_t size, const char *__restrict__ format,
 }
 
 /*
+ * fprintf
+ */
+int
+fprintf(FILE * __restrict__ stream, const char * __restrict__ format, ...)
+{
+    char buf[4096];
+    int ret;
+    va_list ap;
+
+    va_start(ap, format);
+    ret = vsnprintf(buf, 4096, format, ap);
+    va_end(ap);
+
+    /* FIXME: Need to support more buffer */
+    fputs(buf, stream);
+
+    return ret;
+}
+
+/*
  * printf
  */
 int

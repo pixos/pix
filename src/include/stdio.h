@@ -1,5 +1,5 @@
 /*_
- * Copyright (c) 2015 Hirochika Asai <asai@jar.jp>
+ * Copyright (c) 2015-2016 Hirochika Asai <asai@jar.jp>
  * All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -29,7 +29,9 @@
 #define EOF     -1
 
 typedef struct {
+    /* File descriptor */
     int fd;
+    /* Stream buffer to be defined below */
 } FILE;
 
 extern FILE *stdin;
@@ -37,6 +39,7 @@ extern FILE *stdout;
 extern FILE *stderr;
 
 int snprintf(char *__restrict__, size_t, const char *__restrict__, ...);
+int fprintf(FILE * __restrict__, const char * __restrict__, ...);
 int printf(const char * __restrict__, ...);
 
 char * fgets(char * __restrict__, int size, FILE * __restrict__);
