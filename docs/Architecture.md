@@ -1,11 +1,11 @@
-# Architecture
+# PIX Internals
 
 ## Process tree
     + init
-      + kbd: keyboard driver
-      + video: video driver
       + tty: tty driver
         + pash: shell
+      + tcp: tcp server
+      + telnet: telnet server application
 
 ## Kernel internals
 * timer
