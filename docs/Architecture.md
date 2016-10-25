@@ -13,3 +13,15 @@
 * vfs?
   * ramfs?
   * devfs?
+
+## Drivers
+* tty
+  * console: keyboard + video
+  * serial (UART)
+
+## Servers
+* pm: process manager
+* init
+* tcp: TCP/IP
+
+## Integrated Driver Servers for Fast Path Processor (Exclusive Processor)
