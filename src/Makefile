@@ -125,10 +125,6 @@ pash: bin/pash/pash.o $(LIBCOBJS)
 pci: drivers/pci/pci.o $(LIBCOBJS)
 	$(LD) -T app.ld -o $@ $^
 
-## e1000 driver
-e1000: drivers/e1000/e1000.o $(LIBCOBJS)
-	$(LD) -T app.ld -o $@ $^
-
 ## VMX driver
 vmx: drivers/vmx/vmx.o $(LIBCOBJS)
 	$(LD) -T app.ld -o $@ $^
