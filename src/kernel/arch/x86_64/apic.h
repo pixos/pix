@@ -57,7 +57,8 @@
 u64 lapic_base_addr(void);
 void lapic_send_init_ipi(void);
 void lapic_send_startup_ipi(u8);
-void lapic_send_fixed_ipi(u8);
+void lapic_bcast_fixed_ipi(u8);
+void lapic_send_fixed_ipi(int, u8);
 int lapic_id(void);
 u64 lapic_estimate_freq(void);
 void lapic_start_timer(u64, u8);

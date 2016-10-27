@@ -159,6 +159,7 @@
 #define HZ                      100
 #define IV_LOC_TMR              0x40
 #define IV_LOC_TMR_XP           0x41 /* Exclusive processor */
+#define IV_PIXIPI               0xe0
 #define IV_CRASH                0xfe
 #define NR_IV                   0x100
 #define IV_IRQ(n)               (0x20 + (n))
@@ -593,6 +594,8 @@ struct ktask {
     /* State */
     enum ktask_state state;
     int signaled;
+    /* Task ID (Thread ID) */
+    int id;
 
     /* Process */
     struct proc *proc;
@@ -804,6 +807,9 @@ void * sys_mmap(void *, size_t, int, int, int, off_t);
 int sys_munmap(void *, size_t);
 off_t sys_lseek(int, off_t, int);
 int sys_nanosleep(const struct timespec *, struct timespec *);
+/* PIX-specific system calls */
+int sys_pix_create_jobs(void *(*)(void *));
+/* Others */
 void sys_xpsleep(void);
 void sys_debug(int);
 int sys_driver(int, void *);
@@ -817,6 +823,7 @@ void set_next_ktask(struct ktask *);
 void set_next_idle(void);
 void panic(const char *);
 void halt(void);
+struct ktask *task_create(struct proc *, void *(*restart_point)(void *));
 struct proc * proc_fork(struct proc *, struct ktask *, struct ktask **);
 void task_set_return(struct ktask *, unsigned long long);
 pid_t sys_fork(void);

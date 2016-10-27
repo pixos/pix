@@ -113,7 +113,7 @@ lapic_send_startup_ipi(u8 vector)
  * Broadcast fixed IPI
  */
 void
-lapic_send_fixed_ipi(u8 vector)
+lapic_bcast_fixed_ipi(u8 vector)
 {
     u32 icrl;
     u32 icrh;
@@ -126,6 +126,28 @@ lapic_send_fixed_ipi(u8 vector)
 
     icrl = (icrl & ~0x000cdfff) | ICR_FIXED | ICR_DEST_ALL_EX_SELF | vector;
     icrh = (icrh & 0x000fffff);
+
+    mfwrite32(apic_base + APIC_ICR_HIGH, icrh);
+    mfwrite32(apic_base + APIC_ICR_LOW, icrl);
+}
+
+/*
+ * Send a fixed IPI to the specified destination
+ */
+void
+lapic_send_fixed_ipi(int dst, u8 vector)
+{
+    u32 icrl;
+    u32 icrh;
+    u64 apic_base;
+
+    apic_base = lapic_base_addr();
+
+    icrl = mfread32(apic_base + APIC_ICR_LOW);
+    icrh = mfread32(apic_base + APIC_ICR_HIGH);
+
+    icrl = (icrl & ~0x000cdfff) | ICR_FIXED | ICR_DEST_NOSHORTHAND | vector;
+    icrh = (icrh & 0x000fffff) | ((u32)dst << 24);
 
     mfwrite32(apic_base + APIC_ICR_HIGH, icrh);
     mfwrite32(apic_base + APIC_ICR_LOW, icrl);

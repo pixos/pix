@@ -67,12 +67,13 @@ kinit(void)
     g_syscall_table[SYS_munmap] = sys_munmap;
     g_syscall_table[SYS_lseek] = sys_lseek;
     g_syscall_table[SYS_nanosleep] = sys_nanosleep;
+    /* PIX-specific system calls */
+    g_syscall_table[SYS_pix_create_jobs] = sys_pix_create_jobs;
+    /* Others */
     g_syscall_table[SYS_xpsleep] = sys_xpsleep;
     g_syscall_table[SYS_debug] = sys_debug;
     g_syscall_table[SYS_driver] = sys_driver;
     g_syscall_table[SYS_sysarch] = sys_sysarch;
-
-    syscall_setup(g_syscall_table, SYS_MAXSYSCALL);
 }
 
 
@@ -134,6 +135,15 @@ isr_loc_tmr(void)
 }
 
 /*
+ * PIX interprocessor interrupts
+ */
+void
+isr_pixipi(void)
+{
+    //set_next_ktask(ktask);
+}
+
+/*
  * Run an interrupt handler for IRQ interrupt
  */
 static void
@@ -167,6 +177,9 @@ kintr_isr(u64 vec)
     switch ( vec ) {
     case IV_LOC_TMR:
         isr_loc_tmr();
+        break;
+    case IV_PIXIPI:
+        isr_pixipi();
         break;
     case IV_IRQ(0):
     case IV_IRQ(1):

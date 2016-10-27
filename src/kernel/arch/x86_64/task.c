@@ -26,6 +26,8 @@
 #include "arch.h"
 #include "memory.h"
 
+#define XSAVE_SIZE  4096
+
 /* Kernel memory */
 //extern struct kmem *g_kmem;
 
@@ -43,12 +45,12 @@ task_new(void)
         return NULL;
     }
     /* Create a space for FPU/SSE registers */
-    t->xregs = kmalloc(4096);
+    t->xregs = kmalloc(XSAVE_SIZE);
     if ( NULL == t->xregs ) {
         kfree(t);
         return NULL;
     }
-    kmemset(t->xregs, 0, 4096);
+    kmemset(t->xregs, 0, XSAVE_SIZE);
     //xsave(t->xregs, 5, 0);
     /* Allocate the kernel task structure of a new task */
     t->kstack = kmalloc(KSTACK_SIZE);
@@ -79,6 +81,115 @@ task_new(void)
 
     t->sp0 = (u64)t->kstack + KSTACK_SIZE - 16;
 
+    return t->ktask;
+}
+
+/*
+ * Create a task
+ */
+struct ktask *
+task_create(struct proc *proc, void *(*restart_point)(void *))
+{
+    struct arch_task *t;
+    void *paddr1;
+    ssize_t i;
+    int ret;
+    struct ktask *kt;
+    int tid;
+
+    /* Search an available task ID */
+    kt = proc->tasks;
+    tid = -1;
+    while ( NULL != kt ) {
+        if ( kt->id > tid ) {
+            tid = kt->id;
+        }
+        kt = kt->proc_task_next;
+    }
+    tid++;
+
+    /* Allocate the architecture-specific task structure of a new task */
+    t = kmalloc(sizeof(struct arch_task));
+    if ( NULL == t ) {
+        return NULL;
+    }
+    /* Create a space for FPU/SSE registers */
+    t->xregs = kmalloc(XSAVE_SIZE);
+    if ( NULL == t->xregs ) {
+        kfree(t);
+        return NULL;
+    }
+    kmemset(t->xregs, 0, XSAVE_SIZE);
+    /* Allocate the kernel task structure of a new task */
+    t->kstack = kmalloc(KSTACK_SIZE);
+    if ( NULL == t->kstack ) {
+        kfree(t->xregs);
+        kfree(t);
+        return NULL;
+    }
+    /* Allocate the kernel stack of a new task */
+    t->ktask = kmalloc(sizeof(struct ktask));
+    if ( NULL == t->ktask ) {
+        kfree(t->kstack);
+        kfree(t->xregs);
+        kfree(t);
+        return NULL;
+    }
+    kmemset(t->ktask, 0, sizeof(struct ktask));
+    t->ktask->arch = t;
+    t->ktask->proc = proc;
+    t->ktask->state = KTASK_STATE_READY;
+    t->ktask->signaled = 0;
+    t->ktask->id = tid;
+    t->ktask->proc_task_next = proc->tasks;
+    t->ktask->proc->tasks = t->ktask;
+    t->ktask->next = NULL;
+    /* Allocate the user stack of a new task */
+    paddr1 = pmem_prim_alloc_pages(PMEM_ZONE_LOWMEM,
+                                   bitwidth(USTACK_SIZE / SUPERPAGESIZE));
+    if ( NULL == paddr1 ) {
+        kfree(t->ktask);
+        kfree(t->kstack);
+        kfree(t->xregs);
+        kfree(t);
+        return NULL;
+    }
+
+    /* Virtual address of the user stack of this task */
+    t->ustack = (void *)(USTACK_INIT - USTACK_SIZE * tid);
+
+    /* Initialize the kernel stack */
+    kmemset(t->kstack, 0, KSTACK_SIZE);
+
+    /* FIXME: Tempoary... */
+    for ( i = 0; i < (ssize_t)(USTACK_SIZE / SUPERPAGESIZE); i++ ) {
+        ret = arch_vmem_map(proc->vmem, t->ustack + SUPERPAGE_ADDR(i),
+                            paddr1 + SUPERPAGE_ADDR(i),
+                            VMEM_USABLE | VMEM_USED | VMEM_SUPERPAGE);
+        if ( ret < 0 ) {
+            /* FIXME: Handle this error */
+            panic("FIXME a");
+        }
+    }
+
+    /* Reset the user stack */
+    kmemset(t->ustack, 0, USTACK_SIZE);
+
+    /* Setup the restart point */
+    t->rp = t->kstack + KSTACK_SIZE - 16 - sizeof(struct stackframe64);
+    kmemset(t->rp, 0, sizeof(struct stackframe64));
+    t->rp->cs = GDT_RING3_CODE64_SEL + 3;
+    t->rp->ss = GDT_RING3_DATA64_SEL + 3;
+    t->rp->gs = t->rp->ss;
+    t->rp->fs = t->rp->ss;
+    t->rp->sp = (u64)t->ustack + USTACK_SIZE - 16 - 8;
+    t->rp->ip = (u64)restart_point;
+    t->rp->flags = 0x3202;
+
+    t->cr3 = ((struct arch_vmem_space *)proc->vmem->arch)->pgt;
+    t->sp0 = (u64)t->kstack + KSTACK_SIZE - 16;
+
+    /* Return */
     return t->ktask;
 }
 
@@ -124,14 +235,14 @@ proc_fork(struct proc *op, struct ktask *ot, struct ktask **ntp)
         return NULL;
     }
     /* Create a space for FPU/SSE registers */
-    t->xregs = kmalloc(4096);
+    t->xregs = kmalloc(XSAVE_SIZE);
     if ( NULL == t->xregs ) {
         kfree(t);
         kfree(np);
         return NULL;
     }
-    kmemset(t->xregs, 0, 4096);
-    kmemcpy(t->xregs, ((struct arch_task *)ot->arch)->xregs, 4096);
+    kmemset(t->xregs, 0, XSAVE_SIZE);
+    kmemcpy(t->xregs, ((struct arch_task *)ot->arch)->xregs, XSAVE_SIZE);
     /* Allocate the kernel task structure of a new task */
     t->kstack = kmalloc(KSTACK_SIZE);
     if ( NULL == t->kstack ) {
@@ -154,6 +265,7 @@ proc_fork(struct proc *op, struct ktask *ot, struct ktask **ntp)
     t->ktask->proc = np;
     t->ktask->state = KTASK_STATE_READY;
     t->ktask->signaled = 0;
+    t->ktask->id = 0;
     t->ktask->proc_task_next = NULL;
     t->ktask->proc->tasks = t->ktask;
     t->ktask->next = NULL;
@@ -310,12 +422,12 @@ task_create_idle(void)
     t->cr3 = ((struct arch_kmem_space *)g_kmem->space->arch)->cr3;
 
     /* Create a space for FPU/SSE registers */
-    t->xregs = kmalloc(4096);
+    t->xregs = kmalloc(XSAVE_SIZE);
     if ( NULL == t->xregs ) {
         kfree(t);
         return NULL;
     }
-    kmemset(t->xregs, 0, 4096);
+    kmemset(t->xregs, 0, XSAVE_SIZE);
     //xsave(t->xregs, 5, 0);
 
     /* Kernel stack */
@@ -357,6 +469,7 @@ task_create_idle(void)
     /* Set the task state to ready */
     t->ktask->state = KTASK_STATE_READY;
     t->ktask->signaled = 0;
+    t->ktask->id = 0;
 
     /* Setup the restart point */
     t->rp = t->kstack + KSTACK_SIZE - 16 - sizeof(struct stackframe64);
@@ -449,11 +562,11 @@ proc_create(const char *path, const char *name, pid_t pid)
     kmemset(t, 0, sizeof(struct arch_task));
 
     /* Create a space for FPU/SSE registers */
-    t->xregs = kmalloc(4096);
+    t->xregs = kmalloc(XSAVE_SIZE);
     if ( NULL == t->xregs ) {
         goto error_task;
     }
-    kmemset(t->xregs, 0, 4096);
+    kmemset(t->xregs, 0, XSAVE_SIZE);
     //xsave(t->xregs, 5, 0);
 
     /* Create a task */
@@ -529,6 +642,7 @@ proc_create(const char *path, const char *name, pid_t pid)
     kmemset(t->rp, 0, sizeof(struct stackframe64));
     t->ktask->state = KTASK_STATE_READY;
     t->ktask->signaled = 0;
+    t->ktask->id = 0;
 
     /* Kernel task */
     l = kmalloc(sizeof(struct ktask_list));

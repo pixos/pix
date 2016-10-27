@@ -113,6 +113,7 @@ intr_setup(void)
     /* Interrupts */
     idt_setup_intr_gate(IV_LOC_TMR, intr_apic_loc_tmr);
     idt_setup_intr_gate(IV_LOC_TMR_XP, intr_apic_loc_tmr_xp);
+    idt_setup_intr_gate(IV_PIXIPI, intr_pixipi);
     idt_setup_intr_gate(IV_CRASH, intr_crash);
 
     /* IRQs */
@@ -170,7 +171,7 @@ panic(const char *s)
     if ( mp_enabled ) {
         /* Notify other processors to stop */
         /* Send IPI and halt self */
-        lapic_send_fixed_ipi(IV_CRASH);
+        lapic_bcast_fixed_ipi(IV_CRASH);
     }
 
     /* Print out the message string directly */
@@ -347,21 +348,7 @@ bsp_init(void)
 
     /* Initialize the kernel */
     kinit();
-
-#if 0
-    if ( vmx_enable() < 0 ) {
-        panic("Failed to initialize VMX.");
-        return;
-    }
-    if ( vmx_initialize_vmcs() ) {
-        panic("Failed on VMCX initialization.");
-        return;
-    }
-    if ( vmlaunch() ) {
-        panic("Failed on VMLAUNCH.");
-        return;
-    }
-#endif
+    syscall_setup(g_syscall_table, SYS_MAXSYSCALL);
 
     /* Enable MP */
     mp_enabled = 1;
@@ -457,6 +444,16 @@ ap_init(void)
 
     /* Load TSS */
     tr_load(lapic_id());
+
+    /* Schedule the idle task */
+    this_cpu()->cur_task = NULL;
+    this_cpu()->next_task = this_cpu()->idle_task;
+
+    /* Set up the system call table */
+    syscall_setup(g_syscall_table, SYS_MAXSYSCALL);
+
+    /* Start the idle task */
+    task_restart();
 }
 
 /*
@@ -583,6 +580,19 @@ arch_exec(struct arch_task *t, void (*entry)(void), size_t size, int policy,
 }
 
 /*
+ * Run a task on a processor
+ */
+void
+arch_pix_task(int id, struct ktask *t)
+{
+    struct cpu_data *cpu;
+
+    cpu = (struct cpu_data *)((u64)CPU_DATA_BASE + CPU_DATA_SIZE * id);
+    cpu->next_task = t->arch;
+    lapic_send_fixed_ipi(id, IV_PIXIPI);
+}
+
+/*
  * A routine called when task is switched
  * Note that this is in the interrupt handler and DO NOT change the interrupt
  * flag (i.e., DO NOT use sti/cli).  Also use caution in use of lock.
@@ -672,8 +682,8 @@ isr_exception(int nr, void *ip, u64 cs, u64 flags, void *sp)
                   nr, ip, cs, flags, sp);
     } else {
         ksnprintf(buf, sizeof(buf),
-                  "#%d: %s, ip=%llx, cs=%llx, flags=%llx, sp=%llx",
-                  nr, t->proc->name, ip, cs, flags, sp);
+                  "#%d @%d: %s, ip=%llx, cs=%llx, flags=%llx, sp=%llx",
+                  nr, lapic_id(), t->proc->name, ip, cs, flags, sp);
     }
     panic(buf);
 }
@@ -693,9 +703,9 @@ isr_exception_werror(int nr, u64 error, void *ip, u64 cs, u64 flags, void *sp)
         ksnprintf(buf, sizeof(buf), "#%d (%llx): ip=%llx, cs=%llx, flags=%llx, "
                   "sp=%llx", nr, error, ip, cs, flags, sp);
     } else {
-        ksnprintf(buf, sizeof(buf), "#%d (%llx): %s, ip=%llx, cs=%llx, "
-                  "flags=%llx, sp=%llx", nr, error, t->proc->name, ip, cs,
-                  flags, sp);
+        ksnprintf(buf, sizeof(buf), "#%d @%d (%llx): %s, ip=%llx, cs=%llx, "
+                  "flags=%llx, sp=%llx", nr, lapic_id(), error, t->proc->name,
+                  ip, cs, flags, sp);
     }
     panic(buf);
 }

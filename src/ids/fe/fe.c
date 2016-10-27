@@ -27,6 +27,7 @@
 #include <unistd.h>
 #include <sys/syscall.h>
 #include <sys/mman.h>
+#include <time.h>
 #include "pci.h"
 
 
@@ -98,10 +99,25 @@ struct ip_arp {
     uint32_t dst_ip;
 } __attribute__ ((packed));
 
-void
-sysxpsleep(void)
+
+unsigned long long syscall(int, ...);
+void *
+test(void *a)
 {
-    __asm__ __volatile__ ("syscall" :: "a"(SYS_xpsleep));
+    //close(0);
+    for ( ;; ) {
+        /* Do nothing */
+        //__asm__ __volatile__ ("syscall" :: "a"(SYS_xpsleep));
+        syscall(SYS_xpsleep);
+    }
+    exit(0);
+}
+
+void
+syspix(void)
+{
+    syscall(SYS_pix_create_jobs, test);
+    //__asm__ __volatile__ ("syscall" :: "a"(SYS_pix_create_jobs), "D"(test));
 }
 
 /*
@@ -110,20 +126,23 @@ sysxpsleep(void)
 int
 main(int argc, char *argv[])
 {
+    struct timespec tm;
+
+    syspix();
+
+    tm.tv_sec = 1;
+    tm.tv_nsec = 0;
+    while ( 1 ) {
+        nanosleep(&tm, NULL);
+    }
+
+#if 0
     char buf[512];
-    int ret;
-    char *mem;
-
-    /* Map */
-    mem = malloc(4096);;
-    strcpy(mem, "abcd efgh");
-
     while ( 1 ) {
         ret = pci_read_config(0, 0, 0, 0);
-        snprintf(buf, 512, "xxx %s %x %p %s\r\n", "abcd", ret, mem, mem);
         write(1, buf, strlen(buf));
-        sysxpsleep();
     }
+#endif
     exit(0);
 }
 

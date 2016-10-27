@@ -83,6 +83,7 @@ kpack: kernel/arch/$(ARCH)/asm.o \
 	kernel/ramfs.o \
 	kernel/devfs.o \
 	kernel/syscall.o \
+	kernel/syspix.o \
 	kernel/sysdriver.o
 	$(LD) -N -e kstart64 -Ttext=0xc0010000 --oformat binary -o $@ $^
 	$(LD) -N -e kstart64 -Ttext=0xc0010000 -o kpack.dbg $^

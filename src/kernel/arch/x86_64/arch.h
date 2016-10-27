@@ -395,6 +395,7 @@ void intr_driver_0x5f(void);
 
 void intr_apic_loc_tmr(void);
 void intr_apic_loc_tmr_xp(void);
+void intr_pixipi(void);
 void intr_crash(void);
 void task_restart(void);
 void task_replace(void *);

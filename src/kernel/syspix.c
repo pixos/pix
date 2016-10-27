@@ -51,6 +51,57 @@ sys_pix_pmap(size_t len)
 }
 
 /*
+ * Launch processor-mapped tasks
+ */
+void arch_pix_task(int id, struct ktask *t);
+int
+sys_pix_create_jobs(void *(*start_routine)(void *))
+{
+    struct ktask *t;
+    struct ktask *nt;
+
+    /* Get the current process */
+    t = this_ktask();
+    if ( NULL == t || NULL == t->proc ) {
+        return -1;
+    }
+
+    /* Create a task */
+    nt = task_create(t->proc, start_routine);
+    if ( NULL == nt ) {
+        /* Could not create a new task */
+        return -1;
+    }
+
+    arch_pix_task(1, nt);
+
+#if 0
+    struct ktask_list *l;
+
+    /* Kernel task list entry */
+    l = kmalloc(sizeof(struct ktask_list));
+    if ( NULL == l ) {
+        return - 1;
+    }
+
+    /* Kernel task (running) */
+    l->ktask = nt;
+    l->next = NULL;
+    /* Push */
+    if ( NULL == g_ktask_root->r.head ) {
+        g_ktask_root->r.head = l;
+        g_ktask_root->r.tail = l;
+    } else {
+        g_ktask_root->r.tail->next = l;
+        g_ktask_root->r.tail = l;
+    }
+#endif
+
+    return 0;
+}
+
+
+/*
  * Local variables:
  * tab-width: 4
  * c-basic-offset: 4

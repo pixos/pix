@@ -26,6 +26,60 @@
 
 #include <stdint.h>
 
+/* # of rings supported by 82599 */
+#define IXGBE_NRXQ              32
+#define IXGBE_NTXQ              256     /* 32 for 82598, 256 for 82599 */
+
+struct ixgbe_rx_desc_read {
+    uint64_t pkt_addr;          /* Bit 0: A0 */
+    volatile uint64_t hdr_addr; /* Bit 0: DD */
+} __attribute__ ((packed));
+struct ixgbe_rx_desc_wb {
+    uint32_t info0;
+    uint32_t info1;
+    uint32_t staterr;
+    uint16_t length;
+    uint16_t vlan;
+} __attribute__ ((packed));
+union ixgbe_rx_desc {
+    struct ixgbe_rx_desc_read read;
+    struct ixgbe_rx_desc_wb wb;
+} __attribute__ ((packed));
+
+struct ixgbe_tx_desc_ctx {
+    uint32_t vlan_maclen_iplen;
+    uint32_t fcoef_ipsec_sa_idx;
+    uint64_t other;
+} __attribute__ ((packed));
+struct ixgbe_tx_desc_data {
+    uint64_t pkt_addr;
+    uint16_t length;
+    uint8_t dtyp_mac;
+    uint8_t dcmd;
+    uint32_t paylen_popts_cc_idx_sta;
+} __attribute__ ((packed));
+union ixgbe_tx_desc {
+    struct ixgbe_tx_desc_ctx ctx;
+    struct ixgbe_tx_desc_data data;
+} __attribute__ ((packed));
+
+
+struct ixgbe_rx_ring {
+    union ixgbe_rx_desc *descs;
+    uint16_t tail;
+    uint16_t head;
+};
+struct ixgbe_tx_ring {
+    union ixgbe_tx_desc *descs;
+};
+
+struct ixgbe_device {
+    uint64_t mmio;
+    struct ixgbe_rx_ring *rxq[IXGBE_NRXQ];
+    struct ixgbe_tx_ring *txq[IXGBE_NTXQ];
+    uint8_t macaddr[6];
+};
+
 
 
 #endif /* _IXGBE_H */

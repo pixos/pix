@@ -96,6 +96,7 @@
 	.globl	_intr_se
 	.globl	_intr_apic_loc_tmr
 	.globl	_intr_apic_loc_tmr_xp
+	.globl	_intr_pixipi
 	.globl	_intr_crash
 	.globl	_sys_fork
 	.globl	_sys_task_switch
@@ -1254,6 +1255,11 @@ _intr_apic_loc_tmr_xp:
 	intr_lapic_isr_generic 0xdd
 	intr_lapic_isr_generic 0xde
 	intr_lapic_isr_generic 0xdf
+
+/* PIX interprocessor interrupts */
+_intr_pixipi:
+	intr_lapic_isr 0xe0
+	jmp	_task_restart
 
 /* Crash interrupt */
 _intr_crash:
