@@ -566,6 +566,7 @@ _sys_task_switch:
 	andq	$0xfffffffffffff000,%rdx	/* APIC Base */
 	xorq	%rax,%rax
 	movl	APIC_LAPIC_ID(%rdx),%eax
+	shrl	$24,%eax
 	/* Calculate the processor data space from the APIC ID */
 	movq	$CPU_DATA_SIZE,%rbx
 	mulq	%rbx		/* [%rdx:%rax] = %rax * %rbx */
@@ -1272,6 +1273,7 @@ _task_restart:
 	andq	$0xfffffffffffff000,%rdx	/* APIC Base */
 	xorq	%rax,%rax
 	movl	APIC_LAPIC_ID(%rdx),%eax
+	shrl	$24,%eax
 	/* Calculate the processor data space from the APIC ID */
 	movq	$CPU_DATA_SIZE,%rbx
 	mulq	%rbx		/* [%rdx:%rax] = %rax * %rbx */
@@ -1340,6 +1342,7 @@ _task_replace:
 	andq	$0xfffffffffffff000,%rdx	/* APIC Base */
 	xorq	%rax,%rax
 	movl	APIC_LAPIC_ID(%rdx),%eax
+	shrl	$24,%eax
 	/* Calculate the processor data space from the APIC ID */
 	movq	$CPU_DATA_SIZE,%rbx
 	mulq	%rbx		/* [%rdx:%rax] = %rax * %rbx */
