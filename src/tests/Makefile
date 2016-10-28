@@ -32,7 +32,7 @@ libcasm.o: ../lib/arch/$(ARCH)/libcasm.s
 	objcopy --prefix-symbols=aos_stdc $@
 
 test-libc: test-libc.o libc.o libcasm.o print.o fio.o str.o
-	$(CC) -o $@ test-libc.o libc.o libcasm.o
+	$(CC) -o $@ test-libc.o libc.o libcasm.o print.o fio.o str.o
 
 test-all: test-libc
 	./test-libc
