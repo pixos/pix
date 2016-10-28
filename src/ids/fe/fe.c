@@ -34,7 +34,6 @@
 #include "fe.h"
 
 
-
 /* Ethernet header */
 struct ethhdr {
     uint64_t dst:48;
@@ -124,45 +123,81 @@ syspix(void)
     syscall(SYS_pix_create_jobs, fe_fpp_task);
 }
 
-static int
+
+
+
+/*
+ * Initialize device
+ */
+static struct fe_device *
 _init_device(struct pci_dev_conf *conf)
 {
+    struct fe_device dev;
+    struct fe_device *devp;
+
+    dev.driver = FE_DRIVER_INVALID;
     if ( e1000_is_e1000(conf->vendor_id, conf->device_id) ) {
         /* e1000 */
-        e1000_init(conf->device_id, conf->bus, conf->slot, conf->func);
+        dev.driver = FE_DRIVER_E1000;
+        dev.u.e1000
+            = e1000_init(conf->device_id, conf->bus, conf->slot, conf->func);
+        e1000_init_hw(dev.u.e1000);
+        dev.domain = 0;
+        dev.fastpath = 0;
     } else if ( ixgbe_is_ixgbe(conf->vendor_id, conf->device_id) ) {
         /* ixgbe */
-        ixgbe_init(conf->device_id, conf->bus, conf->slot, conf->func);
+        dev.driver = FE_DRIVER_IXGBE;
+        dev.u.ixgbe
+            = ixgbe_init(conf->device_id, conf->bus, conf->slot, conf->func);
+        dev.domain = 0;
+        dev.fastpath = 0;
     }
 
-    return 0;
+    if ( FE_DRIVER_INVALID != dev.driver ) {
+        devp = malloc(sizeof(struct fe_device));
+        if ( NULL == devp ) {
+            return NULL;
+        }
+        memcpy(devp, &dev, sizeof(struct fe_device));
+        return devp;
+    }
+
+    return NULL;
 }
 
 /*
  * Initialize network devices
  */
-struct fe_devices *
-fe_init_devices(struct pci_dev *pci)
+int
+fe_init_devices(struct fe *fe, struct pci_dev *pci)
 {
+    struct fe_device *dev;
+
+    fe->nports = 0;
     while ( NULL != pci ) {
-        _init_device(pci->device);
+        dev = _init_device(pci->device);
+        if ( NULL != dev ) {
+            /* Device found */
+            fe->ports[fe->nports] = dev;
+            fe->nports++;
+        }
         pci = pci->next;
     }
 
     return 0;
 }
 
-
 /*
- * Initialize the forwarding engine
+ * Initialize processors
  */
 int
-fe_init(struct fe *fe)
+fe_init_cpu(struct fe *fe)
 {
     struct syspix_cpu_table cputable;
     int n;
     int nex;
     ssize_t i;
+    struct fe_task *t;
 
     /* Load the CPU table through system call */
     n = syscall(SYS_pix_cpu_table, SYSPIX_LDCTBL, &cputable);
@@ -171,6 +206,17 @@ fe_init(struct fe *fe)
     }
     /* # of available CPUs */
     fe->ncpus = n;
+
+    /* Kernel task */
+    t = malloc(sizeof(struct fe_task));
+    if ( NULL == t) {
+        return -1;
+    }
+    t->cpuid = -1;
+    t->next = NULL;
+
+    /* Add */
+    fe->tasks = t;
 
     /* Find out the (number of) exclusive CPUs */
     nex = 0;
@@ -183,6 +229,14 @@ fe_init(struct fe *fe)
                 break;
             case SYSPIX_CPU_EXCLUSIVE:
                 /* Exclusive */
+                t = malloc(sizeof(struct fe_task));
+                if ( NULL == t) {
+                    return -1;
+                }
+                t->cpuid = i;
+                t->next = fe->tasks;
+                fe->tasks = t;
+
                 nex++;
                 break;
             default:
@@ -198,6 +252,47 @@ fe_init(struct fe *fe)
 }
 
 /*
+ * Initialize the forwarding engine
+ */
+int
+fe_init(struct fe *fe)
+{
+    struct pci_dev *pci;
+    int ret;
+
+    /* Check all PCI devices */
+    pci = pci_init();
+    if ( NULL == pci ) {
+        return -1;
+    }
+
+    /* Initialize processor */
+    ret = fe_init_cpu(fe);
+    if ( ret < 0 ) {
+        goto error;
+    }
+
+    /* Initialize devices */
+    ret = fe_init_devices(fe, pci);
+    if ( ret < 0 ) {
+        goto error;
+    }
+
+    /* Release PCI memory */
+    pci_release(pci);
+
+    /* Initialize buffer pool */
+    
+
+    return 0;
+error:
+    /* Release PCI memory */
+    pci_release(pci);
+
+    return -1;
+}
+
+/*
  * Entry point for the process manager program
  */
 int
@@ -205,26 +300,23 @@ main(int argc, char *argv[])
 {
     struct timespec tm;
     struct fe fe;
-    struct pci_dev *pci;
+    int fd[3];
+    int ret;
 
-    /* stdin/stdout/stderr */
-    open("/dev/console", O_RDWR);
-    open("/dev/console", O_RDWR);
-    open("/dev/console", O_RDWR);
+    /* /dev/console for stdin/stdout/stderr */
+    fd[0] = open("/dev/console", O_RDWR);
+    fd[1] = open("/dev/console", O_RDWR);
+    fd[2] = open("/dev/console", O_RDWR);
+    (void)fd[0];
 
-    /* Check all PCI devices */
-    pci = pci_init();
-    if ( NULL == pci ) {
+    /* Initialize the forwarding engine */
+    ret = fe_init(&fe);
+    if ( ret < 0 ) {
         return EXIT_FAILURE;
     }
 
-    fe_init_devices(pci);
-
-    /* Initialize the forwarding engine */
-    fe_init(&fe);
-
     /* Run threads */
-    syspix();
+    //syspix();
 
     tm.tv_sec = 1;
     tm.tv_nsec = 0;

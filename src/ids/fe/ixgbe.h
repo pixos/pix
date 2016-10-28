@@ -255,6 +255,7 @@ ixgbe_init(uint16_t device_id, uint16_t bus, uint16_t slot, uint16_t func)
     dev->mmio = driver_mmap((void *)pmmio, IXGBE_MMIO_SIZE);
     if ( NULL == dev->mmio ) {
         /* Error */
+        free(dev);
         return NULL;
     }
 

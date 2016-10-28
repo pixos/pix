@@ -268,7 +268,21 @@ pci_init(void)
     return pci_check_all_buses();
 }
 
+/*
+ * Release memory
+ */
+void
+pci_release(struct pci_dev *pci)
+{
+    struct pci_dev *tmp;
 
+    while ( NULL != pci ) {
+        tmp = pci;
+        pci = pci->next;
+        free(tmp->device);
+        free(tmp);
+    }
+}
 
 
 /*

@@ -26,6 +26,7 @@
 
 #include <stdint.h>
 #include <stdlib.h>
+#include <time.h>
 #include <mki/driver.h>
 #include "pci.h"
 #include "common.h"
@@ -58,7 +59,7 @@
 #define E1000_REG_TDLEN         0x3808
 #define E1000_REG_TDH           0x3810  /* head */
 #define E1000_REG_TDT           0x3818  /* tail */
-#define E1000_REG_MTA           0x5200  /* x128 */
+#define E1000_REG_MTA(n)        (0x5200 + (n) * 4)  /* x128 */
 #define E1000_REG_TXDCTL        0x03828
 #define E1000_REG_RAL           0x5400
 #define E1000_REG_RAH           0x5404
@@ -108,7 +109,9 @@
 
 
 
-
+/*
+ * Receive descriptor
+ */
 struct e1000_rx_desc {
     uint64_t address;
     uint16_t length;
@@ -117,6 +120,10 @@ struct e1000_rx_desc {
     uint8_t errors;
     uint16_t special;
 } __attribute__ ((packed));
+
+/*
+ * Transmit descriptor
+ */
 struct e1000_tx_desc {
     volatile uint64_t address;
     uint32_t length:20;
@@ -134,13 +141,24 @@ struct e1000_rx_ring {
     uint16_t tail;
     uint16_t head;
     uint16_t len;
+    /* Queue information */
+    uint16_t idx;               /* Queue index */
+    void *mmio;                 /* MMIO */
 };
 struct e1000_tx_ring {
     struct e1000_tx_desc *descs;
     void *bufs;
+    uint16_t head;
     uint16_t tail;
     uint16_t len;
+    /* Queue information */
+    uint16_t idx;               /* Queue index */
+    void *mmio;                 /* MMIO */
 };
+
+/*
+ * Device
+ */
 struct e1000_device {
     void *mmio;
     uint8_t macaddr[6];
@@ -300,6 +318,62 @@ e1000_read_mac_address(struct e1000_device *dev)
 
     return 0;
 }
+
+/*
+ * Initialize the hardware
+ */
+static __inline__ int
+e1000_init_hw(struct e1000_device *dev)
+{
+    struct timespec tm;
+    ssize_t i;
+
+    /* Initialize */
+
+    /* Disable interrupts  */
+    wr32(dev->mmio, E1000_REG_IMC, 0xffffffff);
+
+    /* Reset the device */
+    wr32(dev->mmio, E1000_REG_CTRL,
+         rd32(dev->mmio, E1000_REG_CTRL) | E1000_CTRL_RST);
+
+    /* Wait 100 us */
+    tm.tv_sec = 0;
+    tm.tv_nsec = 100000;
+    nanosleep(&tm, NULL);
+
+    /* Set link up */
+    wr32(dev->mmio, E1000_REG_CTRL,
+         rd32(dev->mmio, E1000_REG_CTRL) | E1000_CTRL_SLU);
+
+    /* Set link mode to direct copper interface */
+    wr32(dev->mmio, E1000_REG_CTRL_EXT,
+         rd32(dev->mmio, E1000_REG_CTRL_EXT) & ~E1000_CTRL_EXT_LINK_MODE_MASK);
+
+
+    /* Link up and enable 802.1Q VLAN */
+    wr32(dev->mmio, E1000_REG_CTRL,
+         rd32(dev->mmio, E1000_REG_CTRL) | E1000_CTRL_SLU | E1000_CTRL_VME);
+
+    /* Initialize multicast array table */
+    for ( i = 0; i < 128; i++ ) {
+        wr32(dev->mmio, E1000_REG_MTA(i), 0);
+    }
+
+    /* Enable interrupt (REG_IMS <- 0x1f6dc, then read REG_ICR ) */
+    //wr32(dev->mmio, E1000_REG_IMS, 0x908e);
+    wr32(dev->mmio, E1000_REG_IMS, 0x1f6dc);
+    (void)rd32(dev->mmio, E1000_REG_ICR);
+
+    return 0;
+}
+
+static __inline__ int
+e1000_setup_rx(void)
+{
+    return 0;
+}
+
 
 #endif /* _E1000_H */
 

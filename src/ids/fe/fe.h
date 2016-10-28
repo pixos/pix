@@ -35,6 +35,14 @@
 #define FE_PKT_HDROFF           512
 #define FE_BUFFER_POOL_SIZE     8192
 
+#define FE_MAX_PORTS            32
+
+enum fe_driver_type {
+    FE_DRIVER_INVALID = -1,
+    FE_DRIVER_E1000,
+    FE_DRIVER_IXGBE,
+};
+
 /*
  * Packet buffer header
  */
@@ -107,9 +115,12 @@ struct fe_driver_rx {
 };
 
 /*
- * Data per processor
+ * Data per task
  */
-struct fe_cpu {
+struct fe_task {
+    /* CPU ID (for exclusive processor), or -1 for kernel */
+    int cpuid;
+
     /* Buffer pool */
     struct fe_buffer_pool pool;
 
@@ -124,29 +135,26 @@ struct fe_cpu {
         uint64_t bitmap;
         struct fe_driver_tx *rings;
     } tx;
+
+    /* Pointer to the next task */
+    struct fe_task *next;
 };
 
 /*
  * Physical port
  */
-struct fe_phys_port {
+struct fe_device {
     /* NUMA domain */
     int domain;
     /* Driver */
-    int driver;
+    enum fe_driver_type driver;
     /* Device data */
     union {
         struct e1000_device *e1000;
         struct ixgbe_device *ixgbe;
     } u;
-};
-
-/*
- * Device
- */
-struct fe_devices {
-    size_t n;
-    struct fe_phys_port *ports;
+    /* Type; exclusive or kernel */
+    int fastpath;
 };
 
 /*
@@ -156,12 +164,18 @@ struct fe {
     /* Forwarding/Action database */
     void *fdb;
 
+    /* Processors */
+    int ncpus;
+
     /* Exclusive processors */
     int nxcpu;
 
-    /* Processors */
-    size_t ncpus;
-    struct fe_cpu *cpus;
+    /* Ports */
+    size_t nports;
+    struct fe_device *ports[FE_MAX_PORTS];
+
+    /* Tasks (linked list) */
+    struct fe_task *tasks;
 };
 
 #endif /* _FE_H */
