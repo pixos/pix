@@ -617,7 +617,7 @@ arch_load_cpu_table(struct syspix_cpu_table *cputable)
             /* Domain */
             cputable->cpus[i].domain = cpu->prox_domain;
             /* Check the type */
-            if ( cpu->flags & (1 << 2) ) {
+            if ( cpu->flags & (1 << 1) ) {
                 cputable->cpus[i].type = SYSPIX_CPU_TICKFULL;
             } else {
                 cputable->cpus[i].type = SYSPIX_CPU_EXCLUSIVE;

@@ -46,9 +46,20 @@ show_cpu(void)
 
     for ( i = 0; i < PIX_MAX_CPU; i++ ) {
         if ( cputable.cpus[i].present ) {
+            const char *mode;
+            switch ( cputable.cpus[i].type ) {
+            case SYSPIX_CPU_TICKFULL:
+                mode = "tickfull";
+                break;
+            case SYSPIX_CPU_EXCLUSIVE:
+                mode = "exclusive";
+                break;
+            default:
+                mode = "unknown";
+            }
             snprintf(buf, sizeof(buf),
-                     "Processor #%ld is present at Node %d.\n", i,
-                     cputable.cpus[i].domain);
+                     "Processor #%ld is present at Node %d in %s mode.\n", i,
+                     cputable.cpus[i].domain, mode);
             fputs(buf, stdout);
         }
     }
