@@ -134,6 +134,9 @@ intr_setup(void)
     idt_setup_intr_gate(IV_IRQ(14), intr_driver_0x2e);
     idt_setup_intr_gate(IV_IRQ(15), intr_driver_0x2f);
 
+    /* PCI */
+    idt_setup_intr_gate(IV_IRQ(16), intr_driver_0x30);
+
     /* For driver use */
     idt_setup_intr_gate(0x50, intr_driver_0x50);
     idt_setup_intr_gate(0x51, intr_driver_0x51);
@@ -275,6 +278,7 @@ bsp_init(void)
     for ( i = 0; i < 16; i++ ) {
         ioapic_map_intr(IV_IRQ(i), i, arch_acpi.acpi_ioapic_base); /* IRQn */
     }
+    ioapic_map_intr_route(IV_IRQ(16), 1, i, arch_acpi.acpi_ioapic_base);
 
     /* Get the proximity domain */
     prox = acpi_lapic_prox_domain(&arch_acpi, lapic_id());
@@ -328,7 +332,8 @@ bsp_init(void)
     pdata = this_cpu();
     pdata->cpu_id = lapic_id();
     pdata->prox_domain = prox;
-    pdata->flags |= 1;
+    pdata->flags |= 1;          /* Enabled */
+    pdata->flags |= (1 << 1);   /* Tickfull */
 
     /* Estimate the frequency */
     pdata->freq = lapic_estimate_freq();
@@ -427,7 +432,7 @@ ap_init(void)
     pdata = this_cpu();
     pdata->cpu_id = lapic_id();
     pdata->prox_domain = prox;
-    pdata->flags |= 1;
+    pdata->flags |= 1;          /* Enabled */
 
     /* Estimate the frequency */
     pdata->freq = lapic_estimate_freq();
@@ -445,12 +450,12 @@ ap_init(void)
     /* Load TSS */
     tr_load(lapic_id());
 
+    /* Set up the system call table */
+    syscall_setup(g_syscall_table, SYS_MAXSYSCALL);
+
     /* Schedule the idle task */
     this_cpu()->cur_task = NULL;
     this_cpu()->next_task = this_cpu()->idle_task;
-
-    /* Set up the system call table */
-    syscall_setup(g_syscall_table, SYS_MAXSYSCALL);
 
     /* Start the idle task */
     task_restart();
@@ -590,6 +595,50 @@ arch_pix_task(int id, struct ktask *t)
     cpu = (struct cpu_data *)((u64)CPU_DATA_BASE + CPU_DATA_SIZE * id);
     cpu->next_task = t->arch;
     lapic_send_fixed_ipi(id, IV_PIXIPI);
+}
+
+/*
+ * Load CPU table
+ */
+int
+arch_load_cpu_table(struct syspix_cpu_table *cputable)
+{
+    struct cpu_data *cpu;
+    ssize_t i;
+    int n;
+
+    n = 0;
+    kmemset(cputable, 0, sizeof(struct syspix_cpu_table));
+    for ( i = 0; i < MAX_PROCESSORS; i++ ) {
+        cpu = (struct cpu_data *)((u64)CPU_DATA_BASE + CPU_DATA_SIZE * i);
+        if ( cpu->flags & 1 ) {
+            /* Present */
+            cputable->cpus[i].present = 1;
+            /* Domain */
+            cputable->cpus[i].domain = cpu->prox_domain;
+            /* Check the type */
+            if ( cpu->flags & (1 << 2) ) {
+                cputable->cpus[i].type = SYSPIX_CPU_TICKFULL;
+            } else {
+                cputable->cpus[i].type = SYSPIX_CPU_EXCLUSIVE;
+            }
+            n++;
+        } else {
+            /* Not present */
+        }
+    }
+
+    return n;
+}
+
+/*
+ * Store (Set) CPU table
+ */
+int
+arch_store_cpu_table(struct syspix_cpu_table *cputable)
+{
+    (void)cputable;
+    return -1;
 }
 
 /*

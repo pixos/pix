@@ -1,5 +1,5 @@
 /*_
- * Copyright (c) 2015-2016 Hirochika Asai <asai@jar.jp>
+ * Copyright (c) 2016 Hirochika Asai <asai@jar.jp>
  * All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -21,25 +21,39 @@
  * SOFTWARE.
  */
 
-#ifndef _STRING_H
-#define _STRING_H
+#ifndef _SYS_PIX_H
+#define _SYS_PIX_H
 
-#include <aos/types.h>
+#include <stdint.h>
+#include <unistd.h>
+#include <sys/syscall.h>
 
-size_t strlen(const char *);
-char * strncpy(char *__restrict__, const char *__restrict__, size_t);
-size_t strlcpy(char *__restrict__, const char *__restrict__, size_t);
-char * strcpy(char *, const char *);
-int strcmp(const char *, const char *);
-int strncmp(const char *, const char *, size_t);
+/* Must be consistent with MAX_PROCSSORS in kernel.h */
+#define PIX_MAX_CPU     256
 
-void * memset(void *, int, size_t);
-void * memcpy(void *__restrict, const void *__restrict, size_t);
-void * memmove(void *, const void *, size_t);
+#define SYSPIX_LDCTBL           1
+#define SYSPIX_STCTBL           2
 
-int memcmp(const void *, const void *, size_t);
+#define SYSPIX_CPU_TICKFULL     1
+#define SYSPIX_CPU_EXCLUSIVE    2
 
-#endif /* _STRING_H */
+/*
+ * CPU configuration
+ */
+struct syspix_cpu_config {
+    uint8_t present;
+    uint8_t type;
+    int domain;
+};
+
+/*
+ * CPU configuration table
+ */
+struct syspix_cpu_table {
+    struct syspix_cpu_config cpus[PIX_MAX_CPU];
+};
+
+#endif /* _SYS_PIX_H */
 
 /*
  * Local variables:

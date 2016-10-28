@@ -312,6 +312,29 @@ ioapic_map_intr(u64 intvec, u64 tbldst, u64 ioapic_base)
     /* To avoid compiler optimization, call assembler function */
     asm_ioapic_map_intr(val, tbldst, ioapic_base);
 }
+void
+ioapic_map_intr_route(u64 intvec, int dst, u64 tbldst, u64 ioapic_base)
+{
+    u64 val;
+
+    /*
+     * 63:56    destination field
+     * 16       interrupt mask (1: masked for edge sensitive)
+     * 15       trigger mode (1=level sensitive, 0=edge sensitive)
+     * 14       remote IRR (R/O) (1 if local APICs accept the level interrupts)
+     * 13       interrupt input pin polarity (0=high active, 1=low active)
+     * 12       delivery status (R/O)
+     * 11       destination mode (0=physical, 1=logical)
+     * 10:8     delivery mode
+     *          000 fixed, 001 lowest priority, 010 SMI, 011 reserved
+     *          100 NMI, 101 INIT, 110 reserved, 111 ExtINT
+     * 7:0      interrupt vector
+     */
+    val = intvec | ((u64)dst << 56);
+
+    /* To avoid compiler optimization, call assembler function */
+    asm_ioapic_map_intr(val, tbldst, ioapic_base);
+}
 
 /*
  * Local variables:

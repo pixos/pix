@@ -74,7 +74,8 @@
 #define SYS_lseek           478
 
 /* PIX-specific system calls */
-#define SYS_pix_create_jobs 801
+#define SYS_pix_cpu_table   801
+#define SYS_pix_create_jobs 802
 
 #define SYS_xpsleep         1020
 #define SYS_debug           1021

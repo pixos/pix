@@ -27,9 +27,10 @@
 #include <unistd.h>
 #include <sys/syscall.h>
 #include <sys/mman.h>
+#include <sys/pix.h>
 #include <time.h>
 #include "pci.h"
-
+#include "fe.h"
 
 /* Ethernet header */
 struct ethhdr {
@@ -101,13 +102,13 @@ struct ip_arp {
 
 
 unsigned long long syscall(int, ...);
+
+
 void *
-test(void *a)
+fe_fpp_task(void *args)
 {
-    //close(0);
     for ( ;; ) {
         /* Do nothing */
-        //__asm__ __volatile__ ("syscall" :: "a"(SYS_xpsleep));
         syscall(SYS_xpsleep);
     }
     exit(0);
@@ -116,8 +117,26 @@ test(void *a)
 void
 syspix(void)
 {
-    syscall(SYS_pix_create_jobs, test);
-    //__asm__ __volatile__ ("syscall" :: "a"(SYS_pix_create_jobs), "D"(test));
+    syscall(SYS_pix_create_jobs, fe_fpp_task);
+}
+
+/*
+ * Initialize the forwarding engine
+ */
+int
+fe_init(struct fe *fe)
+{
+    struct syspix_cpu_table cputable;
+    int n;
+
+    n = syscall(SYS_pix_cpu_table, SYSPIX_LDCTBL, &cputable);
+    if ( n < 0 ) {
+        return -1;
+    }
+    /* # of available CPUs */
+    fe->ncpus = n;
+
+    return 0;
 }
 
 /*
@@ -127,7 +146,12 @@ int
 main(int argc, char *argv[])
 {
     struct timespec tm;
+    struct fe fe;
 
+    /* Initialize the forwarding engine */
+    fe_init(&fe);
+
+    /* Run threads */
     syspix();
 
     tm.tv_sec = 1;
@@ -136,13 +160,6 @@ main(int argc, char *argv[])
         nanosleep(&tm, NULL);
     }
 
-#if 0
-    char buf[512];
-    while ( 1 ) {
-        ret = pci_read_config(0, 0, 0, 0);
-        write(1, buf, strlen(buf));
-    }
-#endif
     exit(0);
 }
 

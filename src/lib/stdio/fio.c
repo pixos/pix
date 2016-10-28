@@ -82,6 +82,30 @@ getchar(void)
 }
 
 /*
+ * fwrite
+ */
+size_t
+fwrite(const void *__restrict__ ptr, size_t size, size_t ntimes,
+       FILE *__restrict__ stream)
+{
+    ssize_t i;
+    size_t nw;
+    size_t sz;
+
+    nw = 0;
+    for ( i = 0; i < (ssize_t)ntimes; i++ ) {
+        sz = write(stream->fd, ptr, size);
+        ptr += sz;
+        nw += sz;
+        if ( sz != nw ) {
+            return nw;
+        }
+    }
+
+    return nw;
+}
+
+/*
  * fputs
  */
 int

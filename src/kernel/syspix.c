@@ -50,6 +50,25 @@ sys_pix_pmap(size_t len)
     return NULL;
 }
 
+
+/*
+ * Get/Set CPU configuration table
+ */
+int
+sys_pix_cpu_table(int req, struct syspix_cpu_table *cputable)
+{
+    switch ( req ) {
+    case SYSPIX_LDCTBL:
+        /* Load CPU table */
+        return arch_load_cpu_table(cputable);
+    case SYSPIX_STCTBL:
+        /* Store/Set CPU table */
+        return arch_store_cpu_table(cputable);
+    }
+
+    return -1;
+}
+
 /*
  * Launch processor-mapped tasks
  */

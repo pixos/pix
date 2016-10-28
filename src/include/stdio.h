@@ -46,6 +46,7 @@ char * fgets(char * __restrict__, int size, FILE * __restrict__);
 int fgetc(FILE *stream);
 int getc(FILE *stream);
 int getchar(void);
+size_t fwrite(const void *__restrict__, size_t, size_t, FILE *__restrict__);
 int fputs(const char *__restrict__, FILE *__restrict__);
 int fputc(int c, FILE *stream);
 int putc(int c, FILE *stream);

@@ -29,6 +29,7 @@
 #include "igb.h"
 #include "ixgbe.h"
 #include "i40e.h"
+#include "hashtable.h"
 
 #define FE_PKTSZ                (10240 + 128)
 #define FE_PKT_HDROFF           512

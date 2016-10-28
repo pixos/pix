@@ -29,6 +29,7 @@
 #include <sys/resource.h>
 #include <sys/syscall.h>
 #include <time.h>
+#include <sys/pix.h>
 #include <mki/driver.h>
 
 /* Architecture-specific configuration */
@@ -59,6 +60,9 @@
 #define CEIL(val, base)         ((((val) - 1) / (base) + 1) * (base))
 #define DIV_FLOOR(val, base)    ((val) / (base))
 #define DIV_CEIL(val, base)     (((val) - 1) / (base) + 1)
+
+/* Maximum number of processors supported in this operating system */
+#define MAX_PROCESSORS          256
 
 /*
  * NOTE FOR PAGE SIZES:
@@ -631,6 +635,9 @@ struct ktask_root {
     } b;
 };
 
+/*
+ * devfs
+ */
 #define DEVFS_CHAR  0
 #define DEVFS_BLOCK 1
 struct devfs_entry {
@@ -652,6 +659,7 @@ struct devfs_entry {
     /* Pointer to the next entry */
     struct devfs_entry *next;
 };
+
 /*
  * devfs
  */
@@ -808,6 +816,7 @@ int sys_munmap(void *, size_t);
 off_t sys_lseek(int, off_t, int);
 int sys_nanosleep(const struct timespec *, struct timespec *);
 /* PIX-specific system calls */
+int sys_pix_cpu_table(int, struct syspix_cpu_table *);
 int sys_pix_create_jobs(void *(*)(void *));
 /* Others */
 void sys_xpsleep(void);
@@ -838,6 +847,9 @@ void * arch_vmem_addr_v2p(struct vmem_space *, void *);
 int arch_vmem_init(struct vmem_space *);
 void syscall_setup(void *, size_t);
 void arch_switch_page_table(struct vmem_space *);
+
+int arch_load_cpu_table(struct syspix_cpu_table *);
+int arch_store_cpu_table(struct syspix_cpu_table *);
 
 #endif /* _KERNEL_H */
 

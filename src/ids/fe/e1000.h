@@ -143,6 +143,36 @@ struct e1000_device {
     struct pci_dev *pci_device;
 };
 
+
+static __inline__ int
+e1000_is_e1000_device(uint16_t vendor_id, uint16_t device_id)
+{
+    if ( 0x8086 != vendor_id ) {
+        return 0;
+    }
+    switch ( device_id ) {
+    case E1000_PRO1000MT:
+    case E1000_82545EM:
+    case E1000_82541PI:
+    case E1000_82573L:
+    case E1000_82567LM:
+    case E1000_82577LM:
+    case E1000_82579LM:
+        return 1;
+    default:
+        return 0;
+    }
+
+    return 0;
+};
+
+static __inline__ int
+e1000_read_mac_address(struct e1000_device *e1000, uint8_t *addr)
+{
+    return 0;
+}
+
+
 #endif /* _E1000_H */
 
 /*
