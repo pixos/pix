@@ -37,7 +37,7 @@
 
 #define SYSDRIVER_INTERRUPT     20
 
-#define SYSDRIVER_DEV_BUFSIZE   512
+#define SYSDRIVER_DEV_BUFSIZE   8192
 
 struct sysdriver_handler {
     int nr;
@@ -77,7 +77,7 @@ struct driver_mapped_device_chr {
  * Block device
  */
 struct driver_mapped_device_blk {
-    uint8_t buf[2048];
+    uint8_t buf[SYSDRIVER_DEV_BUFSIZE];
 };
 /*
  * Mapped device (also referred from struct devfs_entry)

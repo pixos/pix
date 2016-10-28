@@ -63,9 +63,6 @@
 #define KMEM_REGION_PMEM_BASE   0x100000000ULL
 
 
-/* Maximum number of processors supported in this operating system */
-#define MAX_PROCESSORS          256
-
 /* GDT and IDT */
 #define GDT_ADDR                0xc0080000ULL
 #define GDT_MAX_SIZE            0x2000
@@ -296,7 +293,8 @@ struct arch_task {
  * Data space for each processor
  */
 struct cpu_data {
-    u32 flags;          /* bit 0: enabled (working); bit 1- reserved */
+    /* bit 0: enabled (working); bit 1: TICKFULL; bit 2- reserved */
+    u32 flags;
     u32 cpu_id;
     u64 freq;           /* Frequency */
     u32 prox_domain;
@@ -373,6 +371,7 @@ void intr_driver_0x2c(void);
 void intr_driver_0x2d(void);
 void intr_driver_0x2e(void);
 void intr_driver_0x2f(void);
+void intr_driver_0x30(void);
 
 void intr_driver_0x50(void);
 void intr_driver_0x51(void);
@@ -395,6 +394,7 @@ void intr_driver_0x5f(void);
 
 void intr_apic_loc_tmr(void);
 void intr_apic_loc_tmr_xp(void);
+void intr_pixipi(void);
 void intr_crash(void);
 void task_restart(void);
 void task_replace(void *);

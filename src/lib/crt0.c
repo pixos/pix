@@ -1,5 +1,5 @@
 /*_
- * Copyright (c) 2015 Hirochika Asai <asai@jar.jp>
+ * Copyright (c) 2016 Hirochika Asai <asai@jar.jp>
  * All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -21,31 +21,47 @@
  * SOFTWARE.
  */
 
-#ifndef _UNISTD_H
-#define _UNISTD_H
+#include <stdio.h>
+#include <stdlib.h>
+#include <unistd.h>
 
-#include <aos/types.h>
+#if !defined(TEST) || !TEST
+int main(int argc, char *argv[]);
 
-#define SEEK_SET        0
-#define SEEK_CUR        1
-#define SEEK_END        2
+/*
+ * Entry point to a process
+ */
+void
+entry(int argc, char *argv[])
+{
+    int ret;
 
-#define STDIN_FILENO    0
-#define STDOUT_FILENO   1
-#define STDERR_FILENO   2
+    /* Prepare stdio/stdout/stderr */
+    stdin = malloc(sizeof(FILE));
+    if ( NULL == stdin ) {
+        exit(EXIT_FAILURE);
+    }
+    stdin->fd = STDIN_FILENO;
+    stdout = malloc(sizeof(FILE));
+    if ( NULL == stdout ) {
+        free(stdin);
+        exit(EXIT_FAILURE);
+    }
+    stdout->fd = STDOUT_FILENO;
+    stderr = malloc(sizeof(FILE));
+    if ( NULL == stderr ) {
+        free(stdin);
+        free(stdout);
+        exit(EXIT_FAILURE);
+    }
+    stderr->fd = STDERR_FILENO;
 
-int execve(const char *path, char *const argv[], char *const envp[]);
-pid_t fork(void);
-pid_t getpid(void);
-uid_t getuid(void);
-pid_t getppid(void);
-gid_t getgid(void);
+    ret = main(argc, argv);
+    exit(ret);
 
-ssize_t read(int fildes, void *buf, size_t nbyte);
-ssize_t write(int fildes, const void *buf, size_t nbyte);;
-int close(int);
-
-#endif /* _UNISTD_H */
+    while ( 1 ) {}
+}
+#endif
 
 /*
  * Local variables:

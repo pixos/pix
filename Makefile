@@ -27,14 +27,13 @@ initrd:
 	ORG=0x40000000 make -C src tty
 	ORG=0x40000000 make -C src pash
 	ORG=0x40000000 make -C src pci
-	ORG=0x40000000 make -C src e1000
 	ORG=0x40000000 make -C src fe
 	ORG=0x40000000 make -C src vmx
 
 #       Create an image
 	@./create_initrd.sh init:/servers/init pm:/servers/pm fs:/servers/fs \
 		tty:/drivers/tty pash:/bin/pash pci:/drivers/pci \
-		e1000:/drivers/e1000 fe:/servers/fe vmx:/drivers/vmx
+		fe:/ids/fe vmx:/drivers/vmx
 
 ## Compile boot loader
 bootloader:

@@ -83,12 +83,14 @@ kpack: kernel/arch/$(ARCH)/asm.o \
 	kernel/ramfs.o \
 	kernel/devfs.o \
 	kernel/syscall.o \
+	kernel/syspix.o \
 	kernel/sysdriver.o
 	$(LD) -N -e kstart64 -Ttext=0xc0010000 --oformat binary -o $@ $^
 	$(LD) -N -e kstart64 -Ttext=0xc0010000 -o kpack.dbg $^
 
 ## libc
-LIBCOBJS=lib/arch/$(ARCH)/libc.o lib/arch/$(ARCH)/libcasm.o lib/stdio/fio.o
+LIBCOBJS=lib/arch/$(ARCH)/libc.o lib/arch/$(ARCH)/libcasm.o lib/stdio/fio.o \
+	lib/stdio/print.o lib/string/str.o
 lib/arch/$(ARCH)/libc.o: lib/crt0.o
 
 ## init server
@@ -100,11 +102,15 @@ pm: servers/pm/pm.o $(LIBCOBJS)
 	$(LD) -T app.ld -o $@ $^
 
 ## forwarding engine
-fe: servers/fe/fe.o servers/fe/pci.o $(LIBCOBJS)
+fe: ids/fe/fe.o ids/fe/pci.o $(LIBCOBJS)
 	$(LD) -T app.ld -o $@ $^
 
 ## file system
 fs: servers/fs/fs.o $(LIBCOBJS)
+	$(LD) -T app.ld -o $@ $^
+
+## TCP server
+tcp: servers/tcp/tcp_main.o $(LIBCOBJS)
 	$(LD) -T app.ld -o $@ $^
 
 ## tty driver (including keyboard, video, and serial drivers)
@@ -118,10 +124,6 @@ pash: bin/pash/pash.o $(LIBCOBJS)
 
 ## PCI driver
 pci: drivers/pci/pci.o $(LIBCOBJS)
-	$(LD) -T app.ld -o $@ $^
-
-## e1000 driver
-e1000: drivers/e1000/e1000.o $(LIBCOBJS)
 	$(LD) -T app.ld -o $@ $^
 
 ## VMX driver

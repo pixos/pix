@@ -96,6 +96,7 @@
 	.globl	_intr_se
 	.globl	_intr_apic_loc_tmr
 	.globl	_intr_apic_loc_tmr_xp
+	.globl	_intr_pixipi
 	.globl	_intr_crash
 	.globl	_sys_fork
 	.globl	_sys_task_switch
@@ -566,6 +567,7 @@ _sys_task_switch:
 	andq	$0xfffffffffffff000,%rdx	/* APIC Base */
 	xorq	%rax,%rax
 	movl	APIC_LAPIC_ID(%rdx),%eax
+	shrl	$24,%eax
 	/* Calculate the processor data space from the APIC ID */
 	movq	$CPU_DATA_SIZE,%rbx
 	mulq	%rbx		/* [%rdx:%rax] = %rax * %rbx */
@@ -1108,6 +1110,8 @@ _intr_apic_loc_tmr_xp:
 	intr_lapic_isr_generic 0x2d
 	intr_lapic_isr_generic 0x2e
 	intr_lapic_isr_generic 0x2f
+	intr_lapic_isr_generic 0x30
+
 /* For driver use */
 	intr_lapic_isr_generic 0x50
 	intr_lapic_isr_generic 0x51
@@ -1254,6 +1258,11 @@ _intr_apic_loc_tmr_xp:
 	intr_lapic_isr_generic 0xde
 	intr_lapic_isr_generic 0xdf
 
+/* PIX interprocessor interrupts */
+_intr_pixipi:
+	intr_lapic_isr 0xe0
+	jmp	_task_restart
+
 /* Crash interrupt */
 _intr_crash:
 	cli
@@ -1272,6 +1281,7 @@ _task_restart:
 	andq	$0xfffffffffffff000,%rdx	/* APIC Base */
 	xorq	%rax,%rax
 	movl	APIC_LAPIC_ID(%rdx),%eax
+	shrl	$24,%eax
 	/* Calculate the processor data space from the APIC ID */
 	movq	$CPU_DATA_SIZE,%rbx
 	mulq	%rbx		/* [%rdx:%rax] = %rax * %rbx */
@@ -1340,6 +1350,7 @@ _task_replace:
 	andq	$0xfffffffffffff000,%rdx	/* APIC Base */
 	xorq	%rax,%rax
 	movl	APIC_LAPIC_ID(%rdx),%eax
+	shrl	$24,%eax
 	/* Calculate the processor data space from the APIC ID */
 	movq	$CPU_DATA_SIZE,%rbx
 	mulq	%rbx		/* [%rdx:%rax] = %rax * %rbx */

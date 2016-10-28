@@ -1,5 +1,5 @@
 /*_
- * Copyright (c) 2016 Hirochika Asai <asai@jar.jp>
+ * Copyright (c) 2015 Hirochika Asai <asai@jar.jp>
  * All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -21,39 +21,16 @@
  * SOFTWARE.
  */
 
-#include <stdio.h>
 #include <stdlib.h>
-#include <string.h>
 #include <unistd.h>
-#include <sys/syscall.h>
-#include <sys/mman.h>
-#include "pci.h"
-
-void
-sysxpsleep(void)
-{
-    __asm__ __volatile__ ("syscall" :: "a"(SYS_xpsleep));
-}
 
 /*
- * Entry point for the process manager program
+ * Entry point for the file system server
  */
 int
 main(int argc, char *argv[])
 {
-    char buf[512];
-    int ret;
-    char *mem;
-
-    /* Map */
-    mem = malloc(4096);;
-    strcpy(mem, "abcd efgh");
-
     while ( 1 ) {
-        ret = pci_read_config(0, 0, 0, 0);
-        snprintf(buf, 512, "xxx %s %x %p %s\r\n", "abcd", ret, mem, mem);
-        write(1, buf, strlen(buf));
-        sysxpsleep();
     }
     exit(0);
 }

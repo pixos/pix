@@ -927,9 +927,27 @@ sys_nanosleep(const struct timespec *rqtp, struct timespec *rmtp)
 
     /* Set the state of this task to blocked to sleep */
     t->state = KTASK_STATE_BLOCKED;
+    t->signaled = 0;
 
     /* Switch this task to another */
     sys_task_switch();
+
+    /* Will resume from here */
+
+    /* Signaled, then return -1 */
+    if ( t->signaled ) {
+        if ( NULL != rmtp ) {
+            if ( fire < g_jiffies ) {
+                rmtp->tv_sec = 0;
+                rmtp->tv_nsec = 0;
+            } else {
+                rmtp->tv_sec = (fire - g_jiffies) / HZ;
+                rmtp->tv_nsec = ((fire - g_jiffies) % HZ) * 1000000000 / HZ;
+            }
+        }
+        t->signaled = 0;
+        return -1;
+    }
 
     return 0;
 }
@@ -941,7 +959,7 @@ sys_nanosleep(const struct timespec *rqtp, struct timespec *rmtp)
 void
 sys_xpsleep(void)
 {
-    __asm__ __volatile__ ("sti;hlt;cli");
+    __asm__ __volatile__ ("sti;hlt");
 }
 
 /*

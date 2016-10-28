@@ -1,5 +1,5 @@
 /*_
- * Copyright (c) 2015 Hirochika Asai <asai@jar.jp>
+ * Copyright (c) 2015-2016 Hirochika Asai <asai@jar.jp>
  * All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -34,8 +34,6 @@
 #define EXIT_FAILURE    -1
 
 void exit(int) __attribute__ ((__noreturn__));
-void * memset(void *, int, size_t);
-void * memmove(void *, const void *, size_t);
 void * malloc(size_t);
 void * calloc(size_t, size_t);
 void free(void *);

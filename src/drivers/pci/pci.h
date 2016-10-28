@@ -21,31 +21,42 @@
  * SOFTWARE.
  */
 
-#ifndef _UNISTD_H
-#define _UNISTD_H
+#ifndef _PCI_H
+#define _PCI_H
 
-#include <aos/types.h>
+#include <stdint.h>
 
-#define SEEK_SET        0
-#define SEEK_CUR        1
-#define SEEK_END        2
+/*
+ * PCI configuration space
+ */
+struct pci_dev_conf {
+    uint16_t bus;
+    uint16_t slot;
+    uint16_t func;
+    uint16_t vendor_id;
+    uint16_t device_id;
+    uint8_t intr_pin;   /* 0x01: INTA#, 0x02: INTB#, 0x03: INTC#: 0x04: INTD# */
+    uint8_t intr_line;  /* 0xff: No connection */
+    uint8_t class;
+    uint8_t subclass;
+    uint8_t progif;
+    uint8_t revision;
+};
 
-#define STDIN_FILENO    0
-#define STDOUT_FILENO   1
-#define STDERR_FILENO   2
+/*
+ * PCI device
+ */
+struct pci_dev {
+    struct pci_dev_conf *device;
+    struct pci_dev *next;
+};
 
-int execve(const char *path, char *const argv[], char *const envp[]);
-pid_t fork(void);
-pid_t getpid(void);
-uid_t getuid(void);
-pid_t getppid(void);
-gid_t getgid(void);
+uint16_t pci_read_config(uint16_t, uint16_t, uint16_t, uint16_t);
+uint64_t pci_read_mmio(uint8_t, uint8_t, uint8_t);
+uint32_t pci_read_rom_bar(uint8_t, uint8_t, uint8_t);
+uint8_t pci_get_header_type(uint16_t, uint16_t, uint16_t);
 
-ssize_t read(int fildes, void *buf, size_t nbyte);
-ssize_t write(int fildes, const void *buf, size_t nbyte);;
-int close(int);
-
-#endif /* _UNISTD_H */
+#endif
 
 /*
  * Local variables:

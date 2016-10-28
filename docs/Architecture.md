@@ -1,11 +1,11 @@
-# Architecture
+# PIX Internals
 
 ## Process tree
     + init
-      + kbd: keyboard driver
-      + video: video driver
       + tty: tty driver
         + pash: shell
+      + tcp: tcp server
+      + telnet: telnet server application
 
 ## Kernel internals
 * timer
@@ -13,3 +13,20 @@
 * vfs?
   * ramfs?
   * devfs?
+
+## Drivers
+* tty
+  * console: keyboard + video
+  * serial (UART)
+
+## Servers
+* pm: process manager
+* init
+* tcp: TCP/IP
+
+## Integrated Driver Servers for Fast Path Processor (Exclusive Processor)
+* fe: Forwarding Engine
+  * e1000
+  * e1000e
+  * ixgbe
+  * i40e

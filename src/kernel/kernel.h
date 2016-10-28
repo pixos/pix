@@ -29,6 +29,7 @@
 #include <sys/resource.h>
 #include <sys/syscall.h>
 #include <time.h>
+#include <sys/pix.h>
 #include <mki/driver.h>
 
 /* Architecture-specific configuration */
@@ -59,6 +60,9 @@
 #define CEIL(val, base)         ((((val) - 1) / (base) + 1) * (base))
 #define DIV_FLOOR(val, base)    ((val) / (base))
 #define DIV_CEIL(val, base)     (((val) - 1) / (base) + 1)
+
+/* Maximum number of processors supported in this operating system */
+#define MAX_PROCESSORS          256
 
 /*
  * NOTE FOR PAGE SIZES:
@@ -159,6 +163,7 @@
 #define HZ                      100
 #define IV_LOC_TMR              0x40
 #define IV_LOC_TMR_XP           0x41 /* Exclusive processor */
+#define IV_PIXIPI               0xe0
 #define IV_CRASH                0xfe
 #define NR_IV                   0x100
 #define IV_IRQ(n)               (0x20 + (n))
@@ -592,6 +597,9 @@ struct ktask {
     void *arch;
     /* State */
     enum ktask_state state;
+    int signaled;
+    /* Task ID (Thread ID) */
+    int id;
 
     /* Process */
     struct proc *proc;
@@ -627,6 +635,9 @@ struct ktask_root {
     } b;
 };
 
+/*
+ * devfs
+ */
 #define DEVFS_CHAR  0
 #define DEVFS_BLOCK 1
 struct devfs_entry {
@@ -648,6 +659,7 @@ struct devfs_entry {
     /* Pointer to the next entry */
     struct devfs_entry *next;
 };
+
 /*
  * devfs
  */
@@ -803,6 +815,10 @@ void * sys_mmap(void *, size_t, int, int, int, off_t);
 int sys_munmap(void *, size_t);
 off_t sys_lseek(int, off_t, int);
 int sys_nanosleep(const struct timespec *, struct timespec *);
+/* PIX-specific system calls */
+int sys_pix_cpu_table(int, struct syspix_cpu_table *);
+int sys_pix_create_jobs(void *(*)(void *));
+/* Others */
 void sys_xpsleep(void);
 void sys_debug(int);
 int sys_driver(int, void *);
@@ -816,6 +832,7 @@ void set_next_ktask(struct ktask *);
 void set_next_idle(void);
 void panic(const char *);
 void halt(void);
+struct ktask *task_create(struct proc *, void *(*restart_point)(void *));
 struct proc * proc_fork(struct proc *, struct ktask *, struct ktask **);
 void task_set_return(struct ktask *, unsigned long long);
 pid_t sys_fork(void);
@@ -830,6 +847,9 @@ void * arch_vmem_addr_v2p(struct vmem_space *, void *);
 int arch_vmem_init(struct vmem_space *);
 void syscall_setup(void *, size_t);
 void arch_switch_page_table(struct vmem_space *);
+
+int arch_load_cpu_table(struct syspix_cpu_table *);
+int arch_store_cpu_table(struct syspix_cpu_table *);
 
 #endif /* _KERNEL_H */
 

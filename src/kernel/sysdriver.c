@@ -93,6 +93,8 @@ _sysdriver_reg_dev(struct ktask *t, struct proc *proc, void *args)
     ssize_t i;
     struct devfs_entry *ent;
     struct driver_mapped_device *mapped;
+    size_t mapsz;
+    int maporder;
 
     /* Message */
     msg = (struct sysdriver_devfs *)args;
@@ -117,18 +119,21 @@ _sysdriver_reg_dev(struct ktask *t, struct proc *proc, void *args)
 
     ent->fildes = NULL;
 
-    ent->mapped = kmalloc(PAGESIZE);
-    kmemset(ent->mapped, 0, PAGESIZE);
+    maporder = bitwidth(DIV_CEIL(sizeof(struct driver_mapped_device),
+                                 PAGESIZE));
+    mapsz = (1ULL << maporder) * PAGESIZE;
+    ent->mapped = kmalloc(mapsz);
+    kmemset(ent->mapped, 0, mapsz);
 
     /* Allocate virtual memory region */
-    vaddr = vmem_buddy_alloc_pages(proc->vmem, 0);
+    vaddr = vmem_buddy_alloc_pages(proc->vmem, maporder);
     if ( NULL == vaddr ) {
         kfree(ent->name);
         kfree(ent);
         return -1;
     }
     paddr = arch_kmem_addr_v2p(g_kmem, ent->mapped);
-    for ( i = 0; i < (ssize_t)1; i++ ) {
+    for ( i = 0; i < (ssize_t)(mapsz / PAGESIZE); i++ ) {
         ret = arch_vmem_map(proc->vmem,
                             (void *)(vaddr + PAGESIZE * i),
                             paddr + PAGESIZE * i, VMEM_USABLE | VMEM_USED);

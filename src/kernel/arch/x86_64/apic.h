@@ -57,7 +57,8 @@
 u64 lapic_base_addr(void);
 void lapic_send_init_ipi(void);
 void lapic_send_startup_ipi(u8);
-void lapic_send_fixed_ipi(u8);
+void lapic_bcast_fixed_ipi(u8);
+void lapic_send_fixed_ipi(int, u8);
 int lapic_id(void);
 u64 lapic_estimate_freq(void);
 void lapic_start_timer(u64, u8);
@@ -65,6 +66,7 @@ void lapic_oneshot_timer(u64, u8);
 void lapic_stop_timer(void);
 void ioapic_init(void);
 void ioapic_map_intr(u64, u64, u64);
+void ioapic_map_intr_route(u64, int, u64, u64);
 
 #endif /* _KERNEL_APIC_H */
 

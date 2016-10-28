@@ -113,7 +113,7 @@ lapic_send_startup_ipi(u8 vector)
  * Broadcast fixed IPI
  */
 void
-lapic_send_fixed_ipi(u8 vector)
+lapic_bcast_fixed_ipi(u8 vector)
 {
     u32 icrl;
     u32 icrh;
@@ -126,6 +126,28 @@ lapic_send_fixed_ipi(u8 vector)
 
     icrl = (icrl & ~0x000cdfff) | ICR_FIXED | ICR_DEST_ALL_EX_SELF | vector;
     icrh = (icrh & 0x000fffff);
+
+    mfwrite32(apic_base + APIC_ICR_HIGH, icrh);
+    mfwrite32(apic_base + APIC_ICR_LOW, icrl);
+}
+
+/*
+ * Send a fixed IPI to the specified destination
+ */
+void
+lapic_send_fixed_ipi(int dst, u8 vector)
+{
+    u32 icrl;
+    u32 icrh;
+    u64 apic_base;
+
+    apic_base = lapic_base_addr();
+
+    icrl = mfread32(apic_base + APIC_ICR_LOW);
+    icrh = mfread32(apic_base + APIC_ICR_HIGH);
+
+    icrl = (icrl & ~0x000cdfff) | ICR_FIXED | ICR_DEST_NOSHORTHAND | vector;
+    icrh = (icrh & 0x000fffff) | ((u32)dst << 24);
 
     mfwrite32(apic_base + APIC_ICR_HIGH, icrh);
     mfwrite32(apic_base + APIC_ICR_LOW, icrl);
@@ -286,6 +308,29 @@ ioapic_map_intr(u64 intvec, u64 tbldst, u64 ioapic_base)
      * 7:0      interrupt vector
      */
     val = intvec;
+
+    /* To avoid compiler optimization, call assembler function */
+    asm_ioapic_map_intr(val, tbldst, ioapic_base);
+}
+void
+ioapic_map_intr_route(u64 intvec, int dst, u64 tbldst, u64 ioapic_base)
+{
+    u64 val;
+
+    /*
+     * 63:56    destination field
+     * 16       interrupt mask (1: masked for edge sensitive)
+     * 15       trigger mode (1=level sensitive, 0=edge sensitive)
+     * 14       remote IRR (R/O) (1 if local APICs accept the level interrupts)
+     * 13       interrupt input pin polarity (0=high active, 1=low active)
+     * 12       delivery status (R/O)
+     * 11       destination mode (0=physical, 1=logical)
+     * 10:8     delivery mode
+     *          000 fixed, 001 lowest priority, 010 SMI, 011 reserved
+     *          100 NMI, 101 INIT, 110 reserved, 111 ExtINT
+     * 7:0      interrupt vector
+     */
+    val = intvec | ((u64)dst << 56);
 
     /* To avoid compiler optimization, call assembler function */
     asm_ioapic_map_intr(val, tbldst, ioapic_base);

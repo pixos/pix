@@ -26,6 +26,44 @@
 #include <string.h>
 #include <unistd.h>
 #include <fcntl.h>
+#include <sys/pix.h>
+
+unsigned long long syscall(int, ...);
+
+static void
+show_cpu(void)
+{
+    struct syspix_cpu_table cputable;
+    int n;
+    ssize_t i;
+    char buf[512];
+
+    n = syscall(SYS_pix_cpu_table, SYSPIX_LDCTBL, &cputable);
+    if ( n < 0 ) {
+        fputs("Could not get processor list.\n", stderr);
+        return;
+    }
+
+    for ( i = 0; i < PIX_MAX_CPU; i++ ) {
+        if ( cputable.cpus[i].present ) {
+            const char *mode;
+            switch ( cputable.cpus[i].type ) {
+            case SYSPIX_CPU_TICKFULL:
+                mode = "tickfull";
+                break;
+            case SYSPIX_CPU_EXCLUSIVE:
+                mode = "exclusive";
+                break;
+            default:
+                mode = "unknown";
+            }
+            snprintf(buf, sizeof(buf),
+                     "Processor #%ld is present at Node %d in %s mode.\n", i,
+                     cputable.cpus[i].domain, mode);
+            fputs(buf, stdout);
+        }
+    }
+}
 
 /*
  * Entry point for pash
@@ -40,7 +78,9 @@ main(int argc, char *argv[])
 
     while ( 1 ) {
         if ( fgets(buf, sizeof(buf), stdin) ) {
-            fputs(buf, stdout);
+            if ( 0 == strcmp("show cpu\n", buf) ) {
+                show_cpu();
+            }
             putchar('>');
             putchar(' ');
         }

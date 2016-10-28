@@ -1,5 +1,5 @@
 /*_
- * Copyright (c) 2015 Hirochika Asai <asai@jar.jp>
+ * Copyright (c) 2016 Hirochika Asai <asai@jar.jp>
  * All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -21,31 +21,39 @@
  * SOFTWARE.
  */
 
-#ifndef _UNISTD_H
-#define _UNISTD_H
+#ifndef _SYS_PIX_H
+#define _SYS_PIX_H
 
-#include <aos/types.h>
+#include <stdint.h>
+#include <unistd.h>
+#include <sys/syscall.h>
 
-#define SEEK_SET        0
-#define SEEK_CUR        1
-#define SEEK_END        2
+/* Must be consistent with MAX_PROCSSORS in kernel.h */
+#define PIX_MAX_CPU     256
 
-#define STDIN_FILENO    0
-#define STDOUT_FILENO   1
-#define STDERR_FILENO   2
+#define SYSPIX_LDCTBL           1
+#define SYSPIX_STCTBL           2
 
-int execve(const char *path, char *const argv[], char *const envp[]);
-pid_t fork(void);
-pid_t getpid(void);
-uid_t getuid(void);
-pid_t getppid(void);
-gid_t getgid(void);
+#define SYSPIX_CPU_TICKFULL     1
+#define SYSPIX_CPU_EXCLUSIVE    2
 
-ssize_t read(int fildes, void *buf, size_t nbyte);
-ssize_t write(int fildes, const void *buf, size_t nbyte);;
-int close(int);
+/*
+ * CPU configuration
+ */
+struct syspix_cpu_config {
+    uint8_t present;
+    uint8_t type;
+    int domain;
+};
 
-#endif /* _UNISTD_H */
+/*
+ * CPU configuration table
+ */
+struct syspix_cpu_table {
+    struct syspix_cpu_config cpus[PIX_MAX_CPU];
+};
+
+#endif /* _SYS_PIX_H */
 
 /*
  * Local variables:

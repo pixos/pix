@@ -25,6 +25,10 @@
 #include <sys/syscall.h>
 #include "kernel.h"
 
+/*
+ * Initialize the kernel (called from the bootstrap processor initialization
+ * sequence)
+ */
 void
 kinit(void)
 {
@@ -63,12 +67,14 @@ kinit(void)
     g_syscall_table[SYS_munmap] = sys_munmap;
     g_syscall_table[SYS_lseek] = sys_lseek;
     g_syscall_table[SYS_nanosleep] = sys_nanosleep;
+    /* PIX-specific system calls */
+    g_syscall_table[SYS_pix_cpu_table] = sys_pix_cpu_table;
+    g_syscall_table[SYS_pix_create_jobs] = sys_pix_create_jobs;
+    /* Others */
     g_syscall_table[SYS_xpsleep] = sys_xpsleep;
     g_syscall_table[SYS_debug] = sys_debug;
     g_syscall_table[SYS_driver] = sys_driver;
     g_syscall_table[SYS_sysarch] = sys_sysarch;
-
-    syscall_setup(g_syscall_table, SYS_MAXSYSCALL);
 }
 
 
@@ -130,17 +136,22 @@ isr_loc_tmr(void)
 }
 
 /*
+ * PIX interprocessor interrupts
+ */
+void
+isr_pixipi(void)
+{
+    //set_next_ktask(ktask);
+}
+
+/*
  * Run an interrupt handler for IRQ interrupt
  */
 static void
 _irq_handler(u64 vec)
 {
-    struct ktask *t;
     struct ktask *tmp;
     struct interrupt_handler_list *e;
-
-    t = this_ktask();
-    (void)t;
 
     /* Check whether the interrupt handler is registered */
     if ( NULL != g_intr_table->ivt[vec].handlers ) {
@@ -150,17 +161,13 @@ _irq_handler(u64 vec)
             tmp = e->proc->tasks;
             while ( NULL != tmp ) {
                 tmp->state = KTASK_STATE_READY;
+                tmp->signaled = 0;
                 tmp = tmp->proc_task_next;
             }
             e = e->next;
         }
-
-        /* Replace the page table with the driver's */
-        //arch_switch_page_table(g_intr_table->ivt[vec].proc->vmem);
-        //g_intr_table->ivt[vec].f();
-        /* Restore the page table */
-        //arch_switch_page_table(NULL);
-    }}
+    }
+}
 
 /*
  * Interrupt service routine
@@ -171,6 +178,9 @@ kintr_isr(u64 vec)
     switch ( vec ) {
     case IV_LOC_TMR:
         isr_loc_tmr();
+        break;
+    case IV_PIXIPI:
+        isr_pixipi();
         break;
     case IV_IRQ(0):
     case IV_IRQ(1):
@@ -393,7 +403,6 @@ kstrdup(const char *s1)
 
     return s;
 }
-
 
 /*
  * kvsscanf
