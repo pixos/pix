@@ -11,8 +11,9 @@ ARCH=x86_64
 ## Global flags
 CFLAGS=-Wall -O3
 
-libc.o: ../lib/arch/$(ARCH)/libc.c
-	$(CC) -DTEST=1 -nostdinc -nostdlib -fleading-underscore -I../include -c -o $@ ../lib/arch/$(ARCH)/libc.c
+libc.o: ../lib/arch/$(ARCH)/libc.c ../lib/stdio/fio.c ../lib/stdio/print.c \
+	../lib/string/str.c
+	$(CC) -DTEST=1 -nostdinc -nostdlib -fleading-underscore -I../include -c -o $@ ../lib/arch/$(ARCH)/libc.c ../lib/stdio/fio.c ../lib/stdio/print.c ../lib/string/str.c
 	objcopy --prefix-symbols=aos_stdc $@
 
 libcasm.o: ../lib/arch/$(ARCH)/libcasm.s
