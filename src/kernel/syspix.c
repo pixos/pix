@@ -29,25 +29,61 @@
 /*
  * Allocate packet map
  */
-void *
-sys_pix_pmap(size_t len)
+int
+sys_pix_bufpool(size_t len, void **pa, void **va)
 {
+    struct ktask *t;
+    struct proc *proc;
     void *paddr;
+    void *vaddr;
+    ssize_t i;
     int order;
+    int ret;
+
+    /* Get the current task information */
+    t = this_ktask();
+    if ( NULL == t ) {
+        return -1;
+    }
+    proc = t->proc;
+    if ( NULL == proc ) {
+        return -1;
+    }
 
     /* Compute the order of the buddy system to be allocated */
     order = bitwidth(DIV_CEIL(len, SUPERPAGESIZE));
+
+    /* Allocate virtual memory */
+    vaddr = vmem_buddy_alloc_superpages(proc->vmem, order);
+    if ( NULL == vaddr ) {
+        return -1;
+    }
 
     /* Allocate physical memory */
     paddr = pmem_prim_alloc_pages(PMEM_ZONE_LOWMEM, order);
     if ( NULL == paddr ) {
         /* Could not allocate physical memory */
-        return NULL;
+        vmem_free_pages(proc->vmem, vaddr);
+        return -1;
     }
 
-    /* FIXME: Map virtual memory to this physical memory */
+    for ( i = 0; i < (ssize_t)DIV_CEIL(len, SUPERPAGESIZE); i++ ) {
+        ret = arch_vmem_map(proc->vmem,
+                            (void *)(vaddr + SUPERPAGESIZE * i),
+                            paddr + SUPERPAGESIZE * i,
+                            VMEM_USABLE | VMEM_USED | VMEM_SUPERPAGE);
+        if ( ret < 0 ) {
+            /* FIXME: Handle this error */
+            pmem_prim_free_pages(paddr);
+            vmem_free_pages(proc->vmem, vaddr);
+            return -1;
+        }
+    }
 
-    return NULL;
+    *va = vaddr;
+    *pa = paddr;
+
+    return 0;
 }
 
 

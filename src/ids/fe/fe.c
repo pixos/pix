@@ -252,6 +252,51 @@ fe_init_cpu(struct fe *fe)
 }
 
 /*
+ * Initialize the buffer pool
+ */
+int
+fe_init_buffer_pool(struct fe *fe)
+{
+    size_t len;
+    void *pa;
+    void *va;
+    int ret;
+    struct fe_task *t;
+    uint64_t voff;
+    void *pkt;
+    ssize_t i;
+    struct fe_pkt_buf_hdr *hdr;
+    struct fe_pkt_buf_hdr *prev;
+
+    /* Allocate */
+    len = (size_t)FE_PKTSZ * FE_BUFFER_POOL_SIZE * (fe->nxcpu + 1);
+    ret = syscall(SYS_pix_bufpool, len, &pa, &va);
+    if ( ret < 0 ) {
+        return -1;
+    }
+    voff = pa - va;
+
+    t = fe->tasks;
+    pkt = va;
+    while ( NULL != t ) {
+        prev = NULL;
+        for ( i = 0; i < FE_BUFFER_POOL_SIZE; i++ ) {
+            hdr = (struct fe_pkt_buf_hdr *)pkt;
+            hdr->next = prev;
+            hdr->refs = 0;
+            prev = hdr;
+            pkt += FE_PKTSZ;
+        }
+        t->pool.head = hdr;
+        t->pool.v2poff = voff;
+        /* Next task */
+        t = t->next;
+    }
+
+    return 0;
+}
+
+/*
  * Initialize the forwarding engine
  */
 int
@@ -282,7 +327,10 @@ fe_init(struct fe *fe)
     pci_release(pci);
 
     /* Initialize buffer pool */
-    
+    ret = fe_init_buffer_pool(fe);
+    if ( ret < 0 ) {
+        return -1;
+    }
 
     return 0;
 error:
