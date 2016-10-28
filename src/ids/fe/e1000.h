@@ -137,12 +137,10 @@ struct e1000_tx_ring {
 };
 struct e1000_device {
     uint64_t mmio;
-    struct e1000_rx_ring *rxq[E1000_NRXQ];
-    struct e1000_tx_ring *txq[E1000_NTXQ];
     uint8_t macaddr[6];
-    struct pci_dev *pci_device;
 };
 
+#if 0
 
 static __inline__ int
 e1000_is_e1000_device(uint16_t vendor_id, uint16_t device_id)
@@ -171,7 +169,7 @@ e1000_read_mac_address(struct e1000_device *e1000, uint8_t *addr)
 {
     return 0;
 }
-
+#endif
 
 #endif /* _E1000_H */
 

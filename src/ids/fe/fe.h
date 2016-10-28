@@ -127,15 +127,55 @@ struct fe_cpu {
 };
 
 /*
+ * Physical port
+ */
+struct fe_phys_port {
+    /* NUMA domain */
+    int domain;
+    /* Driver */
+    int driver;
+    /* Device data */
+    union {
+        struct e1000_device *e1000;
+        struct ixgbe_device *ixgbe;
+    } u;
+};
+
+/*
+ * Device
+ */
+struct fe_devices {
+    size_t n;
+    struct fe_phys_port *ports;
+};
+
+/*
  * Forwarding engine
  */
 struct fe {
     /* Forwarding/Action database */
     void *fdb;
 
+    /* Exclusive processors */
+    int nxcpu;
+
     /* Processors */
     size_t ncpus;
     struct fe_cpu *cpus;
+};
+
+
+struct fe_config_port {
+    uint16_t bus;
+    uint16_t slot;
+    uint16_t func;
+};
+
+static struct fe_config_port fe_ports[] = {
+    { .bus = 0, .slot = 0x3, .func = 0 },
+    { .bus = 0, .slot = 0x8, .func = 0 },
+    { .bus = 0, .slot = 0x9, .func = 0 },
+    { .bus = 0, .slot = 0xa, .func = 0 },
 };
 
 #endif /* _FE_H */

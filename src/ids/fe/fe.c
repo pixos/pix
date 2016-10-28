@@ -25,12 +25,15 @@
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
+#include <fcntl.h>
 #include <sys/syscall.h>
 #include <sys/mman.h>
 #include <sys/pix.h>
 #include <time.h>
 #include "pci.h"
 #include "fe.h"
+
+
 
 /* Ethernet header */
 struct ethhdr {
@@ -103,7 +106,9 @@ struct ip_arp {
 
 unsigned long long syscall(int, ...);
 
-
+/*
+ * Fast-path process
+ */
 void *
 fe_fpp_task(void *args)
 {
@@ -111,7 +116,6 @@ fe_fpp_task(void *args)
         /* Do nothing */
         syscall(SYS_xpsleep);
     }
-    exit(0);
 }
 
 void
@@ -121,6 +125,38 @@ syspix(void)
 }
 
 /*
+ * Initialize network devices
+ */
+struct fe_devices *
+fe_init_devices(struct pci_dev *pci)
+{
+    while ( pci ) {
+#if 0
+        char buf[512];
+        snprintf(buf, sizeof(buf), "%x.%x.%x\n", pci->device->bus,
+                 pci->device->slot, pci->device->func);
+        fputs(buf, stdout);
+#endif
+        pci = pci->next;
+    }
+
+
+#if 0
+    ssize_t i;
+    size_t n;
+    /* # of configured ports */
+    n = sizeof(fe_ports) / sizeof(struct fe_config_port);
+
+    /* Look through all PCI devices */
+    for ( i = 0; i < (ssize_t)n; i++ ) {
+    }
+#endif
+
+    return 0;
+}
+
+
+/*
  * Initialize the forwarding engine
  */
 int
@@ -128,13 +164,38 @@ fe_init(struct fe *fe)
 {
     struct syspix_cpu_table cputable;
     int n;
+    int nex;
+    ssize_t i;
 
+    /* Load the CPU table through system call */
     n = syscall(SYS_pix_cpu_table, SYSPIX_LDCTBL, &cputable);
     if ( n < 0 ) {
         return -1;
     }
     /* # of available CPUs */
     fe->ncpus = n;
+
+    /* Find out the (number of) exclusive CPUs */
+    nex = 0;
+    for ( i = 0; i < PIX_MAX_CPU; i++ ) {
+        if ( cputable.cpus[i].present ) {
+            /* CPU is present */
+            switch ( cputable.cpus[i].type ) {
+            case SYSPIX_CPU_TICKFULL:
+                /* Tickfull (application) */
+                break;
+            case SYSPIX_CPU_EXCLUSIVE:
+                /* Exclusive */
+                nex++;
+                break;
+            default:
+                ;
+            }
+        }
+    }
+
+    /* # of exlusive CPUs */
+    fe->nxcpu = nex;
 
     return 0;
 }
@@ -147,6 +208,20 @@ main(int argc, char *argv[])
 {
     struct timespec tm;
     struct fe fe;
+    struct pci_dev *pci;
+
+    /* stdin/stdout/stderr */
+    open("/dev/console", O_RDWR);
+    open("/dev/console", O_RDWR);
+    open("/dev/console", O_RDWR);
+
+    /* Check all PCI devices */
+    pci = pci_init();
+    if ( NULL == pci ) {
+        return EXIT_FAILURE;
+    }
+
+    fe_init_devices(pci);
 
     /* Initialize the forwarding engine */
     fe_init(&fe);

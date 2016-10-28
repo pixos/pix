@@ -123,7 +123,8 @@ pci_get_header_type(uint16_t bus, uint16_t slot, uint16_t func)
  * Check function
  */
 void
-pci_check_function(uint8_t bus, uint8_t slot, uint8_t func)
+pci_check_function(struct pci_dev **pci, uint8_t bus, uint8_t slot,
+                   uint8_t func)
 {
     uint16_t vendor;
     uint16_t device;
@@ -132,6 +133,7 @@ pci_check_function(uint8_t bus, uint8_t slot, uint8_t func)
     uint16_t prog;
     struct pci_dev_conf *conf;
     struct pci_dev *dev;
+    struct pci_dev **tmp;
 
     vendor = pci_read_config(bus, slot, func, 0);
     device = pci_read_config(bus, slot, func, 2);
@@ -171,13 +173,19 @@ pci_check_function(uint8_t bus, uint8_t slot, uint8_t func)
     conf->revision = (uint8_t)(prog & 0xff);
     dev->device = conf;
     dev->next = NULL;
+
+    tmp = pci;
+    while ( NULL != *tmp ) {
+        tmp = &(*tmp)->next;
+    }
+    *tmp = dev;
 }
 
 /*
  * Check a specified device
  */
 void
-pci_check_device(uint8_t bus, uint8_t device)
+pci_check_device(struct pci_dev **pci, uint8_t bus, uint8_t device)
 {
     uint16_t vendor;
     uint8_t func;
@@ -189,7 +197,7 @@ pci_check_device(uint8_t bus, uint8_t device)
         return;
     }
 
-    pci_check_function(bus, device, func);
+    pci_check_function(pci, bus, device, func);
     hdr_type = pci_get_header_type(bus, device, func);
 
     if ( hdr_type & 0x80 ) {
@@ -197,7 +205,7 @@ pci_check_device(uint8_t bus, uint8_t device)
         for ( func = 1; func < 8; func++ ) {
             vendor = pci_read_config(bus, device, func, 0);
             if ( 0xffff != vendor ) {
-                pci_check_function(bus, device, func);
+                pci_check_function(pci, bus, device, func);
             }
          }
     }
@@ -207,31 +215,33 @@ pci_check_device(uint8_t bus, uint8_t device)
  * Check a specified bus
  */
 void
-pci_check_bus(uint8_t bus)
+pci_check_bus(struct pci_dev **pci, uint8_t bus)
 {
     uint8_t device;
 
     for ( device = 0; device < 32; device++ ) {
-        pci_check_device(bus, device);
+        pci_check_device(pci, bus, device);
     }
 }
 
 /*
  * Check all PCI buses
  */
-void
+struct pci_dev *
 pci_check_all_buses(void)
 {
     uint16_t bus;
     uint16_t func;
     uint16_t hdr_type;
     uint16_t vendor;
+    struct pci_dev *pci;
 
+    pci = NULL;
     hdr_type = pci_get_header_type(0, 0, 0);
     if ( !(hdr_type & 0x80) ) {
         /* Single PCI host controller */
         for ( bus = 0; bus < 256; bus++ ) {
-            pci_check_bus(bus);
+            pci_check_bus(&pci, bus);
         }
     } else {
         /* Multiple PCI host controllers */
@@ -241,20 +251,25 @@ pci_check_all_buses(void)
                 break;
             }
             bus = func;
-            pci_check_bus(bus);
+            pci_check_bus(&pci, bus);
         }
     }
+
+    return pci;
 }
 
 /*
  * Initialize PCI driver
  */
-void
+struct pci_dev *
 pci_init(void)
 {
     /* Search all PCI devices */
-    pci_check_all_buses();
+    return pci_check_all_buses();
 }
+
+
+
 
 /*
  * Local variables:
