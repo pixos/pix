@@ -25,9 +25,15 @@
 #define _E1000_H
 
 #include <stdint.h>
+#include <stdlib.h>
+#include <mki/driver.h>
+#include "pci.h"
+#include "common.h"
 
 #define E1000_NRXQ              1
 #define E1000_NTXQ              1
+
+#define E1000_MMIO_SIZE         0x6000
 
 /* MMIO registers */
 #define E1000_REG_CTRL          0x00
@@ -136,15 +142,23 @@ struct e1000_tx_ring {
     uint16_t len;
 };
 struct e1000_device {
-    uint64_t mmio;
+    void *mmio;
     uint8_t macaddr[6];
+    uint16_t device_id;
 };
 
-#if 0
+/*
+ * Prototype declarations
+ */
+static __inline__ int e1000_read_mac_address(struct e1000_device *);
 
+/*
+ * Check if the device is e1000
+ */
 static __inline__ int
-e1000_is_e1000_device(uint16_t vendor_id, uint16_t device_id)
+e1000_is_e1000(uint16_t vendor_id, uint16_t device_id)
 {
+    /* Must be Intel */
     if ( 0x8086 != vendor_id ) {
         return 0;
     }
@@ -164,12 +178,128 @@ e1000_is_e1000_device(uint16_t vendor_id, uint16_t device_id)
     return 0;
 };
 
-static __inline__ int
-e1000_read_mac_address(struct e1000_device *e1000, uint8_t *addr)
+/*
+ * Initialize e1000 device
+ */
+static __inline__ struct e1000_device *
+e1000_init(uint16_t device_id, uint16_t bus, uint16_t slot, uint16_t func)
 {
+    struct e1000_device *dev;
+    uint64_t pmmio;
+
+    /* Allocate an ixgbe device data structure */
+    dev = malloc(sizeof(struct e1000_device));
+    if ( NULL == dev ) {
+        return NULL;
+    }
+    dev->device_id = device_id;
+
+    /* Read MMIO */
+    pmmio = pci_read_mmio(bus, slot, func);
+    dev->mmio = driver_mmap((void *)pmmio, E1000_MMIO_SIZE);
+    if ( NULL == dev->mmio ) {
+        /* Error */
+        free(dev);
+        return NULL;
+    }
+
+    /* Get the device MAC address */
+    e1000_read_mac_address(dev);
+
+    return dev;
+}
+
+/*
+ * Read from EEPROM
+ */
+static __inline__ uint16_t
+e1000_eeprom_read_8254x(void *mmio, uint8_t addr)
+{
+    uint32_t data;
+
+    /* Start */
+    wr32(mmio, E1000_REG_EERD, ((uint32_t)addr << 8) | 1);
+
+    /* Until it's done */
+    while ( !((data = rd32(mmio, E1000_REG_EERD)) & (1 << 4)) ) {
+        /* pause */
+    }
+
+    return (uint16_t)((data >> 16) & 0xffff);
+}
+static __inline__ uint16_t
+e1000_eeprom_read(void *mmio, uint8_t addr)
+{
+    uint16_t data;
+    uint32_t tmp;
+
+    /* Start */
+    wr32(mmio, E1000_REG_EERD, ((uint32_t)addr << 2) | 1);
+
+    /* Until it's done */
+    while ( !((tmp = rd32(mmio, E1000_REG_EERD)) & (1 << 1)) ) {
+        /* pause */
+    }
+    data = (uint16_t)((tmp >> 16) & 0xffff);
+
+    return data;
+}
+
+/*
+ * Get device MAC address
+ */
+static __inline__ int
+e1000_read_mac_address(struct e1000_device *dev)
+{
+    uint16_t m16;
+    uint32_t m32;
+
+    switch ( dev->device_id ) {
+    case E1000_PRO1000MT:
+    case E1000_82545EM:
+        /* Read MAC address */
+        m16 = e1000_eeprom_read_8254x(dev->mmio, 0);
+        dev->macaddr[0] = m16 & 0xff;
+        dev->macaddr[1] = (m16 >> 8) & 0xff;
+        m16 = e1000_eeprom_read_8254x(dev->mmio, 1);
+        dev->macaddr[2] = m16 & 0xff;
+        dev->macaddr[3] = (m16 >> 8) & 0xff;
+        m16 = e1000_eeprom_read_8254x(dev->mmio, 2);
+        dev->macaddr[4] = m16 & 0xff;
+        dev->macaddr[5] = (m16 >> 8) & 0xff;
+        break;
+
+    case E1000_82541PI:
+    case E1000_82573L:
+        /* Read MAC address */
+        m16 = e1000_eeprom_read(dev->mmio, 0);
+        dev->macaddr[0] = m16 & 0xff;
+        dev->macaddr[1] = (m16 >> 8) & 0xff;
+        m16 = e1000_eeprom_read(dev->mmio, 1);
+        dev->macaddr[2] = m16 & 0xff;
+        dev->macaddr[3] = (m16 >> 8) & 0xff;
+        m16 = e1000_eeprom_read(dev->mmio, 2);
+        dev->macaddr[4] = m16 & 0xff;
+        dev->macaddr[5] = (m16 >> 8) & 0xff;
+        break;
+
+    case E1000_82567LM:
+    case E1000_82577LM:
+    case E1000_82579LM:
+        /* Read MAC address */
+        m32 = rd32(dev->mmio, E1000_REG_RAL);
+        dev->macaddr[0] = m32 & 0xff;
+        dev->macaddr[1] = (m32 >> 8) & 0xff;
+        dev->macaddr[2] = (m32 >> 16) & 0xff;
+        dev->macaddr[3] = (m32 >> 24) & 0xff;
+        m32 = rd32(dev->mmio, E1000_REG_RAH);
+        dev->macaddr[4] = m32 & 0xff;
+        dev->macaddr[5] = (m32 >> 8) & 0xff;
+        break;
+    }
+
     return 0;
 }
-#endif
 
 #endif /* _E1000_H */
 

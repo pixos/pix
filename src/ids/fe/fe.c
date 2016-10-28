@@ -124,33 +124,30 @@ syspix(void)
     syscall(SYS_pix_create_jobs, fe_fpp_task);
 }
 
+static int
+_init_device(struct pci_dev_conf *conf)
+{
+    if ( e1000_is_e1000(conf->vendor_id, conf->device_id) ) {
+        /* e1000 */
+        e1000_init(conf->device_id, conf->bus, conf->slot, conf->func);
+    } else if ( ixgbe_is_ixgbe(conf->vendor_id, conf->device_id) ) {
+        /* ixgbe */
+        ixgbe_init(conf->device_id, conf->bus, conf->slot, conf->func);
+    }
+
+    return 0;
+}
+
 /*
  * Initialize network devices
  */
 struct fe_devices *
 fe_init_devices(struct pci_dev *pci)
 {
-    while ( pci ) {
-#if 0
-        char buf[512];
-        snprintf(buf, sizeof(buf), "%x.%x.%x\n", pci->device->bus,
-                 pci->device->slot, pci->device->func);
-        fputs(buf, stdout);
-#endif
+    while ( NULL != pci ) {
+        _init_device(pci->device);
         pci = pci->next;
     }
-
-
-#if 0
-    ssize_t i;
-    size_t n;
-    /* # of configured ports */
-    n = sizeof(fe_ports) / sizeof(struct fe_config_port);
-
-    /* Look through all PCI devices */
-    for ( i = 0; i < (ssize_t)n; i++ ) {
-    }
-#endif
 
     return 0;
 }
