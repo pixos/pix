@@ -146,8 +146,6 @@ struct e1000_rx_ring {
     uint16_t tail;
     uint16_t head;
     uint16_t len;
-    /* Physical address of descriptors */
-    void *descs_pbase;
     /* Queue information */
     uint16_t idx;               /* Queue index */
     void *mmio;                 /* MMIO */
@@ -164,8 +162,6 @@ struct e1000_tx_ring {
     uint16_t head;
     uint16_t tail;
     uint16_t len;
-    /* Physical address of descriptors */
-    void *descs_pbase;
     /* Queue information */
     uint16_t idx;               /* Queue index */
     void *mmio;                 /* MMIO */
@@ -246,6 +242,16 @@ e1000_init(uint16_t device_id, uint16_t bus, uint16_t slot, uint16_t func)
     e1000_read_mac_address(dev);
 
     return dev;
+}
+
+/*
+ * The number of supported Tx queues
+ */
+static __inline__ int
+e1000_max_tx_queues(struct e1000_device *dev)
+{
+    (void)dev;
+    return 1;
 }
 
 /*
@@ -395,6 +401,7 @@ e1000_init_hw(struct e1000_device *dev)
 static __inline__ int
 e1000_setup_rx(struct e1000_device *dev)
 {
+    (void)dev;
     /* Nothing to do */
     return 0;
 }
@@ -403,15 +410,23 @@ e1000_setup_rx(struct e1000_device *dev)
  * Setup Rx ring
  */
 static __inline__ int
-e1000_setup_rx_ring(struct e1000_rx_ring *rxring, uint16_t qlen)
+e1000_setup_rx_ring(struct e1000_device *dev, struct e1000_rx_ring *rxring,
+                    void *m, uint64_t v2poff, uint16_t qlen)
 {
     struct e1000_rx_desc *rxdesc;
     uint64_t m64;
     ssize_t i;
 
+    rxring->mmio = dev->mmio;
+
     rxring->tail = 0;
     rxring->head = 0;
     rxring->len = qlen;
+
+    /* Allocate for descriptors */
+    rxring->descs = m;
+    m += sizeof(struct e1000_rx_desc) * qlen;
+    rxring->bufs = m;
 
     for ( i = 0; i < rxring->len; i++ ) {
         rxdesc = &rxring->descs[i];
@@ -423,13 +438,13 @@ e1000_setup_rx_ring(struct e1000_rx_ring *rxring, uint16_t qlen)
         rxdesc->special = 0;
     }
 
-    m64 = (uint64_t)rxring->descs_pbase;
+    m64 = (uint64_t)rxring->descs + v2poff;
     wr32(rxring->mmio, E1000_REG_RDBAH, m64 >> 32);
     wr32(rxring->mmio, E1000_REG_RDBAL, m64 & 0xffffffff);
     wr32(rxring->mmio, E1000_REG_RDLEN,
          rxring->len * sizeof(struct e1000_rx_desc));
     wr32(rxring->mmio, E1000_REG_RDH, 0);
-    wr32(rxring->mmio, E1000_REG_RDT, rxring->len - 1);
+    wr32(rxring->mmio, E1000_REG_RDT, 0);
     wr32(rxring->mmio, E1000_REG_RCTL,
          E1000_RCTL_SBP | E1000_RCTL_UPE
          | E1000_RCTL_MPE | E1000_RCTL_LPE | E1000_RCTL_BAM
@@ -448,6 +463,7 @@ e1000_setup_rx_ring(struct e1000_rx_ring *rxring, uint16_t qlen)
 static __inline__ int
 e1000_setup_tx(struct e1000_device *dev)
 {
+    (void)dev;
     /* Nothing to do */
     return 0;
 }
@@ -456,15 +472,23 @@ e1000_setup_tx(struct e1000_device *dev)
  * Setup Tx ring
  */
 static __inline__ int
-e1000_setup_tx_ring(struct e1000_tx_ring *txring, uint16_t qlen)
+e1000_setup_tx_ring(struct e1000_device *dev, struct e1000_tx_ring *txring,
+                    void *m, uint64_t v2poff, uint16_t qlen)
 {
     struct e1000_tx_desc *txdesc;
     uint64_t m64;
     ssize_t i;
 
+    txring->mmio = dev->mmio;
+
     txring->head = 0;
     txring->tail = 0;
     txring->len = qlen;
+
+    /* Allocate for descriptors */
+    txring->descs = m;
+    m += sizeof(struct e1000_tx_desc) * qlen;
+    txring->bufs = m;
 
     for ( i = 0; i < txring->len; i++ ) {
         txdesc = &txring->descs[i];
@@ -478,7 +502,7 @@ e1000_setup_tx_ring(struct e1000_tx_ring *txring, uint16_t qlen)
         txdesc->special = 0;
     }
 
-    m64 = (uint64_t)txring->descs_pbase;
+    m64 = (uint64_t)txring->descs + v2poff;
     wr32(txring->mmio, E1000_REG_TDBAH, m64 >> 32);
     wr32(txring->mmio, E1000_REG_TDBAL, m64 & 0xffffffff);
     wr32(txring->mmio, E1000_REG_TDLEN,
@@ -489,6 +513,19 @@ e1000_setup_tx_ring(struct e1000_tx_ring *txring, uint16_t qlen)
          E1000_TCTL_EN | E1000_TCTL_PSP | E1000_TCTL_MULR);
 
     return 0;
+}
+
+static __inline__ int
+e1000_calc_rx_ring_memsize(struct e1000_rx_ring *rx, uint16_t qlen)
+{
+    (void)rx;
+    return (sizeof(struct e1000_rx_desc) + sizeof(void *)) * qlen;
+}
+static __inline__ int
+e1000_calc_tx_ring_memsize(struct e1000_tx_ring *tx, uint16_t qlen)
+{
+    (void)tx;
+    return (sizeof(struct e1000_tx_desc) + sizeof(void *)) * qlen;
 }
 
 

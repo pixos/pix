@@ -339,7 +339,7 @@ bsp_init(void)
     pdata->cpu_id = lapic_id();
     pdata->prox_domain = prox;
     pdata->flags |= 1;          /* Enabled */
-    pdata->flags |= (1 << 1);   /* Tickfull */
+    pdata->flags |= (1 << 1);   /* Tickful */
 
     /* Estimate the frequency */
     pdata->freq = lapic_estimate_freq();
@@ -624,7 +624,7 @@ arch_load_cpu_table(struct syspix_cpu_table *cputable)
             cputable->cpus[i].domain = cpu->prox_domain;
             /* Check the type */
             if ( cpu->flags & (1 << 1) ) {
-                cputable->cpus[i].type = SYSPIX_CPU_TICKFULL;
+                cputable->cpus[i].type = SYSPIX_CPU_TICKFUL;
             } else {
                 cputable->cpus[i].type = SYSPIX_CPU_EXCLUSIVE;
             }

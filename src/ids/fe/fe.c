@@ -145,6 +145,8 @@ _init_device(struct pci_dev_conf *conf)
         dev.u.e1000
             = e1000_init(conf->device_id, conf->bus, conf->slot, conf->func);
         e1000_init_hw(dev.u.e1000);
+        e1000_setup_rx(dev.u.e1000);
+        e1000_setup_tx(dev.u.e1000);
         dev.domain = 0;
         dev.fastpath = 0;
     } else if ( ixgbe_is_ixgbe(conf->vendor_id, conf->device_id) ) {
@@ -153,6 +155,8 @@ _init_device(struct pci_dev_conf *conf)
         dev.u.ixgbe
             = ixgbe_init(conf->device_id, conf->bus, conf->slot, conf->func);
         ixgbe_init_hw(dev.u.ixgbe);
+        ixgbe_setup_rx(dev.u.ixgbe);
+        ixgbe_setup_tx(dev.u.ixgbe);
         dev.domain = 0;
         dev.fastpath = 0;
     }
@@ -211,7 +215,7 @@ fe_init_cpu(struct fe *fe)
     /* # of available CPUs */
     fe->ncpus = n;
 
-    /* Tickfull task */
+    /* Tickful task */
     t = malloc(sizeof(struct fe_task));
     if ( NULL == t) {
         return -1;
@@ -220,7 +224,8 @@ fe_init_cpu(struct fe *fe)
     t->next = NULL;
 
     /* Add */
-    fe->tasks = t;
+    fe->tftask = t;
+    fe->extasks = NULL;
 
     /* Find out the (number of) exclusive CPUs */
     nex = 0;
@@ -228,7 +233,7 @@ fe_init_cpu(struct fe *fe)
         if ( cputable.cpus[i].present ) {
             /* CPU is present */
             switch ( cputable.cpus[i].type ) {
-            case SYSPIX_CPU_TICKFULL:
+            case SYSPIX_CPU_TICKFUL:
                 /* Tickfull (application) */
                 break;
             case SYSPIX_CPU_EXCLUSIVE:
@@ -238,8 +243,8 @@ fe_init_cpu(struct fe *fe)
                     return -1;
                 }
                 t->cpuid = i;
-                t->next = fe->tasks;
-                fe->tasks = t;
+                t->next = fe->extasks;
+                fe->extasks = t;
 
                 nex++;
                 break;
@@ -280,8 +285,24 @@ fe_init_buffer_pool(struct fe *fe)
     }
     voff = pa - va;
 
-    t = fe->tasks;
+    /* Start from here */
     pkt = va;
+
+    /* Tickful task */
+    t = fe->tftask;
+    /* Create a buffer pool for the tickful task */
+    prev = NULL;
+    for ( i = 0; i < FE_BUFFER_POOL_SIZE; i++ ) {
+        hdr = (struct fe_pkt_buf_hdr *)pkt;
+        hdr->next = prev;
+        hdr->refs = 0;
+        prev = hdr;
+        pkt += FE_PKTSZ;
+    }
+    t->pool.head = hdr;
+    t->pool.v2poff = voff;
+
+    t = fe->extasks;
     while ( NULL != t ) {
         /* Create a buffer pool for each task */
         prev = NULL;
@@ -302,14 +323,161 @@ fe_init_buffer_pool(struct fe *fe)
 }
 
 /*
- * Slow-path process
+ * Initialize the device type (fast-path or slow-path)
  */
 int
-fe_process(struct fe *fe)
+fe_init_device_type(struct fe *fe)
 {
+    ssize_t i;
+    int ntxq;
+
+    for ( i = 0; i < (ssize_t)fe->nports; i++ ) {
+        /* Get the maximum number of Tx queues */
+        ntxq = fe_driver_max_tx_queues(fe->ports[i]);
+
+        if ( fe->nxcpu + 1 > ntxq ) {
+            /* Slow-path if the number of exclusive CPUs plus 1 (for kernel) is
+               greater than the number of Tx queues */
+            fe->ports[i]->fastpath = 0;
+        } else {
+            /* Fast-path */
+            fe->ports[i]->fastpath = 1;
+        }
+    }
+
     return 0;
 }
 
+/*
+ * Allocate
+ */
+static void *
+_fe_alloc(struct fe *fe, size_t len)
+{
+    void *a;
+
+    /* 64 byte alignment */
+    len = (len + 128 - 1) / 128 * 128;
+
+    a = fe->mem.free;
+    fe->mem.free += len;
+    if ( fe->mem.free > fe->mem.vaddr + fe->mem.len ) {
+        return NULL;
+    }
+
+    return a;
+}
+
+/*
+ * Initialize the ring buffers of am exclusive task
+ */
+static int
+_init_extask_ring(struct fe *fe, struct fe_task *t)
+{
+    ssize_t i;
+    struct fe_kernel_ring *ring;
+    int sz;
+    void *m;
+    int ret;
+
+    /* Rx */
+    t->rx.bitmap = (1ULL << fe->nxcpu) - 1;
+    t->rx.rings = _fe_alloc(fe, sizeof(struct fe_driver_rx) * fe->nxcpu);
+    if ( NULL == t->rx.rings ) {
+        return -1;
+    }
+
+    /* Tx */
+    t->tx.rings = _fe_alloc(fe, sizeof(struct fe_driver_tx) * (fe->nports + 1));
+    if ( NULL == t->tx.rings ) {
+        return -1;
+    }
+
+    /* Physical ports */
+    for ( i = 0; i < (ssize_t)fe->nports; i++ ) {
+        t->tx.rings[i].driver = fe->ports[i]->driver;
+
+        sz = fe_driver_calc_tx_ring_memsize(&t->tx.rings[i], FE_QLEN);
+        if ( sz < 0 ) {
+            return -1;
+        }
+        m = _fe_alloc(fe, sz);
+        if ( NULL == m ) {
+            return -1;
+        }
+        ret = fe_driver_setup_tx_ring(fe->ports[i], &t->tx.rings[i], m,
+                                      fe->mem.v2poff, FE_QLEN);
+        if ( ret < 0 ) {
+            return -1;
+        }
+    }
+
+    /* Kernel */
+    t->tx.rings[fe->nports].driver = FE_DRIVER_KERNEL;
+    ring = &t->tx.rings[fe->nports].u.kernel;
+    if ( NULL == ring ) {
+        return -1;
+    }
+    ring->len = FE_QLEN;
+    ring->pkts = _fe_alloc(fe, sizeof(void *) * ring->len);
+    if ( NULL == ring->pkts ) {
+        return -1;
+    }
+    ring->bufs = _fe_alloc(fe, sizeof(struct fe_pkt_buf_hdr *) * ring->len);
+    if ( NULL == ring->bufs ) {
+        return -1;
+    }
+    ring->head = 0;
+    ring->tail = 0;
+
+    return 0;
+}
+
+
+/*
+ * Assign each device to a task
+ */
+int
+fe_assign_task(struct fe *fe)
+{
+    struct fe_task *t;
+    int n;
+    int ret;
+
+    /* # of ports (Rx queues) per task of an exclusive processor */
+    n = ((fe->nports - 1) / fe->nxcpu) + 1;
+    (void)n;
+
+    /* Assign each port to a task */
+    t = fe->extasks;
+    while ( NULL != t ) {
+        ret = _init_extask_ring(fe, t);
+        if ( ret < 0 ) {
+            return -1;
+        }
+
+        /* Next task */
+        t = t->next;
+    }
+
+    /* Tickful task */
+    t = fe->tftask;
+
+    /* Rx */
+    t->rx.bitmap = (1ULL << fe->nxcpu) - 1;
+    t->rx.rings = _fe_alloc(fe, sizeof(struct fe_driver_rx) * fe->nxcpu);
+    if ( NULL == t->rx.rings ) {
+        return -1;
+    }
+
+    /* Tx */
+    t->tx.rings = _fe_alloc(fe, sizeof(struct fe_driver_tx) * (fe->nports + 1));
+    if ( NULL == t->tx.rings ) {
+        return -1;
+    }
+
+    return 0;
+}
 
 /*
  * Initialize the forwarding engine
@@ -319,12 +487,28 @@ fe_init(struct fe *fe)
 {
     struct pci_dev *pci;
     int ret;
+    size_t len;
+    void *pa;
+    void *va;
+    uint64_t voff;
 
     /* Check all PCI devices */
     pci = pci_init();
     if ( NULL == pci ) {
         return -1;
     }
+
+    /* Allocate memory for descriptors */
+    len = (size_t)FE_MEMSIZE_FOR_DESCS;
+    ret = syscall(SYS_pix_malloc, len, &pa, &va);
+    if ( ret < 0 ) {
+        return -1;
+    }
+    voff = pa - va;
+    fe->mem.vaddr = va;
+    fe->mem.len = len;
+    fe->mem.v2poff = voff;
+    fe->mem.free = va;
 
     /* Initialize processor (as a list of tasks) */
     ret = fe_init_cpu(fe);
@@ -349,6 +533,16 @@ fe_init(struct fe *fe)
 
     /* Check the number of exclusive CPUs and the number of ports whether each
        port supports fast-path */
+    ret = fe_init_device_type(fe);
+    if ( ret < 0 ) {
+        return -1;
+    }
+
+    /* Assign task */
+    ret = fe_assign_task(fe);
+    if ( ret < 0 ) {
+        return -1;
+    }
 
     return 0;
 error:
@@ -356,6 +550,15 @@ error:
     pci_release(pci);
 
     return -1;
+}
+
+/*
+ * Slow-path process
+ */
+int
+fe_process(struct fe *fe)
+{
+    return 0;
 }
 
 /*

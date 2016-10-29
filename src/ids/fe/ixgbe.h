@@ -206,6 +206,7 @@ union ixgbe_tx_desc {
  */
 struct ixgbe_rx_ring {
     union ixgbe_rx_desc *descs;
+    void **bufs;
     uint16_t tail;
     uint16_t head;
     uint16_t len;
@@ -219,9 +220,12 @@ struct ixgbe_rx_ring {
  */
 struct ixgbe_tx_ring {
     union ixgbe_tx_desc *descs;
+    void **bufs;
     uint16_t tail;
     uint16_t head;
     uint16_t len;
+    /* Write-back */
+    uint32_t *tdwba;
     /* Queue information */
     uint16_t idx;               /* Queue index */
     void *mmio;                 /* MMIO */
@@ -296,6 +300,17 @@ ixgbe_init(uint16_t device_id, uint16_t bus, uint16_t slot, uint16_t func)
     ixgbe_read_mac_address(dev);
 
     return dev;
+}
+
+/*
+ * The number of supported Tx queues
+ */
+static __inline__ int
+ixgbe_max_tx_queues(struct ixgbe_device *dev)
+{
+    (void)dev;
+    /* For 82599 */
+    return 128;
 }
 
 /*
@@ -548,7 +563,8 @@ ixgbe_disable_rx(struct ixgbe_device *dev)
  * Setup Rx ring
  */
 static __inline__ int
-ixgbe_setup_rx_ring(struct ixgbe_rx_ring *rxring, uint16_t qlen)
+ixgbe_setup_rx_ring(struct ixgbe_device *dev, struct ixgbe_rx_ring *rxring,
+                    void *m, uint64_t v2poff, uint16_t qlen)
 {
     union ixgbe_rx_desc *rxdesc;
     ssize_t i;
@@ -556,15 +572,18 @@ ixgbe_setup_rx_ring(struct ixgbe_rx_ring *rxring, uint16_t qlen)
     uint64_t m64;
     struct timespec tm;
 
+    rxring->mmio = dev->mmio;
+
     rxring->tail = 0;
     rxring->head = 0;
 
     /* up to 64 K minus 8 */
     rxring->len = qlen;
 
-    /* Get packet buffers from the buffer pool */
-
-    /* Allocate descriptor */
+    /* Allocate for descriptors */
+    rxring->descs = m;
+    m += sizeof(union ixgbe_rx_desc) * qlen;
+    rxring->bufs = m;
 
     for ( i = 0; i < rxring->len; i++ ) {
         rxdesc = &rxring->descs[i];
@@ -572,6 +591,7 @@ ixgbe_setup_rx_ring(struct ixgbe_rx_ring *rxring, uint16_t qlen)
         rxdesc->read.hdr_addr = 0;
     }
 
+    m64 = (uint64_t)rxring->descs + v2poff;
     wr32(rxring->mmio, IXGBE_REG_RDBAL(rxring->idx), m64 & 0xffffffffULL);
     wr32(rxring->mmio, IXGBE_REG_RDBAH(rxring->idx), m64 >> 32);
     wr32(rxring->mmio, IXGBE_REG_RDLEN(rxring->idx),
@@ -608,6 +628,8 @@ ixgbe_setup_rx_ring(struct ixgbe_rx_ring *rxring, uint16_t qlen)
 static __inline__ int
 ixgbe_setup_tx(struct ixgbe_device *dev)
 {
+    /* Do nothing */
+    (void)dev;
 
     return 0;
 }
@@ -642,7 +664,8 @@ ixgbe_disable_tx(struct ixgbe_device *dev)
  * Setup Tx ring
  */
 static __inline__ int
-ixgbe_setup_tx_ring(struct ixgbe_tx_ring *txring, uint16_t qlen)
+ixgbe_setup_tx_ring(struct ixgbe_device *dev, struct ixgbe_tx_ring *txring,
+                    void *m, uint64_t v2poff, uint16_t qlen)
 {
     union ixgbe_tx_desc *txdesc;
     ssize_t i;
@@ -650,11 +673,18 @@ ixgbe_setup_tx_ring(struct ixgbe_tx_ring *txring, uint16_t qlen)
     uint64_t m64;
     struct timespec tm;
 
+    txring->mmio = dev->mmio;
+
     txring->tail = 0;
     txring->head = 0;
     txring->len = qlen;
 
-    /* Allocate descriptor */
+    /* Allocate for descriptors */
+    txring->descs = m;
+    m += sizeof(union ixgbe_tx_desc) * qlen;
+    txring->bufs = m;
+    m += sizeof(void *) * qlen;
+    txring->tdwba = m;
 
     for ( i = 0; i < txring->len; i++ ) {
         txdesc = &txring->descs[i];
@@ -665,6 +695,7 @@ ixgbe_setup_tx_ring(struct ixgbe_tx_ring *txring, uint16_t qlen)
         txdesc->data.paylen_popts_cc_idx_sta = 0;
     }
 
+    m64 = (uint64_t)txring->descs + v2poff;
     wr32(txring->mmio, IXGBE_REG_TDBAH(txring->idx), m64 >> 32);
     wr32(txring->mmio, IXGBE_REG_TDBAL(txring->idx), m64 & 0xffffffffUL);
     wr32(txring->mmio, IXGBE_REG_TDLEN(txring->idx),
@@ -673,10 +704,10 @@ ixgbe_setup_tx_ring(struct ixgbe_tx_ring *txring, uint16_t qlen)
     wr32(txring->mmio, IXGBE_REG_TDT(txring->idx), 0);
 
     /* Write-back */
+    m64 = (uint64_t)txring->tdwba + v2poff;
     wr32(txring->mmio, IXGBE_REG_TDWBAH(txring->idx), m64 >> 32);
     wr32(txring->mmio, IXGBE_REG_TDWBAL(txring->idx), (m64 & 0xfffffffc) | 1);
-    //dev->tx_head[q] = tdwba;
-    //*(dev->tx_head[q]) = 0;
+    *(txring->tdwba) = 0;
 
     /* P+W <= 40  */
     wr32(txring->mmio, IXGBE_REG_TXDCTL(txring->idx), IXGBE_TXDCTL_ENABLE
@@ -699,6 +730,19 @@ ixgbe_setup_tx_ring(struct ixgbe_tx_ring *txring, uint16_t qlen)
     return 0;
 }
 
+
+static __inline__ int
+ixgbe_calc_rx_ring_memsize(struct ixgbe_rx_ring *rx, uint16_t qlen)
+{
+    (void)rx;
+    return (sizeof(union ixgbe_rx_desc) + sizeof(void *)) * qlen;
+}
+static __inline__ int
+ixgbe_calc_tx_ring_memsize(struct ixgbe_tx_ring *tx, uint16_t qlen)
+{
+    (void)tx;
+    return (sizeof(union ixgbe_tx_desc) + sizeof(void *)) * qlen + 128;
+}
 
 #endif /* _IXGBE_H */
 

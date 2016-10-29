@@ -34,7 +34,7 @@
 #define SYSPIX_LDCTBL           1
 #define SYSPIX_STCTBL           2
 
-#define SYSPIX_CPU_TICKFULL     1
+#define SYSPIX_CPU_TICKFUL      1
 #define SYSPIX_CPU_EXCLUSIVE    2
 
 /*
