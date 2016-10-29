@@ -69,7 +69,7 @@ kinit(void)
     g_syscall_table[SYS_nanosleep] = sys_nanosleep;
     /* PIX-specific system calls */
     g_syscall_table[SYS_pix_cpu_table] = sys_pix_cpu_table;
-    g_syscall_table[SYS_pix_create_jobs] = sys_pix_create_jobs;
+    g_syscall_table[SYS_pix_create_job] = sys_pix_create_job;
     g_syscall_table[SYS_pix_bufpool] = sys_pix_bufpool;
     /* Others */
     g_syscall_table[SYS_xpsleep] = sys_xpsleep;

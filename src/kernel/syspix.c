@@ -110,7 +110,7 @@ sys_pix_cpu_table(int req, struct syspix_cpu_table *cputable)
  */
 void arch_pix_task(int id, struct ktask *t);
 int
-sys_pix_create_jobs(void *(*start_routine)(void *))
+sys_pix_create_job(int cpuid, void *(*start_routine)(void *), void *args)
 {
     struct ktask *t;
     struct ktask *nt;
@@ -122,35 +122,14 @@ sys_pix_create_jobs(void *(*start_routine)(void *))
     }
 
     /* Create a task */
-    nt = task_create(t->proc, start_routine);
+    nt = task_create(t->proc, start_routine, args);
     if ( NULL == nt ) {
         /* Could not create a new task */
         return -1;
     }
 
-    arch_pix_task(1, nt);
-
-#if 0
-    struct ktask_list *l;
-
-    /* Kernel task list entry */
-    l = kmalloc(sizeof(struct ktask_list));
-    if ( NULL == l ) {
-        return - 1;
-    }
-
-    /* Kernel task (running) */
-    l->ktask = nt;
-    l->next = NULL;
-    /* Push */
-    if ( NULL == g_ktask_root->r.head ) {
-        g_ktask_root->r.head = l;
-        g_ktask_root->r.tail = l;
-    } else {
-        g_ktask_root->r.tail->next = l;
-        g_ktask_root->r.tail = l;
-    }
-#endif
+    /* Launch the task at processor #cpuid */
+    arch_pix_task(cpuid, nt);
 
     return 0;
 }

@@ -112,15 +112,17 @@ void *
 fe_fpp_task(void *args)
 {
     for ( ;; ) {
+        printf("%p", args);
+
         /* Do nothing */
         syscall(SYS_xpsleep);
     }
 }
 
 void
-syspix(void)
+syspix_create_job(int cpuid, void *args)
 {
-    syscall(SYS_pix_create_jobs, fe_fpp_task);
+    syscall(SYS_pix_create_job, cpuid, fe_fpp_task, args);
 }
 
 
@@ -207,7 +209,7 @@ fe_init_cpu(struct fe *fe)
     /* # of available CPUs */
     fe->ncpus = n;
 
-    /* Kernel task */
+    /* Tickfull task */
     t = malloc(sizeof(struct fe_task));
     if ( NULL == t) {
         return -1;
@@ -228,7 +230,7 @@ fe_init_cpu(struct fe *fe)
                 /* Tickfull (application) */
                 break;
             case SYSPIX_CPU_EXCLUSIVE:
-                /* Exclusive */
+                /* Exclusive: Fast-path task */
                 t = malloc(sizeof(struct fe_task));
                 if ( NULL == t) {
                     return -1;
@@ -268,7 +270,7 @@ fe_init_buffer_pool(struct fe *fe)
     struct fe_pkt_buf_hdr *hdr;
     struct fe_pkt_buf_hdr *prev;
 
-    /* Allocate */
+    /* Allocate packet buffer */
     len = (size_t)FE_PKTSZ * FE_BUFFER_POOL_SIZE * (fe->nxcpu + 1);
     ret = syscall(SYS_pix_bufpool, len, &pa, &va);
     if ( ret < 0 ) {
@@ -279,6 +281,7 @@ fe_init_buffer_pool(struct fe *fe)
     t = fe->tasks;
     pkt = va;
     while ( NULL != t ) {
+        /* Create a buffer pool for each task */
         prev = NULL;
         for ( i = 0; i < FE_BUFFER_POOL_SIZE; i++ ) {
             hdr = (struct fe_pkt_buf_hdr *)pkt;
@@ -311,7 +314,7 @@ fe_init(struct fe *fe)
         return -1;
     }
 
-    /* Initialize processor */
+    /* Initialize processor (as a list of tasks) */
     ret = fe_init_cpu(fe);
     if ( ret < 0 ) {
         goto error;
@@ -364,7 +367,7 @@ main(int argc, char *argv[])
     }
 
     /* Run threads */
-    //syspix();
+    syspix_create_job(1, (void *)0x1234);
 
     tm.tv_sec = 1;
     tm.tv_nsec = 0;
