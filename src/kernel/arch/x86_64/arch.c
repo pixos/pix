@@ -136,6 +136,9 @@ intr_setup(void)
 
     /* PCI */
     idt_setup_intr_gate(IV_IRQ(16), intr_driver_0x30);
+    idt_setup_intr_gate(IV_IRQ(17), intr_driver_0x31);
+    idt_setup_intr_gate(IV_IRQ(18), intr_driver_0x32);
+    idt_setup_intr_gate(IV_IRQ(19), intr_driver_0x33);
 
     /* For driver use */
     idt_setup_intr_gate(0x50, intr_driver_0x50);
@@ -278,7 +281,10 @@ bsp_init(void)
     for ( i = 0; i < 16; i++ ) {
         ioapic_map_intr(IV_IRQ(i), i, arch_acpi.acpi_ioapic_base); /* IRQn */
     }
-    ioapic_map_intr_route(IV_IRQ(16), 1, i, arch_acpi.acpi_ioapic_base);
+    ioapic_map_intr_route(IV_IRQ(16), 1, 16, arch_acpi.acpi_ioapic_base);
+    ioapic_map_intr_route(IV_IRQ(17), 1, 17, arch_acpi.acpi_ioapic_base);
+    ioapic_map_intr_route(IV_IRQ(18), 1, 18, arch_acpi.acpi_ioapic_base);
+    ioapic_map_intr_route(IV_IRQ(19), 1, 19, arch_acpi.acpi_ioapic_base);
 
     /* Get the proximity domain */
     prox = acpi_lapic_prox_domain(&arch_acpi, lapic_id());
@@ -333,7 +339,7 @@ bsp_init(void)
     pdata->cpu_id = lapic_id();
     pdata->prox_domain = prox;
     pdata->flags |= 1;          /* Enabled */
-    pdata->flags |= (1 << 1);   /* Tickfull */
+    pdata->flags |= (1 << 1);   /* Tickful */
 
     /* Estimate the frequency */
     pdata->freq = lapic_estimate_freq();
@@ -618,7 +624,7 @@ arch_load_cpu_table(struct syspix_cpu_table *cputable)
             cputable->cpus[i].domain = cpu->prox_domain;
             /* Check the type */
             if ( cpu->flags & (1 << 1) ) {
-                cputable->cpus[i].type = SYSPIX_CPU_TICKFULL;
+                cputable->cpus[i].type = SYSPIX_CPU_TICKFUL;
             } else {
                 cputable->cpus[i].type = SYSPIX_CPU_EXCLUSIVE;
             }

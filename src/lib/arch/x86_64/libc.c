@@ -29,6 +29,40 @@
 #include <unistd.h>
 #include <time.h>
 
+#define MALLOC_MMAP_ENT     1024
+
+/*
+ * mmap-ed spaces
+ */
+struct malloc_mmap_entry {
+    void *addr;
+    size_t len;
+};
+struct malloc_mmap {
+    struct malloc_mmap_entry entries[MALLOC_MMAP_ENT];
+};
+/*
+ * Non-paged objects
+ */
+struct malloc_obj_hdr {
+    /* Allocated from mmap-ed space */
+    void *mmap;
+    /* Pointer to next free object */
+    struct malloc_obj_hdr *next;
+    /* Size */
+    size_t size;
+    /* Alignment */
+    size_t rsvd;
+};
+struct malloc_meta {
+    struct malloc_mmap mmap;
+    struct malloc_obj_hdr *free_list;
+};
+
+/* Global variables */
+struct malloc_meta malloc_meta;
+
+
 typedef __builtin_va_list va_list;
 #define va_start(ap, last)      __builtin_va_start((ap), (last))
 #define va_arg                  __builtin_va_arg
@@ -38,6 +72,18 @@ typedef __builtin_va_list va_list;
 
 /* in libcasm.s */
 unsigned long long syscall(int, ...);
+
+/*
+ * Initialize libc (called from crt0)
+ */
+int
+libc_init(void)
+{
+    memset(&malloc_meta.mmap, 0, sizeof(struct malloc_mmap));
+    malloc_meta.free_list = NULL;
+
+    return 0;
+}
 
 /*
  * exit
@@ -127,7 +173,34 @@ execve(const char *path, char *const argv[], char *const envp[])
 void *
 mmap(void *addr, size_t len, int prot, int flags, int fd, off_t offset)
 {
-    return (void * )syscall(SYS_mmap, addr, len, prot, flags, fd, offset);
+    ssize_t i;
+    struct malloc_mmap_entry *e;
+    void *ret;
+
+    e = NULL;
+    for ( i = 0; i < MALLOC_MMAP_ENT; i++ ) {
+        if ( NULL == malloc_meta.mmap.entries[i].addr ) {
+            e = &malloc_meta.mmap.entries[i];
+            break;
+        }
+    }
+    if ( NULL == e ) {
+        /* mmap entries are full */
+        return NULL;
+    }
+
+    /* Call system call */
+    ret = (void * )syscall(SYS_mmap, addr, len, prot, flags, fd, offset);
+
+    if ( NULL == ret ) {
+        return NULL;
+    }
+
+    /* Add to the entry to memorize it */
+    e->addr = addr;
+    e->len = len;
+
+    return ret;
 }
 
 /*
@@ -174,12 +247,80 @@ malloc(size_t size)
 {
     void *ptr;
     size_t aligned_size;
+    struct malloc_obj_hdr *prev;
+    struct malloc_obj_hdr *hdr;
+    struct malloc_obj_hdr *hdr2;
+    size_t hdr_obj_size;
+    size_t orig_size;
 
+    /* Size with object header */
+    hdr_obj_size = sizeof(struct malloc_obj_hdr) + size;
+
+    /* Search from the free list */
+    hdr = malloc_meta.free_list;
+    prev = NULL;
+    while ( NULL != hdr ) {
+        if ( hdr->size >= hdr_obj_size ) {
+            /* Found */
+
+            /* Remove this from the free list */
+            if ( NULL == prev ) {
+                malloc_meta.free_list = hdr->next;
+            } else {
+                prev->next = hdr->next;
+            }
+
+            /* Return this space */
+            ptr = (void *)(hdr + 1);
+            if ( hdr->size - hdr_obj_size
+                 < sizeof(struct malloc_obj_hdr) * 2 ) {
+                /* Don't fragment more */
+                return ptr;
+            } else {
+                orig_size = hdr->size;
+                hdr->size = hdr_obj_size;
+                hdr2 = (struct malloc_obj_hdr *)((void *)hdr + hdr_obj_size);
+                hdr2->size = orig_size - hdr_obj_size;
+                hdr2->mmap = hdr->mmap;
+                /* Add this to the free list */
+                hdr2->next = malloc_meta.free_list;
+                malloc_meta.free_list = hdr2;
+                /* Return */
+                return ptr;
+            }
+        }
+        prev = hdr;
+        hdr = hdr->next;
+    }
+
+    /* Aligned by superpage */
     aligned_size = ((((size) - 1) / (1ULL << 21) + 1) * (1ULL << 21));
+    /* Call mmap */
     ptr = mmap(NULL, aligned_size, PROT_READ | PROT_WRITE,
                MAP_ANON | MAP_PRIVATE, -1, 0);
 
-    return ptr;
+    if ( aligned_size < hdr_obj_size + sizeof(struct malloc_obj_hdr) * 2 ) {
+        /* Large object */
+        return ptr;
+    } else {
+        orig_size = aligned_size;
+        hdr = (struct malloc_obj_hdr *)ptr;
+        hdr->size = hdr_obj_size;
+        hdr->mmap = ptr;
+        hdr->next = NULL;
+        ptr = (void *)(hdr + 1);
+
+        /* Rest */
+        hdr2 = (struct malloc_obj_hdr *)((void *)hdr + hdr_obj_size);
+        hdr2->size = orig_size - hdr_obj_size;
+        hdr2->mmap = hdr->mmap;
+        /* Add this to the free list */
+        hdr2->next = malloc_meta.free_list;
+        malloc_meta.free_list = hdr2;
+
+        /* Return */
+        return ptr;
+    }
 }
 
 /*
@@ -205,7 +346,21 @@ calloc(size_t count, size_t size)
 void
 free(void *ptr)
 {
-    //munmap(ptr, len);
+    ssize_t i;
+    struct malloc_obj_hdr *hdr;
+
+    for ( i = 0; i < MALLOC_MMAP_ENT; i++ ) {
+        if ( ptr == malloc_meta.mmap.entries[i].addr ) {
+            /* Found, then unmap */
+            munmap(ptr, malloc_meta.mmap.entries[i].len);
+            return;
+        }
+    }
+
+    hdr = (struct malloc_obj_hdr *)(ptr - sizeof(struct malloc_obj_hdr));
+    /* Add this to the free list */
+    hdr->next = malloc_meta.free_list;
+    malloc_meta.free_list = hdr;
 }
 
 /*

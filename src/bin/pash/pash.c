@@ -48,8 +48,8 @@ show_cpu(void)
         if ( cputable.cpus[i].present ) {
             const char *mode;
             switch ( cputable.cpus[i].type ) {
-            case SYSPIX_CPU_TICKFULL:
-                mode = "tickfull";
+            case SYSPIX_CPU_TICKFUL:
+                mode = "tickful";
                 break;
             case SYSPIX_CPU_EXCLUSIVE:
                 mode = "exclusive";

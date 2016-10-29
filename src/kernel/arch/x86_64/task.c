@@ -88,7 +88,7 @@ task_new(void)
  * Create a task
  */
 struct ktask *
-task_create(struct proc *proc, void *(*restart_point)(void *))
+task_create(struct proc *proc, void *(*restart_point)(void *), void *args)
 {
     struct arch_task *t;
     void *paddr1;
@@ -168,7 +168,7 @@ task_create(struct proc *proc, void *(*restart_point)(void *))
                             VMEM_USABLE | VMEM_USED | VMEM_SUPERPAGE);
         if ( ret < 0 ) {
             /* FIXME: Handle this error */
-            panic("FIXME a");
+            panic("FIXME: task_create()");
         }
     }
 
@@ -178,6 +178,7 @@ task_create(struct proc *proc, void *(*restart_point)(void *))
     /* Setup the restart point */
     t->rp = t->kstack + KSTACK_SIZE - 16 - sizeof(struct stackframe64);
     kmemset(t->rp, 0, sizeof(struct stackframe64));
+    t->rp->di = (u64)args;
     t->rp->cs = GDT_RING3_CODE64_SEL + 3;
     t->rp->ss = GDT_RING3_DATA64_SEL + 3;
     t->rp->gs = t->rp->ss;

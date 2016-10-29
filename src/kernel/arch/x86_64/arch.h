@@ -372,6 +372,9 @@ void intr_driver_0x2d(void);
 void intr_driver_0x2e(void);
 void intr_driver_0x2f(void);
 void intr_driver_0x30(void);
+void intr_driver_0x31(void);
+void intr_driver_0x32(void);
+void intr_driver_0x33(void);
 
 void intr_driver_0x50(void);
 void intr_driver_0x51(void);

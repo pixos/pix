@@ -28,6 +28,8 @@
 #if !defined(TEST) || !TEST
 int main(int argc, char *argv[]);
 
+int libc_init(void);
+
 /*
  * Entry point to a process
  */
@@ -35,6 +37,8 @@ void
 entry(int argc, char *argv[])
 {
     int ret;
+
+    ret = libc_init();
 
     /* Prepare stdio/stdout/stderr */
     stdin = malloc(sizeof(FILE));

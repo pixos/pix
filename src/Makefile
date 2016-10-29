@@ -102,7 +102,7 @@ pm: servers/pm/pm.o $(LIBCOBJS)
 	$(LD) -T app.ld -o $@ $^
 
 ## forwarding engine
-fe: ids/fe/fe.o ids/fe/pci.o $(LIBCOBJS)
+fe: ids/fe/fe.o ids/fe/pci.o $(LIBCOBJS) lib/driver.o
 	$(LD) -T app.ld -o $@ $^
 
 ## file system

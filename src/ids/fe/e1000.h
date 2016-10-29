@@ -25,9 +25,16 @@
 #define _E1000_H
 
 #include <stdint.h>
+#include <stdlib.h>
+#include <time.h>
+#include <mki/driver.h>
+#include "pci.h"
+#include "common.h"
 
 #define E1000_NRXQ              1
 #define E1000_NTXQ              1
+
+#define E1000_MMIO_SIZE         0x6000
 
 /* MMIO registers */
 #define E1000_REG_CTRL          0x00
@@ -52,7 +59,7 @@
 #define E1000_REG_TDLEN         0x3808
 #define E1000_REG_TDH           0x3810  /* head */
 #define E1000_REG_TDT           0x3818  /* tail */
-#define E1000_REG_MTA           0x5200  /* x128 */
+#define E1000_REG_MTA(n)        (0x5200 + (n) * 4)  /* x128 */
 #define E1000_REG_TXDCTL        0x03828
 #define E1000_REG_RAL           0x5400
 #define E1000_REG_RAH           0x5404
@@ -102,7 +109,9 @@
 
 
 
-
+/*
+ * Receive descriptor
+ */
 struct e1000_rx_desc {
     uint64_t address;
     uint16_t length;
@@ -111,6 +120,10 @@ struct e1000_rx_desc {
     uint8_t errors;
     uint16_t special;
 } __attribute__ ((packed));
+
+/*
+ * Transmit descriptor
+ */
 struct e1000_tx_desc {
     volatile uint64_t address;
     uint32_t length:20;
@@ -122,31 +135,60 @@ struct e1000_tx_desc {
     uint16_t special;
 } __attribute__ ((packed));
 
+/*
+ * Rx ring buffer
+ */
 struct e1000_rx_ring {
+    /* Descriptors */
     struct e1000_rx_desc *descs;
+    /* Array of pointers to packet buffers */
     void *bufs;
     uint16_t tail;
     uint16_t head;
     uint16_t len;
+    /* Queue information */
+    uint16_t idx;               /* Queue index */
+    void *mmio;                 /* MMIO */
 };
+
+/*
+ * Tx ring buffer
+ */
 struct e1000_tx_ring {
+    /* Descriptors */
     struct e1000_tx_desc *descs;
+    /* Packet buffers to be collected */
     void *bufs;
+    uint16_t head;
     uint16_t tail;
     uint16_t len;
+    /* Queue information */
+    uint16_t idx;               /* Queue index */
+    void *mmio;                 /* MMIO */
 };
+
+/*
+ * e1000 device
+ */
 struct e1000_device {
-    uint64_t mmio;
-    struct e1000_rx_ring *rxq[E1000_NRXQ];
-    struct e1000_tx_ring *txq[E1000_NTXQ];
+    void *mmio;
     uint8_t macaddr[6];
-    struct pci_dev *pci_device;
+    uint16_t device_id;
 };
 
+/*
+ * Prototype declarations
+ */
+static __inline__ int e1000_is_e1000(uint16_t, uint16_t);
+static __inline__ int e1000_read_mac_address(struct e1000_device *);
 
+/*
+ * Check if the device is e1000
+ */
 static __inline__ int
-e1000_is_e1000_device(uint16_t vendor_id, uint16_t device_id)
+e1000_is_e1000(uint16_t vendor_id, uint16_t device_id)
 {
+    /* Must be Intel */
     if ( 0x8086 != vendor_id ) {
         return 0;
     }
@@ -166,10 +208,324 @@ e1000_is_e1000_device(uint16_t vendor_id, uint16_t device_id)
     return 0;
 };
 
-static __inline__ int
-e1000_read_mac_address(struct e1000_device *e1000, uint8_t *addr)
+/*
+ * Initialize e1000 device
+ */
+static __inline__ struct e1000_device *
+e1000_init(uint16_t device_id, uint16_t bus, uint16_t slot, uint16_t func)
 {
+    struct e1000_device *dev;
+    uint64_t pmmio;
+    uint32_t m32;
+
+    /* Allocate an ixgbe device data structure */
+    dev = malloc(sizeof(struct e1000_device));
+    if ( NULL == dev ) {
+        return NULL;
+    }
+    dev->device_id = device_id;
+
+    /* Read MMIO */
+    pmmio = pci_read_mmio(bus, slot, func);
+    dev->mmio = driver_mmap((void *)pmmio, E1000_MMIO_SIZE);
+    if ( NULL == dev->mmio ) {
+        /* Error */
+        free(dev);
+        return NULL;
+    }
+
+    /* Initialize the PCI configuration space */
+    m32 = pci_read_config(bus, slot, func, 0x4);
+    pci_write_config(bus, slot, func, 0x4, m32 | 0x7);
+
+    /* Get the device MAC address */
+    e1000_read_mac_address(dev);
+
+    return dev;
+}
+
+/*
+ * The number of supported Tx queues
+ */
+static __inline__ int
+e1000_max_tx_queues(struct e1000_device *dev)
+{
+    (void)dev;
+    return 1;
+}
+
+/*
+ * Read from EEPROM
+ */
+static __inline__ uint16_t
+e1000_eeprom_read_8254x(void *mmio, uint8_t addr)
+{
+    uint32_t data;
+
+    /* Start */
+    wr32(mmio, E1000_REG_EERD, ((uint32_t)addr << 8) | 1);
+
+    /* Until it's done */
+    while ( !((data = rd32(mmio, E1000_REG_EERD)) & (1 << 4)) ) {
+        /* pause */
+    }
+
+    return (uint16_t)((data >> 16) & 0xffff);
+}
+static __inline__ uint16_t
+e1000_eeprom_read(void *mmio, uint8_t addr)
+{
+    uint16_t data;
+    uint32_t tmp;
+
+    /* Start */
+    wr32(mmio, E1000_REG_EERD, ((uint32_t)addr << 2) | 1);
+
+    /* Until it's done */
+    while ( !((tmp = rd32(mmio, E1000_REG_EERD)) & (1 << 1)) ) {
+        /* pause */
+    }
+    data = (uint16_t)((tmp >> 16) & 0xffff);
+
+    return data;
+}
+
+/*
+ * Get the device MAC address
+ */
+static __inline__ int
+e1000_read_mac_address(struct e1000_device *dev)
+{
+    uint16_t m16;
+    uint32_t m32;
+
+    switch ( dev->device_id ) {
+    case E1000_PRO1000MT:
+    case E1000_82545EM:
+        /* Read MAC address */
+        m16 = e1000_eeprom_read_8254x(dev->mmio, 0);
+        dev->macaddr[0] = m16 & 0xff;
+        dev->macaddr[1] = (m16 >> 8) & 0xff;
+        m16 = e1000_eeprom_read_8254x(dev->mmio, 1);
+        dev->macaddr[2] = m16 & 0xff;
+        dev->macaddr[3] = (m16 >> 8) & 0xff;
+        m16 = e1000_eeprom_read_8254x(dev->mmio, 2);
+        dev->macaddr[4] = m16 & 0xff;
+        dev->macaddr[5] = (m16 >> 8) & 0xff;
+        break;
+
+    case E1000_82541PI:
+    case E1000_82573L:
+        /* Read MAC address */
+        m16 = e1000_eeprom_read(dev->mmio, 0);
+        dev->macaddr[0] = m16 & 0xff;
+        dev->macaddr[1] = (m16 >> 8) & 0xff;
+        m16 = e1000_eeprom_read(dev->mmio, 1);
+        dev->macaddr[2] = m16 & 0xff;
+        dev->macaddr[3] = (m16 >> 8) & 0xff;
+        m16 = e1000_eeprom_read(dev->mmio, 2);
+        dev->macaddr[4] = m16 & 0xff;
+        dev->macaddr[5] = (m16 >> 8) & 0xff;
+        break;
+
+    case E1000_82567LM:
+    case E1000_82577LM:
+    case E1000_82579LM:
+        /* Read MAC address */
+        m32 = rd32(dev->mmio, E1000_REG_RAL);
+        dev->macaddr[0] = m32 & 0xff;
+        dev->macaddr[1] = (m32 >> 8) & 0xff;
+        dev->macaddr[2] = (m32 >> 16) & 0xff;
+        dev->macaddr[3] = (m32 >> 24) & 0xff;
+        m32 = rd32(dev->mmio, E1000_REG_RAH);
+        dev->macaddr[4] = m32 & 0xff;
+        dev->macaddr[5] = (m32 >> 8) & 0xff;
+        break;
+    }
+
     return 0;
+}
+
+/*
+ * Initialize the hardware
+ */
+static __inline__ int
+e1000_init_hw(struct e1000_device *dev)
+{
+    struct timespec tm;
+    ssize_t i;
+
+    /* Initialize */
+
+    /* Disable interrupts  */
+    wr32(dev->mmio, E1000_REG_IMC, 0xffffffff);
+
+    /* Reset the device */
+    wr32(dev->mmio, E1000_REG_CTRL,
+         rd32(dev->mmio, E1000_REG_CTRL) | E1000_CTRL_RST);
+
+    /* Wait 100 us */
+    tm.tv_sec = 0;
+    tm.tv_nsec = 100000;
+    nanosleep(&tm, NULL);
+
+    /* Set link up */
+    wr32(dev->mmio, E1000_REG_CTRL,
+         rd32(dev->mmio, E1000_REG_CTRL) | E1000_CTRL_SLU);
+
+    /* Set link mode to direct copper interface */
+    wr32(dev->mmio, E1000_REG_CTRL_EXT,
+         rd32(dev->mmio, E1000_REG_CTRL_EXT) & ~E1000_CTRL_EXT_LINK_MODE_MASK);
+
+
+    /* Link up and enable 802.1Q VLAN */
+    wr32(dev->mmio, E1000_REG_CTRL,
+         rd32(dev->mmio, E1000_REG_CTRL) | E1000_CTRL_SLU | E1000_CTRL_VME);
+
+    /* Initialize multicast array table */
+    for ( i = 0; i < 128; i++ ) {
+        wr32(dev->mmio, E1000_REG_MTA(i), 0);
+    }
+
+    /* Enable interrupt (REG_IMS <- 0x1f6dc, then read REG_ICR ) */
+    //wr32(dev->mmio, E1000_REG_IMS, 0x908e);
+    wr32(dev->mmio, E1000_REG_IMS, 0x1f6dc);
+    (void)rd32(dev->mmio, E1000_REG_ICR);
+
+    return 0;
+}
+
+/*
+ * Setup Rx port
+ */
+static __inline__ int
+e1000_setup_rx(struct e1000_device *dev)
+{
+    (void)dev;
+    /* Nothing to do */
+    return 0;
+}
+
+/*
+ * Setup Rx ring
+ */
+static __inline__ int
+e1000_setup_rx_ring(struct e1000_device *dev, struct e1000_rx_ring *rxring,
+                    void *m, uint64_t v2poff, uint16_t qlen)
+{
+    struct e1000_rx_desc *rxdesc;
+    uint64_t m64;
+    ssize_t i;
+
+    rxring->mmio = dev->mmio;
+
+    rxring->tail = 0;
+    rxring->head = 0;
+    rxring->len = qlen;
+
+    /* Allocate for descriptors */
+    rxring->descs = m;
+    m += sizeof(struct e1000_rx_desc) * qlen;
+    rxring->bufs = m;
+
+    for ( i = 0; i < rxring->len; i++ ) {
+        rxdesc = &rxring->descs[i];
+        rxdesc->address = 0;
+        rxdesc->length = 0;
+        rxdesc->checksum = 0;
+        rxdesc->status = 0;
+        rxdesc->errors = 0;
+        rxdesc->special = 0;
+    }
+
+    m64 = (uint64_t)rxring->descs + v2poff;
+    wr32(rxring->mmio, E1000_REG_RDBAH, m64 >> 32);
+    wr32(rxring->mmio, E1000_REG_RDBAL, m64 & 0xffffffff);
+    wr32(rxring->mmio, E1000_REG_RDLEN,
+         rxring->len * sizeof(struct e1000_rx_desc));
+    wr32(rxring->mmio, E1000_REG_RDH, 0);
+    wr32(rxring->mmio, E1000_REG_RDT, 0);
+    wr32(rxring->mmio, E1000_REG_RCTL,
+         E1000_RCTL_SBP | E1000_RCTL_UPE
+         | E1000_RCTL_MPE | E1000_RCTL_LPE | E1000_RCTL_BAM
+         | E1000_RCTL_BSIZE_8192 | E1000_RCTL_SECRC);
+
+    /* Enable this ring */
+    wr32(rxring->mmio, E1000_REG_RCTL,
+         rd32(rxring->mmio, E1000_REG_RCTL) | E1000_RCTL_EN);
+
+    return 0;
+}
+
+/*
+ * Setup Tx port
+ */
+static __inline__ int
+e1000_setup_tx(struct e1000_device *dev)
+{
+    (void)dev;
+    /* Nothing to do */
+    return 0;
+}
+
+/*
+ * Setup Tx ring
+ */
+static __inline__ int
+e1000_setup_tx_ring(struct e1000_device *dev, struct e1000_tx_ring *txring,
+                    void *m, uint64_t v2poff, uint16_t qlen)
+{
+    struct e1000_tx_desc *txdesc;
+    uint64_t m64;
+    ssize_t i;
+
+    txring->mmio = dev->mmio;
+
+    txring->head = 0;
+    txring->tail = 0;
+    txring->len = qlen;
+
+    /* Allocate for descriptors */
+    txring->descs = m;
+    m += sizeof(struct e1000_tx_desc) * qlen;
+    txring->bufs = m;
+
+    for ( i = 0; i < txring->len; i++ ) {
+        txdesc = &txring->descs[i];
+        txdesc->address = 0;
+        txdesc->length = 0;
+        txdesc->dtyp = 0;
+        txdesc->dcmd = 0;
+        txdesc->sta = 0;
+        txdesc->rsv = 0;
+        txdesc->popts = 0;
+        txdesc->special = 0;
+    }
+
+    m64 = (uint64_t)txring->descs + v2poff;
+    wr32(txring->mmio, E1000_REG_TDBAH, m64 >> 32);
+    wr32(txring->mmio, E1000_REG_TDBAL, m64 & 0xffffffff);
+    wr32(txring->mmio, E1000_REG_TDLEN,
+         txring->len * sizeof(struct e1000_tx_desc));
+    wr32(txring->mmio, E1000_REG_TDH, 0);
+    wr32(txring->mmio, E1000_REG_TDT, 0);
+    wr32(txring->mmio, E1000_REG_TCTL,
+         E1000_TCTL_EN | E1000_TCTL_PSP | E1000_TCTL_MULR);
+
+    return 0;
+}
+
+static __inline__ int
+e1000_calc_rx_ring_memsize(struct e1000_rx_ring *rx, uint16_t qlen)
+{
+    (void)rx;
+    return (sizeof(struct e1000_rx_desc) + sizeof(void *)) * qlen;
+}
+static __inline__ int
+e1000_calc_tx_ring_memsize(struct e1000_tx_ring *tx, uint16_t qlen)
+{
+    (void)tx;
+    return (sizeof(struct e1000_tx_desc) + sizeof(void *)) * qlen;
 }
 
 

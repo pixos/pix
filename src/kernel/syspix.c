@@ -27,29 +27,64 @@
 #include "kernel.h"
 
 /*
- * Allocate packet map
+ * Allocate mapped and contiguous memory region for packet buffers etc
  */
-void *
-sys_pix_pmap(size_t len)
+int
+sys_pix_malloc(size_t len, void **pa, void **va)
 {
+    struct ktask *t;
+    struct proc *proc;
     void *paddr;
+    void *vaddr;
+    ssize_t i;
     int order;
+    int ret;
+
+    /* Get the current task information */
+    t = this_ktask();
+    if ( NULL == t ) {
+        return -1;
+    }
+    proc = t->proc;
+    if ( NULL == proc ) {
+        return -1;
+    }
 
     /* Compute the order of the buddy system to be allocated */
     order = bitwidth(DIV_CEIL(len, SUPERPAGESIZE));
+
+    /* Allocate virtual memory */
+    vaddr = vmem_buddy_alloc_superpages(proc->vmem, order);
+    if ( NULL == vaddr ) {
+        return -1;
+    }
 
     /* Allocate physical memory */
     paddr = pmem_prim_alloc_pages(PMEM_ZONE_LOWMEM, order);
     if ( NULL == paddr ) {
         /* Could not allocate physical memory */
-        return NULL;
+        vmem_free_pages(proc->vmem, vaddr);
+        return -1;
     }
 
-    /* FIXME: Map virtual memory to this physical memory */
+    for ( i = 0; i < (ssize_t)DIV_CEIL(len, SUPERPAGESIZE); i++ ) {
+        ret = arch_vmem_map(proc->vmem,
+                            (void *)(vaddr + SUPERPAGESIZE * i),
+                            paddr + SUPERPAGESIZE * i,
+                            VMEM_USABLE | VMEM_USED | VMEM_SUPERPAGE);
+        if ( ret < 0 ) {
+            /* FIXME: Handle this error */
+            pmem_prim_free_pages(paddr);
+            vmem_free_pages(proc->vmem, vaddr);
+            return -1;
+        }
+    }
 
-    return NULL;
+    *va = vaddr;
+    *pa = paddr;
+
+    return 0;
 }
-
 
 /*
  * Get/Set CPU configuration table
@@ -74,7 +109,7 @@ sys_pix_cpu_table(int req, struct syspix_cpu_table *cputable)
  */
 void arch_pix_task(int id, struct ktask *t);
 int
-sys_pix_create_jobs(void *(*start_routine)(void *))
+sys_pix_create_job(int cpuid, void *(*start_routine)(void *), void *args)
 {
     struct ktask *t;
     struct ktask *nt;
@@ -86,35 +121,14 @@ sys_pix_create_jobs(void *(*start_routine)(void *))
     }
 
     /* Create a task */
-    nt = task_create(t->proc, start_routine);
+    nt = task_create(t->proc, start_routine, args);
     if ( NULL == nt ) {
         /* Could not create a new task */
         return -1;
     }
 
-    arch_pix_task(1, nt);
-
-#if 0
-    struct ktask_list *l;
-
-    /* Kernel task list entry */
-    l = kmalloc(sizeof(struct ktask_list));
-    if ( NULL == l ) {
-        return - 1;
-    }
-
-    /* Kernel task (running) */
-    l->ktask = nt;
-    l->next = NULL;
-    /* Push */
-    if ( NULL == g_ktask_root->r.head ) {
-        g_ktask_root->r.head = l;
-        g_ktask_root->r.tail = l;
-    } else {
-        g_ktask_root->r.tail->next = l;
-        g_ktask_root->r.tail = l;
-    }
-#endif
+    /* Launch the task at processor #cpuid */
+    arch_pix_task(cpuid, nt);
 
     return 0;
 }

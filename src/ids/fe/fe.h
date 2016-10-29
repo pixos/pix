@@ -31,9 +31,26 @@
 #include "i40e.h"
 #include "hashtable.h"
 
+#define FE_MAX_PORTS            64
+
 #define FE_PKTSZ                (10240 + 128)
 #define FE_PKT_HDROFF           512
 #define FE_BUFFER_POOL_SIZE     8192
+
+#define FE_QLEN                 1024
+
+#define FE_MEMSIZE_FOR_DESCS    (1ULL << 24)
+
+
+/*
+ * Driver type
+ */
+enum fe_driver_type {
+    FE_DRIVER_INVALID = -1,
+    FE_DRIVER_KERNEL,
+    FE_DRIVER_E1000,
+    FE_DRIVER_IXGBE,
+};
 
 /*
  * Packet buffer header
@@ -57,59 +74,47 @@ struct fe_buffer_pool {
  * Kernel ring buffer
  */
 struct fe_kernel_ring {
-    struct fe_pkt_buf_hdr *pkts;
-    volatile uint32_t head;
-    volatile uint32_t tail;
-};
-
-/*
- * Physical port
- */
-struct fe_port {
-    /* MMIO base address */
-    uint64_t mmio;
-    /* NUMA domain */
-    int domain;
-    /* Mac address */
-    uint8_t mac[6];
-    /* Driver specific data structure */
-    struct {
-        uint16_t type;
-        union {
-            struct e1000_device *e1000;
-            struct ixgbe_device *ixgbe;
-        } device;
-    } driver;
-    /* Rx */
-    void *rx_descs;
+    /* Packets */
+    void *pkts;
+    /* Buffers */
+    struct fe_pkt_buf_hdr **bufs;
+    /* Head/tail */
+    volatile uint16_t head;
+    volatile uint16_t tail;
+    uint16_t len;
+    /* Queue information */
+    uint16_t rsvd;
 };
 
 /*
  * Driver
  */
-struct fe_driver_tx {
-    /* Driver type */
-    uint16_t driver;
-    union {
-        struct fe_kernel_ring *kernel;
-        struct e1000_tx_ring *e1000;
-        struct ixgbe_tx_ring *ixgbe;
-    } u;
-};
 struct fe_driver_rx {
     /* Driver type */
-    uint16_t driver;
+    enum fe_driver_type driver;
     union {
-        struct fe_kernel_ring *kernel;
-        struct e1000_rx_ring *e1000;
-        struct ixgbe_rx_ring *ixgbe;
+        struct fe_kernel_ring kernel;
+        struct e1000_rx_ring e1000;
+        struct ixgbe_rx_ring ixgbe;
+    } u;
+};
+struct fe_driver_tx {
+    /* Driver type */
+    enum fe_driver_type driver;
+    union {
+        struct fe_kernel_ring kernel;
+        struct e1000_tx_ring e1000;
+        struct ixgbe_tx_ring ixgbe;
     } u;
 };
 
 /*
- * Data per processor
+ * Data per task
  */
-struct fe_cpu {
+struct fe_task {
+    /* CPU ID (for exclusive processor), or -1 for kernel */
+    int cpuid;
+
     /* Buffer pool */
     struct fe_buffer_pool pool;
 
@@ -121,9 +126,29 @@ struct fe_cpu {
 
     /* Handling Tx queues */
     struct {
-        uint64_t bitmap;
+        /* Port #(fe->nports) => kernel */
         struct fe_driver_tx *rings;
     } tx;
+
+    /* Pointer to the next task */
+    struct fe_task *next;
+};
+
+/*
+ * Physical port
+ */
+struct fe_device {
+    /* NUMA domain */
+    int domain;
+    /* Driver */
+    enum fe_driver_type driver;
+    /* Device data */
+    union {
+        struct e1000_device *e1000;
+        struct ixgbe_device *ixgbe;
+    } u;
+    /* Type; exclusive or kernel */
+    int fastpath;
 };
 
 /*
@@ -134,9 +159,179 @@ struct fe {
     void *fdb;
 
     /* Processors */
-    size_t ncpus;
-    struct fe_cpu *cpus;
+    int ncpus;
+
+    /* Exclusive processors */
+    int nxcpu;
+
+    /* Ports */
+    size_t nports;
+    struct fe_device *ports[FE_MAX_PORTS];
+
+    /* Tickful CPU task */
+    struct fe_task *tftask;
+    /* Exclusive CPU tasks (linked list) */
+    struct fe_task *extasks;
+
+    /* Memory space for descriptors */
+    struct {
+        void *vaddr;
+        size_t len;
+        uint64_t v2poff;
+        void *free;
+    } mem;
 };
+
+/*
+ * Get a packet to the buffer pool
+ */
+static __inline__ struct fe_pkt_buf_hdr *
+fe_get_buffer(struct fe_task *fet)
+{
+    struct fe_pkt_buf_hdr *pkt;
+
+    pkt = fet->pool.head;
+    if ( NULL != fet->pool.head ) {
+        fet->pool.head = fet->pool.head->next;
+    }
+
+    return pkt;
+}
+
+/*
+ * Release a packet to the buffer pool
+ */
+static __inline__ void
+fe_release_buffer(struct fe_task *fet, struct fe_pkt_buf_hdr *pkt)
+{
+    pkt->next = fet->pool.head;
+    fet->pool.head = pkt;
+}
+
+/*
+ * Collect buffer from Tx
+ */
+static __inline__ int
+fe_collect_buffer(struct fe_task *fet)
+{
+    return -1;
+}
+
+
+
+/*
+ * Abstracted API for each driver
+ */
+
+/*
+ * The number of supported Tx queues
+ */
+static __inline__ int
+fe_driver_max_tx_queues(struct fe_device *dev)
+{
+    switch ( dev->driver ) {
+    case FE_DRIVER_E1000:
+        return e1000_max_tx_queues(dev->u.e1000);
+    case FE_DRIVER_IXGBE:
+        return ixgbe_max_tx_queues(dev->u.ixgbe);
+    default:
+        ;
+    }
+
+    return 0;
+}
+
+static __inline__ int
+fe_driver_setup_rx_ring(struct fe_device *dev, struct fe_driver_rx *rx, void *m,
+                        uint64_t v2poff, uint16_t qlen)
+{
+    int ret;
+
+    ret = -1;
+    switch ( rx->driver ) {
+    case FE_DRIVER_KERNEL:
+        ret = -1;
+        break;
+    case FE_DRIVER_E1000:
+        ret = e1000_setup_rx_ring(dev->u.e1000, &rx->u.e1000, m, v2poff, qlen);
+        break;
+    case FE_DRIVER_IXGBE:
+        ret = ixgbe_setup_rx_ring(dev->u.ixgbe, &rx->u.ixgbe, m, v2poff, qlen);
+        break;
+    default:
+        ret = -1;
+    }
+
+    return ret;
+}
+static __inline__ int
+fe_driver_setup_tx_ring(struct fe_device *dev, struct fe_driver_tx *tx, void *m,
+                        uint64_t v2poff, uint16_t qlen)
+{
+    int ret;
+
+    ret = -1;
+    switch ( tx->driver ) {
+    case FE_DRIVER_KERNEL:
+        ret = -1;
+        break;
+    case FE_DRIVER_E1000:
+        ret = e1000_setup_tx_ring(dev->u.e1000, &tx->u.e1000, m, v2poff, qlen);
+        break;
+    case FE_DRIVER_IXGBE:
+        ret = ixgbe_setup_tx_ring(dev->u.ixgbe, &tx->u.ixgbe, m, v2poff, qlen);
+        break;
+    default:
+        ret = -1;
+    }
+
+    return ret;
+}
+
+static __inline__ int
+fe_driver_calc_rx_ring_memsize(struct fe_driver_rx *rx, uint16_t qlen)
+{
+    int ret;
+
+    switch ( rx->driver ) {
+    case FE_DRIVER_KERNEL:
+        ret = (sizeof(struct fe_pkt_buf_hdr *) + sizeof(void *)) * qlen;
+        break;
+    case FE_DRIVER_E1000:
+        ret = e1000_calc_rx_ring_memsize(&rx->u.e1000, qlen);
+        break;
+    case FE_DRIVER_IXGBE:
+        ret = ixgbe_calc_rx_ring_memsize(&rx->u.ixgbe, qlen);
+        break;
+    default:
+        ret = -1;
+    }
+
+    return ret;
+}
+
+static __inline__ int
+fe_driver_calc_tx_ring_memsize(struct fe_driver_tx *tx, uint16_t qlen)
+{
+    int ret;
+
+    switch ( tx->driver ) {
+    case FE_DRIVER_KERNEL:
+        ret = (sizeof(struct fe_pkt_buf_hdr *) + sizeof(void *)) * qlen;
+        break;
+    case FE_DRIVER_E1000:
+        ret = e1000_calc_tx_ring_memsize(&tx->u.e1000, qlen);
+        break;
+    case FE_DRIVER_IXGBE:
+        ret = ixgbe_calc_tx_ring_memsize(&tx->u.ixgbe, qlen);
+        break;
+    default:
+        ret = -1;
+    }
+
+    return ret;
+}
+
 
 #endif /* _FE_H */
 

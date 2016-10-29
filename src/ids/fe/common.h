@@ -21,39 +21,23 @@
  * SOFTWARE.
  */
 
-#ifndef _SYS_PIX_H
-#define _SYS_PIX_H
+#ifndef _COMMON_H
+#define _COMMON_H
 
 #include <stdint.h>
-#include <unistd.h>
-#include <sys/syscall.h>
 
-/* Must be consistent with MAX_PROCSSORS in kernel.h */
-#define PIX_MAX_CPU     256
+static __inline__ uint32_t
+rd32(void *mmio, uint64_t reg)
+{
+    return *(volatile uint32_t *)(mmio + reg);
+}
+static __inline__ void
+wr32(void *mmio, uint64_t reg, volatile uint32_t val)
+{
+    *(volatile uint32_t *)(mmio + reg) = val;
+}
 
-#define SYSPIX_LDCTBL           1
-#define SYSPIX_STCTBL           2
-
-#define SYSPIX_CPU_TICKFUL      1
-#define SYSPIX_CPU_EXCLUSIVE    2
-
-/*
- * CPU configuration
- */
-struct syspix_cpu_config {
-    uint8_t present;
-    uint8_t type;
-    int domain;
-};
-
-/*
- * CPU configuration table
- */
-struct syspix_cpu_table {
-    struct syspix_cpu_config cpus[PIX_MAX_CPU];
-};
-
-#endif /* _SYS_PIX_H */
+#endif /* _COMMON_H */
 
 /*
  * Local variables:

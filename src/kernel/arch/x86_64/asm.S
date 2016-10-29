@@ -1111,6 +1111,9 @@ _intr_apic_loc_tmr_xp:
 	intr_lapic_isr_generic 0x2e
 	intr_lapic_isr_generic 0x2f
 	intr_lapic_isr_generic 0x30
+	intr_lapic_isr_generic 0x31
+	intr_lapic_isr_generic 0x32
+	intr_lapic_isr_generic 0x33
 
 /* For driver use */
 	intr_lapic_isr_generic 0x50

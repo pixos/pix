@@ -69,7 +69,8 @@ kinit(void)
     g_syscall_table[SYS_nanosleep] = sys_nanosleep;
     /* PIX-specific system calls */
     g_syscall_table[SYS_pix_cpu_table] = sys_pix_cpu_table;
-    g_syscall_table[SYS_pix_create_jobs] = sys_pix_create_jobs;
+    g_syscall_table[SYS_pix_create_job] = sys_pix_create_job;
+    g_syscall_table[SYS_pix_malloc] = sys_pix_malloc;
     /* Others */
     g_syscall_table[SYS_xpsleep] = sys_xpsleep;
     g_syscall_table[SYS_debug] = sys_debug;
@@ -199,6 +200,12 @@ kintr_isr(u64 vec)
     case IV_IRQ(14):
     case IV_IRQ(15):
         _irq_handler(vec);
+        break;
+    case IV_IRQ(16):
+    case IV_IRQ(17):
+    case IV_IRQ(18):
+    case IV_IRQ(19):
+        panic("xxxx");
         break;
     default:
         ;

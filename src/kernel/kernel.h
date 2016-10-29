@@ -817,7 +817,8 @@ off_t sys_lseek(int, off_t, int);
 int sys_nanosleep(const struct timespec *, struct timespec *);
 /* PIX-specific system calls */
 int sys_pix_cpu_table(int, struct syspix_cpu_table *);
-int sys_pix_create_jobs(void *(*)(void *));
+int sys_pix_create_job(int, void *(*)(void *), void *);
+int sys_pix_malloc(size_t, void **, void **);
 /* Others */
 void sys_xpsleep(void);
 void sys_debug(int);
@@ -832,7 +833,7 @@ void set_next_ktask(struct ktask *);
 void set_next_idle(void);
 void panic(const char *);
 void halt(void);
-struct ktask *task_create(struct proc *, void *(*restart_point)(void *));
+struct ktask *task_create(struct proc *, void *(*)(void *), void *);
 struct proc * proc_fork(struct proc *, struct ktask *, struct ktask **);
 void task_set_return(struct ktask *, unsigned long long);
 pid_t sys_fork(void);
