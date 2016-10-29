@@ -24,8 +24,10 @@
 #ifndef _IXGBE_H
 #define _IXGBE_H
 
+#include <stdio.h>
 #include <stdint.h>
 #include <stdlib.h>
+#include <time.h>
 #include <mki/driver.h>
 #include "pci.h"
 #include "common.h"
@@ -42,7 +44,7 @@
 #define IXGBE_REG_CTRL_EXT      0x0018
 #define IXGBE_REG_EICR          0x0800
 #define IXGBE_REG_EIMC          0x0888
-#define IXGBE_REG_MTA           0x5200  /* x128 */
+#define IXGBE_REG_MTA(n)        (0x5200 + (n) * 4)  /* x128 */
 #define IXGBE_REG_RDRXCTL       0x2f00
 #define IXGBE_REG_RXCTL         0x3000
 #define IXGBE_REG_FCTRL         0x5080
@@ -77,6 +79,7 @@
 #define IXGBE_REG_TDWBAH(n)     (0x603c + 0x40 * (n))
 #define IXGBE_REG_HLREG0        0x04240
 #define IXGBE_REG_DMATXCTL      0x4a80
+#define IXGBE_REG_GCR_EXT       0x11050
 
 #define IXGBE_REG_EEC           0x10010
 #define IXGBE_REG_AUTOC         0x42a0
@@ -117,10 +120,10 @@
 #define IXGBE_REG_MAXFRS        0x04268
 
 #define IXGBE_CTRL_LRST (1<<3)  /* Link reset */
-#define IXGBE_CTRL_PCIE_MASTER_DISABLE  (u32)(1<<2)
+#define IXGBE_CTRL_PCIE_MASTER_DISABLE  (uint32_t)(1<<2)
 #define IXGBE_CTRL_RST  (1<<26)
 
-#define IXGBE_STATUS_PCIE_MASTER_ENABLE  (u32)(1<<19)
+#define IXGBE_STATUS_PCIE_MASTER_ENABLE  (uint32_t)(1<<19)
 
 #define IXGBE_FCTRL_SBP         (1<<1)
 #define IXGBE_FCTRL_MPE         (1<<8)
@@ -242,6 +245,7 @@ ixgbe_init(uint16_t device_id, uint16_t bus, uint16_t slot, uint16_t func)
 {
     struct ixgbe_device *dev;
     uint64_t pmmio;
+    uint32_t m32;
 
     /* Allocate an ixgbe device data structure */
     dev = malloc(sizeof(struct ixgbe_device));
@@ -259,12 +263,19 @@ ixgbe_init(uint16_t device_id, uint16_t bus, uint16_t slot, uint16_t func)
         return NULL;
     }
 
+    /* Initialize the PCI configuration space */
+    m32 = pci_read_config(bus, slot, func, 0x4);
+    pci_write_config(bus, slot, func, 0x4, m32 | 0x7);
+
     /* Get the device MAC address */
     ixgbe_read_mac_address(dev);
 
     return dev;
 }
 
+/*
+ * Get the device MAC address
+ */
 static __inline__ int
 ixgbe_read_mac_address(struct ixgbe_device *dev)
 {
@@ -279,6 +290,164 @@ ixgbe_read_mac_address(struct ixgbe_device *dev)
     m32 = rd32(dev->mmio, IXGBE_REG_RAH(0));
     dev->macaddr[4] = m32 & 0xff;
     dev->macaddr[5] = (m32 >> 8) & 0xff;
+
+    return 0;
+}
+
+/*
+ * Initialize the hardware
+ */
+static __inline__ int
+ixgbe_init_hw(struct ixgbe_device *dev)
+{
+    ssize_t i;
+    struct timespec tm;
+    uint32_t m32;
+
+    /* Initialization sequence: S4.6.3 */
+
+    /* 1. Disable interrupts */
+    wr32(dev->mmio, IXGBE_REG_EIMC, 0x7fffffff);
+    /* Clear any pending interrupts */
+    rd32(dev->mmio, IXGBE_REG_EICR);
+
+    /* 2. Issue global reset and perform general configuration (S4.6.3.2) */
+    for ( i = 0; i < 4; i++ ) {
+        wr32(dev->mmio, IXGBE_REG_FCTTV(i), 0);
+    }
+    for ( i = 0; i < 8; i++ ) {
+        wr32(dev->mmio, IXGBE_REG_FCRTL(i), 0);
+        wr32(dev->mmio, IXGBE_REG_FCRTH(i), 0);
+    }
+    wr32(dev->mmio, IXGBE_REG_FCRTV, 0);
+    wr32(dev->mmio, IXGBE_REG_FCCFG, 0);
+
+    /* Disable Rx and clear */
+    for ( i = 0; i < 128; i++ ) {
+        wr32(dev->mmio, IXGBE_REG_RXDCTL(i), 0);
+        wr32(dev->mmio, IXGBE_REG_RDH(i), 0);
+        wr32(dev->mmio, IXGBE_REG_RDT(i), 0);
+    }
+    wr32(dev->mmio, IXGBE_REG_RXCTL,
+         rd32(dev->mmio, IXGBE_REG_RXCTL) & ~IXGBE_RXCTL_RXEN);
+    (void)rd32(dev->mmio, IXGBE_REG_STATUS);
+    /* Sleep 2 ms */
+    tm.tv_sec = 0;
+    tm.tv_nsec = 2000000;
+    nanosleep(&tm, NULL);
+    wr32(dev->mmio, IXGBE_REG_HLREG0,
+         rd32(dev->mmio, IXGBE_REG_HLREG0) | (1 << 15)); /* LPBK */
+    wr32(dev->mmio, IXGBE_REG_GCR_EXT,     /* Buffers_Clear_Func */
+         rd32(dev->mmio, IXGBE_REG_GCR_EXT) | (1 << 30));
+    /* Sleep 20 us */
+    tm.tv_sec = 0;
+    tm.tv_nsec = 20000;
+    nanosleep(&tm, NULL);
+    wr32(dev->mmio, IXGBE_REG_HLREG0,
+         rd32(dev->mmio, IXGBE_REG_HLREG0) & ~(1 << 15));
+    wr32(dev->mmio, IXGBE_REG_GCR_EXT,
+         rd32(dev->mmio, IXGBE_REG_GCR_EXT) & ~(1 << 30));
+    /* Disable all Tx queues */
+    for ( i = 0; i < 128; i++ ) {
+        wr32(dev->mmio, IXGBE_REG_TXDCTL(i),
+             rd32(dev->mmio, IXGBE_REG_TXDCTL(i)) & ~IXGBE_TXDCTL_ENABLE);
+    }
+
+    /* Disable PCIe master */
+    wr32(dev->mmio, IXGBE_REG_CTRL,
+         rd32(dev->mmio, IXGBE_REG_CTRL) | IXGBE_CTRL_PCIE_MASTER_DISABLE);
+    for ( i = 0; i < 128; i++ ) {
+        /* Sleep 1 ms */
+        tm.tv_sec = 0;
+        tm.tv_nsec = 1000000;
+        nanosleep(&tm, NULL);
+        m32 = rd32(dev->mmio, IXGBE_REG_STATUS);
+        if ( !(m32 & IXGBE_STATUS_PCIE_MASTER_ENABLE) ) {
+            break;
+        }
+    }
+    if ( m32 & IXGBE_STATUS_PCIE_MASTER_ENABLE ) {
+        printf("Error on disabling PCIe master %x\n", m32);
+        //return -1;
+    }
+
+    /* Issue a global reset (a.k.a. software reset) */
+    wr32(dev->mmio, IXGBE_REG_CTRL,
+         rd32(dev->mmio, IXGBE_REG_CTRL) | IXGBE_CTRL_RST);
+    for ( i = 0; i < 128; i++ ) {
+        /* Sleep 1 ms */
+        tm.tv_sec = 0;
+        tm.tv_nsec = 1000000;
+        nanosleep(&tm, NULL);
+        m32 = rd32(dev->mmio, IXGBE_REG_CTRL);
+        if ( !(m32 & IXGBE_CTRL_RST) ) {
+            break;
+        }
+    }
+    if ( m32 & IXGBE_CTRL_RST ) {
+        printf("Error on reset %p %d\n", dev->mmio, m32);
+        return -1;
+    }
+
+    /* Set PFRSTD */
+    wr32(dev->mmio, IXGBE_REG_CTRL_EXT,
+         rd32(dev->mmio, IXGBE_REG_CTRL_EXT) | (1 << 14));
+
+    /* Sleep 50 ms */
+    tm.tv_sec = 0;
+    tm.tv_nsec = 50000000;
+    nanosleep(&tm, NULL);
+
+    /* 3. Wait for EEPROM auto read completion */
+    for ( i = 0; i < 1024; i++ ) {
+        /* Sleep 10 us */
+        tm.tv_sec = 0;
+        tm.tv_nsec = 10000;
+        nanosleep(&tm, NULL);
+
+        m32 = rd32(dev->mmio, IXGBE_REG_EEC);
+        if ( m32 & IXGBE_EEC_AUTO_RD ) {
+            /* EEPROM Auto-Read Done */
+            break;
+        }
+    }
+    if ( !(m32 & IXGBE_EEC_AUTO_RD) ) {
+        printf("Error on EEPROM read\n");
+        return -1;
+    }
+
+    /* 4. Wait for DMA initialization done (RDRXCTL.DMAIDONE) */
+    for ( i = 0; i < 1024; i++ ) {
+        /* Sleep 10 us */
+        tm.tv_sec = 0;
+        tm.tv_nsec = 10000;
+        nanosleep(&tm, NULL);
+
+        m32 = rd32(dev->mmio, IXGBE_REG_RDRXCTL);
+        if ( m32 & IXGBE_RDRXCTL_DMAIDONE ) {
+            /* DMA initialization done */
+            break;
+        }
+    }
+    if ( !(m32 & IXGBE_RDRXCTL_DMAIDONE) ) {
+        printf("Error on DMA initialization\n");
+        return -1;
+    }
+
+    /* 5. Setup the PHY and the link (S4.6.4) */
+
+    /* 6. Initialize all statistical counters (S4.6.5) */
+
+    /* Multicast array table */
+    for ( i = 0; i < 128; i++ ) {
+        wr32(dev->mmio, IXGBE_REG_MTA(i), 0);
+    }
+
+    /* 7. Initialize receive (S4.6.7) */
+
+    /* 8. Initialize transmit (S4.6.8) */
+
+    /* 9. Enable interrupts (S4.6.3.1) */
 
     return 0;
 }

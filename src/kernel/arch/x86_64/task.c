@@ -168,7 +168,7 @@ task_create(struct proc *proc, void *(*restart_point)(void *), void *args)
                             VMEM_USABLE | VMEM_USED | VMEM_SUPERPAGE);
         if ( ret < 0 ) {
             /* FIXME: Handle this error */
-            panic("FIXME a");
+            panic("FIXME: task_create()");
         }
     }
 

@@ -119,14 +119,14 @@ fe_fpp_task(void *args)
     }
 }
 
+/*
+ * Create a job at the specified exclusive processor
+ */
 void
 syspix_create_job(int cpuid, void *args)
 {
     syscall(SYS_pix_create_job, cpuid, fe_fpp_task, args);
 }
-
-
-
 
 /*
  * Initialize device
@@ -137,6 +137,7 @@ _init_device(struct pci_dev_conf *conf)
     struct fe_device dev;
     struct fe_device *devp;
 
+    /* Check the driver type and initialize the hardware */
     dev.driver = FE_DRIVER_INVALID;
     if ( e1000_is_e1000(conf->vendor_id, conf->device_id) ) {
         /* e1000 */
@@ -151,6 +152,7 @@ _init_device(struct pci_dev_conf *conf)
         dev.driver = FE_DRIVER_IXGBE;
         dev.u.ixgbe
             = ixgbe_init(conf->device_id, conf->bus, conf->slot, conf->func);
+        ixgbe_init_hw(dev.u.ixgbe);
         dev.domain = 0;
         dev.fastpath = 0;
     }
@@ -298,6 +300,16 @@ fe_init_buffer_pool(struct fe *fe)
 
     return 0;
 }
+
+/*
+ * Slow-path process
+ */
+int
+fe_process(struct fe *fe)
+{
+    return 0;
+}
+
 
 /*
  * Initialize the forwarding engine

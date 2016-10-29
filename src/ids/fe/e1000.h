@@ -204,6 +204,7 @@ e1000_init(uint16_t device_id, uint16_t bus, uint16_t slot, uint16_t func)
 {
     struct e1000_device *dev;
     uint64_t pmmio;
+    uint32_t m32;
 
     /* Allocate an ixgbe device data structure */
     dev = malloc(sizeof(struct e1000_device));
@@ -220,6 +221,10 @@ e1000_init(uint16_t device_id, uint16_t bus, uint16_t slot, uint16_t func)
         free(dev);
         return NULL;
     }
+
+    /* Initialize the PCI configuration space */
+    m32 = pci_read_config(bus, slot, func, 0x4);
+    pci_write_config(bus, slot, func, 0x4, m32 | 0x7);
 
     /* Get the device MAC address */
     e1000_read_mac_address(dev);
@@ -264,7 +269,7 @@ e1000_eeprom_read(void *mmio, uint8_t addr)
 }
 
 /*
- * Get device MAC address
+ * Get the device MAC address
  */
 static __inline__ int
 e1000_read_mac_address(struct e1000_device *dev)

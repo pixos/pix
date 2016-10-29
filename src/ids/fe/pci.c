@@ -54,6 +54,29 @@ pci_read_config(uint16_t bus, uint16_t slot, uint16_t func, uint16_t offset)
 }
 
 /*
+ * Write PCI configuration
+ */
+void
+pci_write_config(uint16_t bus, uint16_t slot, uint16_t func, uint16_t offset,
+                 uint16_t data)
+{
+    uint32_t addr;
+    struct sysarch_io io;
+
+    addr = ((uint32_t)bus << 16) | ((uint32_t)slot << 11)
+        | ((uint32_t)func << 8) | ((uint32_t)offset & 0xfc);
+    /* Set enable bit */
+    addr |= (uint32_t)0x80000000;
+
+    io.port = PCI_CONFIG_ADDR;
+    io.data = addr;
+    sysarch(SYSARCH_OUTL, &io);
+    io.port = PCI_CONFIG_DATA;
+    io.data = data;
+    sysarch(SYSARCH_OUTL, &io);
+}
+
+/*
  * Read memory mapped I/O (MMIO) base address from BAR0
  */
 uint64_t

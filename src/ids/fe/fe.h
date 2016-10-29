@@ -31,14 +31,21 @@
 #include "i40e.h"
 #include "hashtable.h"
 
+#define FE_MAX_PORTS            32
+
 #define FE_PKTSZ                (10240 + 128)
 #define FE_PKT_HDROFF           512
 #define FE_BUFFER_POOL_SIZE     8192
 
-#define FE_MAX_PORTS            32
+#define FE_QLEN                 1024
 
+
+/*
+ * Driver type
+ */
 enum fe_driver_type {
     FE_DRIVER_INVALID = -1,
+    FE_DRIVER_KERNEL,
     FE_DRIVER_E1000,
     FE_DRIVER_IXGBE,
 };
@@ -71,33 +78,11 @@ struct fe_kernel_ring {
 };
 
 /*
- * Physical port
- */
-struct fe_port {
-    /* MMIO base address */
-    uint64_t mmio;
-    /* NUMA domain */
-    int domain;
-    /* Mac address */
-    uint8_t mac[6];
-    /* Driver specific data structure */
-    struct {
-        uint16_t type;
-        union {
-            struct e1000_device *e1000;
-            struct ixgbe_device *ixgbe;
-        } device;
-    } driver;
-    /* Rx */
-    void *rx_descs;
-};
-
-/*
  * Driver
  */
 struct fe_driver_tx {
     /* Driver type */
-    uint16_t driver;
+    enum fe_driver_type driver;
     union {
         struct fe_kernel_ring *kernel;
         struct e1000_tx_ring *e1000;
@@ -106,7 +91,7 @@ struct fe_driver_tx {
 };
 struct fe_driver_rx {
     /* Driver type */
-    uint16_t driver;
+    enum fe_driver_type driver;
     union {
         struct fe_kernel_ring *kernel;
         struct e1000_rx_ring *e1000;
@@ -177,6 +162,41 @@ struct fe {
     /* Tasks (linked list) */
     struct fe_task *tasks;
 };
+
+/*
+ * Get a packet to the buffer pool
+ */
+static __inline__ struct fe_pkt_buf_hdr *
+fe_get_buffer(struct fe_task *fet)
+{
+    struct fe_pkt_buf_hdr *pkt;
+
+    pkt = fet->pool.head;
+    if ( NULL != fet->pool.head ) {
+        fet->pool.head = fet->pool.head->next;
+    }
+
+    return pkt;
+}
+
+/*
+ * Release a packet to the buffer pool
+ */
+static __inline__ void
+fe_release_buffer(struct fe_task *fet, struct fe_pkt_buf_hdr *pkt)
+{
+    pkt->next = fet->pool.head;
+    fet->pool.head = pkt;
+}
+
+/*
+ * Collect buffer from Tx
+ */
+static __inline__ int
+fe_collect_buffer(struct fe_task *fet)
+{
+    return -1;
+}
 
 #endif /* _FE_H */
 
