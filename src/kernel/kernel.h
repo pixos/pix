@@ -818,7 +818,7 @@ int sys_nanosleep(const struct timespec *, struct timespec *);
 /* PIX-specific system calls */
 int sys_pix_cpu_table(int, struct syspix_cpu_table *);
 int sys_pix_create_job(int, void *(*)(void *), void *);
-int sys_pix_bufpool(size_t, void **, void **);
+int sys_pix_malloc(size_t, void **, void **);
 /* Others */
 void sys_xpsleep(void);
 void sys_debug(int);

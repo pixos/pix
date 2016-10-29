@@ -135,29 +135,44 @@ struct e1000_tx_desc {
     uint16_t special;
 } __attribute__ ((packed));
 
+/*
+ * Rx ring buffer
+ */
 struct e1000_rx_ring {
+    /* Descriptors */
     struct e1000_rx_desc *descs;
+    /* Array of pointers to packet buffers */
     void *bufs;
     uint16_t tail;
     uint16_t head;
     uint16_t len;
-    /* Queue information */
-    uint16_t idx;               /* Queue index */
-    void *mmio;                 /* MMIO */
-};
-struct e1000_tx_ring {
-    struct e1000_tx_desc *descs;
-    void *bufs;
-    uint16_t head;
-    uint16_t tail;
-    uint16_t len;
+    /* Physical address of descriptors */
+    void *descs_pbase;
     /* Queue information */
     uint16_t idx;               /* Queue index */
     void *mmio;                 /* MMIO */
 };
 
 /*
- * Device
+ * Tx ring buffer
+ */
+struct e1000_tx_ring {
+    /* Descriptors */
+    struct e1000_tx_desc *descs;
+    /* Packet buffers to be collected */
+    void *bufs;
+    uint16_t head;
+    uint16_t tail;
+    uint16_t len;
+    /* Physical address of descriptors */
+    void *descs_pbase;
+    /* Queue information */
+    uint16_t idx;               /* Queue index */
+    void *mmio;                 /* MMIO */
+};
+
+/*
+ * e1000 device
  */
 struct e1000_device {
     void *mmio;
@@ -168,6 +183,7 @@ struct e1000_device {
 /*
  * Prototype declarations
  */
+static __inline__ int e1000_is_e1000(uint16_t, uint16_t);
 static __inline__ int e1000_read_mac_address(struct e1000_device *);
 
 /*
@@ -374,21 +390,105 @@ e1000_init_hw(struct e1000_device *dev)
 }
 
 /*
- * Setup Rx ring
+ * Setup Rx port
  */
 static __inline__ int
 e1000_setup_rx(struct e1000_device *dev)
 {
-    return -1;
+    /* Nothing to do */
+    return 0;
+}
+
+/*
+ * Setup Rx ring
+ */
+static __inline__ int
+e1000_setup_rx_ring(struct e1000_rx_ring *rxring, uint16_t qlen)
+{
+    struct e1000_rx_desc *rxdesc;
+    uint64_t m64;
+    ssize_t i;
+
+    rxring->tail = 0;
+    rxring->head = 0;
+    rxring->len = qlen;
+
+    for ( i = 0; i < rxring->len; i++ ) {
+        rxdesc = &rxring->descs[i];
+        rxdesc->address = 0;
+        rxdesc->length = 0;
+        rxdesc->checksum = 0;
+        rxdesc->status = 0;
+        rxdesc->errors = 0;
+        rxdesc->special = 0;
+    }
+
+    m64 = (uint64_t)rxring->descs_pbase;
+    wr32(rxring->mmio, E1000_REG_RDBAH, m64 >> 32);
+    wr32(rxring->mmio, E1000_REG_RDBAL, m64 & 0xffffffff);
+    wr32(rxring->mmio, E1000_REG_RDLEN,
+         rxring->len * sizeof(struct e1000_rx_desc));
+    wr32(rxring->mmio, E1000_REG_RDH, 0);
+    wr32(rxring->mmio, E1000_REG_RDT, rxring->len - 1);
+    wr32(rxring->mmio, E1000_REG_RCTL,
+         E1000_RCTL_SBP | E1000_RCTL_UPE
+         | E1000_RCTL_MPE | E1000_RCTL_LPE | E1000_RCTL_BAM
+         | E1000_RCTL_BSIZE_8192 | E1000_RCTL_SECRC);
+
+    /* Enable this ring */
+    wr32(rxring->mmio, E1000_REG_RCTL,
+         rd32(rxring->mmio, E1000_REG_RCTL) | E1000_RCTL_EN);
+
+    return 0;
+}
+
+/*
+ * Setup Tx port
+ */
+static __inline__ int
+e1000_setup_tx(struct e1000_device *dev)
+{
+    /* Nothing to do */
+    return 0;
 }
 
 /*
  * Setup Tx ring
  */
 static __inline__ int
-e1000_setup_tx(struct e1000_device *dev)
+e1000_setup_tx_ring(struct e1000_tx_ring *txring, uint16_t qlen)
 {
-    return -1;
+    struct e1000_tx_desc *txdesc;
+    uint64_t m64;
+    ssize_t i;
+
+    txring->head = 0;
+    txring->tail = 0;
+    txring->len = qlen;
+
+    for ( i = 0; i < txring->len; i++ ) {
+        txdesc = &txring->descs[i];
+        txdesc->address = 0;
+        txdesc->length = 0;
+        txdesc->dtyp = 0;
+        txdesc->dcmd = 0;
+        txdesc->sta = 0;
+        txdesc->rsv = 0;
+        txdesc->popts = 0;
+        txdesc->special = 0;
+    }
+
+    m64 = (uint64_t)txring->descs_pbase;
+    wr32(txring->mmio, E1000_REG_TDBAH, m64 >> 32);
+    wr32(txring->mmio, E1000_REG_TDBAL, m64 & 0xffffffff);
+    wr32(txring->mmio, E1000_REG_TDLEN,
+         txring->len * sizeof(struct e1000_tx_desc));
+    wr32(txring->mmio, E1000_REG_TDH, 0);
+    wr32(txring->mmio, E1000_REG_TDT, 0);
+    wr32(txring->mmio, E1000_REG_TCTL,
+         E1000_TCTL_EN | E1000_TCTL_PSP | E1000_TCTL_MULR);
+
+    return 0;
 }
 
 

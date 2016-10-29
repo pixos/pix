@@ -27,10 +27,10 @@
 #include "kernel.h"
 
 /*
- * Allocate packet map
+ * Allocate mapped and contiguous memory region for packet buffers etc
  */
 int
-sys_pix_bufpool(size_t len, void **pa, void **va)
+sys_pix_malloc(size_t len, void **pa, void **va)
 {
     struct ktask *t;
     struct proc *proc;
@@ -85,7 +85,6 @@ sys_pix_bufpool(size_t len, void **pa, void **va)
 
     return 0;
 }
-
 
 /*
  * Get/Set CPU configuration table

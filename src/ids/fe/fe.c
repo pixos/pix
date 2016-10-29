@@ -274,7 +274,7 @@ fe_init_buffer_pool(struct fe *fe)
 
     /* Allocate packet buffer */
     len = (size_t)FE_PKTSZ * FE_BUFFER_POOL_SIZE * (fe->nxcpu + 1);
-    ret = syscall(SYS_pix_bufpool, len, &pa, &va);
+    ret = syscall(SYS_pix_malloc, len, &pa, &va);
     if ( ret < 0 ) {
         return -1;
     }
@@ -346,6 +346,9 @@ fe_init(struct fe *fe)
     if ( ret < 0 ) {
         return -1;
     }
+
+    /* Check the number of exclusive CPUs and the number of ports whether each
+       port supports fast-path */
 
     return 0;
 error:

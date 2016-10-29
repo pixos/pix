@@ -162,6 +162,9 @@
 #define IXGBE_NRXQ              32
 #define IXGBE_NTXQ              256     /* 32 for 82598, 256 for 82599 */
 
+/*
+ * Receive descriptor
+ */
 struct ixgbe_rx_desc_read {
     uint64_t pkt_addr;          /* Bit 0: A0 */
     volatile uint64_t hdr_addr; /* Bit 0: DD */
@@ -178,6 +181,9 @@ union ixgbe_rx_desc {
     struct ixgbe_rx_desc_wb wb;
 } __attribute__ ((packed));
 
+/*
+ * Transmit descriptor
+ */
 struct ixgbe_tx_desc_ctx {
     uint32_t vlan_maclen_iplen;
     uint32_t fcoef_ipsec_sa_idx;
@@ -195,7 +201,9 @@ union ixgbe_tx_desc {
     struct ixgbe_tx_desc_data data;
 } __attribute__ ((packed));
 
-
+/*
+ * Rx ring buffer
+ */
 struct ixgbe_rx_ring {
     union ixgbe_rx_desc *descs;
     uint16_t tail;
@@ -205,13 +213,23 @@ struct ixgbe_rx_ring {
     uint16_t idx;               /* Queue index */
     void *mmio;                 /* MMIO */
 };
+
+/*
+ * Tx ring buffer
+ */
 struct ixgbe_tx_ring {
     union ixgbe_tx_desc *descs;
+    uint16_t tail;
+    uint16_t head;
+    uint16_t len;
     /* Queue information */
     uint16_t idx;               /* Queue index */
     void *mmio;                 /* MMIO */
 };
 
+/*
+ * ixgbe device
+ */
 struct ixgbe_device {
     void *mmio;
     uint8_t macaddr[6];
@@ -451,9 +469,7 @@ ixgbe_init_hw(struct ixgbe_device *dev)
     }
 
     /* 7. Initialize receive (S4.6.7) */
-
     /* 8. Initialize transmit (S4.6.8) */
-
     /* 9. Enable interrupts (S4.6.3.1) */
 
     return 0;
@@ -521,7 +537,7 @@ ixgbe_enable_rx(struct ixgbe_device *dev)
 static __inline__ int
 ixgbe_disable_rx(struct ixgbe_device *dev)
 {
-    /* Enable RX */
+    /* Disable RX */
     wr32(dev->mmio, IXGBE_REG_RXCTL,
          rd32(dev->mmio, IXGBE_REG_RXCTL) & ~IXGBE_RXCTL_RXEN);
 
@@ -564,38 +580,6 @@ ixgbe_setup_rx_ring(struct ixgbe_rx_ring *rxring, uint16_t qlen)
     wr32(rxring->mmio, IXGBE_REG_SRRCTL(rxring->idx),
          IXGBE_SRRCTL_BSIZE_PKT10K | (1 << 25) | (1 << 28) | (0 << 22));
 
-    /* Support jumbo frame (0x2400 = 9216 bytes) */
-    wr32(rxring->mmio, IXGBE_REG_MAXFRS, 0x2400 << 16);
-    wr32(rxring->mmio, IXGBE_REG_HLREG0,
-         rd32(rxring->mmio, IXGBE_REG_HLREG0) | (1 << 2));
-
-    wr32(rxring->mmio, IXGBE_REG_FCTRL,
-         IXGBE_FCTRL_MPE | IXGBE_FCTRL_UPE | IXGBE_FCTRL_BAM);
-
-    /* CRC strip */
-    wr32(rxring->mmio, IXGBE_REG_RDRXCTL,
-         (rd32(rxring->mmio, IXGBE_REG_RDRXCTL) | (1 << 1)) & ~(0x3e0000));
-
-    /* NS_DIS */
-    wr32(rxring->mmio, IXGBE_REG_CTRL_EXT,
-         rd32(rxring->mmio, IXGBE_REG_CTRL_EXT) | (1 << 16));
-
-    /* Clear VLAN filter */
-    for ( i = 0; i < 128; i++ ) {
-        wr32(rxring->mmio, IXGBE_REG_VFTA(i), 0);
-    }
-
-    /* Clear RSC */
-    for ( i = 0; i < 128; i++ ) {
-        wr32(rxring->mmio, IXGBE_REG_RSCCTL(i), 0);
-   }
-
-    /* Clear multi queue */
-    wr32(rxring->mmio, IXGBE_REG_MRQC, 0);
-
-    /* Clear multicast filter */
-    wr32(rxring->mmio, IXGBE_REG_MCSTCTRL, 0);
-
     /* Enable this queue */
     wr32(rxring->mmio, IXGBE_REG_RXDCTL(rxring->idx),
          IXGBE_RXDCTL_ENABLE/* | IXGBE_RXDCTL_VME*/);
@@ -615,9 +599,41 @@ ixgbe_setup_rx_ring(struct ixgbe_rx_ring *rxring, uint16_t qlen)
     wr32(rxring->mmio, IXGBE_REG_RDH(rxring->idx), 0);
     wr32(rxring->mmio, IXGBE_REG_RDT(rxring->idx), 0);
 
-    /* Enable RX */
-    wr32(rxring->mmio, IXGBE_REG_RXCTL,
-         rd32(rxring->mmio, IXGBE_REG_RXCTL) | IXGBE_RXCTL_RXEN);
+    return 0;
+}
+
+/*
+ * Setup Tx port
+ */
+static __inline__ int
+ixgbe_setup_tx(struct ixgbe_device *dev)
+{
+
+    return 0;
+}
+
+/*
+ * Enable Tx
+ */
+static __inline__ int
+ixgbe_enable_tx(struct ixgbe_device *dev)
+{
+    /* Enable Tx */
+    wr32(dev->mmio, IXGBE_REG_DMATXCTL,
+         IXGBE_DMATXCTL_TE | IXGBE_DMATXCTL_VT);
+
+    return 0;
+}
+
+/*
+ * Disable Tx
+ */
+static __inline__ int
+ixgbe_disable_tx(struct ixgbe_device *dev)
+{
+    /* Disable Tx */
+    wr32(dev->mmio, IXGBE_REG_DMATXCTL,
+         rd32(dev->mmio, IXGBE_REG_DMATXCTL) & ~IXGBE_DMATXCTL_TE);
 
     return 0;
 }
@@ -626,9 +642,61 @@ ixgbe_setup_rx_ring(struct ixgbe_rx_ring *rxring, uint16_t qlen)
  * Setup Tx ring
  */
 static __inline__ int
-ixgbe_setup_tx_ring(struct ixgbe_device *dev)
+ixgbe_setup_tx_ring(struct ixgbe_tx_ring *txring, uint16_t qlen)
 {
-    return -1;
+    union ixgbe_tx_desc *txdesc;
+    ssize_t i;
+    uint32_t m32;
+    uint64_t m64;
+    struct timespec tm;
+
+    txring->tail = 0;
+    txring->head = 0;
+    txring->len = qlen;
+
+    /* Allocate descriptor */
+
+    for ( i = 0; i < txring->len; i++ ) {
+        txdesc = &txring->descs[i];
+        txdesc->data.pkt_addr = 0;
+        txdesc->data.length = 0;
+        txdesc->data.dtyp_mac = 0;
+        txdesc->data.dcmd = 0;
+        txdesc->data.paylen_popts_cc_idx_sta = 0;
+    }
+
+    wr32(txring->mmio, IXGBE_REG_TDBAH(txring->idx), m64 >> 32);
+    wr32(txring->mmio, IXGBE_REG_TDBAL(txring->idx), m64 & 0xffffffffUL);
+    wr32(txring->mmio, IXGBE_REG_TDLEN(txring->idx),
+         txring->len * sizeof(union ixgbe_tx_desc));
+    wr32(txring->mmio, IXGBE_REG_TDH(txring->idx), 0);
+    wr32(txring->mmio, IXGBE_REG_TDT(txring->idx), 0);
+
+    /* Write-back */
+    wr32(txring->mmio, IXGBE_REG_TDWBAH(txring->idx), m64 >> 32);
+    wr32(txring->mmio, IXGBE_REG_TDWBAL(txring->idx), (m64 & 0xfffffffc) | 1);
+    //dev->tx_head[q] = tdwba;
+    //*(dev->tx_head[q]) = 0;
+
+    /* P+W <= 40  */
+    wr32(txring->mmio, IXGBE_REG_TXDCTL(txring->idx), IXGBE_TXDCTL_ENABLE
+         | (16 << 16) /* WTHRESH */
+         | (8 << 8) /* HTHRESH */
+         | (16) /* PTHRESH */);
+    for ( i = 0; i < 10; i++ ) {
+        tm.tv_sec = 0;
+        tm.tv_nsec = 1000;
+        nanosleep(&tm, NULL);
+        m32 = rd32(txring->mmio, IXGBE_REG_TXDCTL(txring->idx));
+        if ( m32 & IXGBE_TXDCTL_ENABLE ) {
+            break;
+        }
+    }
+    if ( !(m32 & IXGBE_TXDCTL_ENABLE) ) {
+        printf("Error on enable a TX queue.\n");
+    }
+
+    return 0;
 }
 
 

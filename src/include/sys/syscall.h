@@ -77,7 +77,6 @@
 #define SYS_pix_cpu_table   801
 #define SYS_pix_create_job  802
 #define SYS_pix_malloc      803
-#define SYS_pix_bufpool     804
 
 #define SYS_xpsleep         1020
 #define SYS_debug           1021
