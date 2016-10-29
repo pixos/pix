@@ -373,10 +373,22 @@ e1000_init_hw(struct e1000_device *dev)
     return 0;
 }
 
+/*
+ * Setup Rx ring
+ */
 static __inline__ int
-e1000_setup_rx(void)
+e1000_setup_rx(struct e1000_device *dev)
 {
-    return 0;
+    return -1;
+}
+
+/*
+ * Setup Tx ring
+ */
+static __inline__ int
+e1000_setup_tx(struct e1000_device *dev)
+{
+    return -1;
 }
 
 
