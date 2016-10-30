@@ -71,19 +71,25 @@ struct fe_buffer_pool {
 } __attribute__ ((aligned(128)));
 
 /*
+ * Descriptor for kernel ring buffers
+ */
+struct fe_kernel_desc {
+    void *pkt;
+    uint16_t length;
+    uint16_t rsvd[3];
+} __attribute__ ((packed));
+
+/*
  * Kernel ring buffer
  */
 struct fe_kernel_ring {
     /* Packets */
-    void *pkts;
+    struct fe_kernel_desc *descs;
     /* Buffers */
     struct fe_pkt_buf_hdr **bufs;
     /* Head/tail */
     volatile uint16_t head;     /* Operated from Rx */
     volatile uint16_t tail;     /* Operated from Tx */
-    /* Soft head/tail */
-    uint16_t soft_head;         /* Owned by Tx */
-    uint16_t soft_tail;         /* Owned by Rx */
     /* Length */
     uint16_t len;
 };
@@ -143,6 +149,8 @@ struct fe_task {
  * Physical port
  */
 struct fe_device {
+    /* Port # */
+    int port;
     /* NUMA domain */
     int domain;
     /* Last allocated queue # */
@@ -352,7 +360,8 @@ fe_driver_calc_rx_ring_memsize(struct fe_driver_rx *rx, uint16_t qlen)
 
     switch ( rx->driver ) {
     case FE_DRIVER_KERNEL:
-        ret = (sizeof(struct fe_pkt_buf_hdr *) + sizeof(void *)) * qlen;
+        ret = (sizeof(struct fe_pkt_buf_hdr *) + sizeof(struct fe_kernel_desc))
+            * qlen;
         break;
     case FE_DRIVER_E1000:
         ret = e1000_calc_rx_ring_memsize(&rx->u.e1000, qlen);
@@ -377,7 +386,8 @@ fe_driver_calc_tx_ring_memsize(struct fe_driver_tx *tx, uint16_t qlen)
 
     switch ( tx->driver ) {
     case FE_DRIVER_KERNEL:
-        ret = (sizeof(struct fe_pkt_buf_hdr *) + sizeof(void *)) * qlen;
+        ret = (sizeof(struct fe_pkt_buf_hdr *) + sizeof(struct fe_kernel_desc))
+            * qlen;
         break;
     case FE_DRIVER_E1000:
         ret = e1000_calc_tx_ring_memsize(&tx->u.e1000, qlen);
@@ -458,6 +468,27 @@ fe_driver_rx_commit(struct fe_driver_rx *rx)
 }
 
 static __inline__ int
+fe_kernel_rx_dequeue(struct fe_kernel_ring *ring, struct fe_pkt_buf_hdr **hdr,
+                     void **pkt)
+{
+    uint16_t head;
+    int len;
+
+    if ( ring->head == ring->tail ) {
+        /* No buffer available */
+        return 0;
+    }
+
+    head = ring->head + 1 < ring->len ? ring->head + 1 : 0;
+    *hdr = ring->bufs[ring->head];
+    *pkt = ring->descs[ring->head].pkt;
+    len = ring->descs[ring->head].length;
+    ring->head = head;
+
+    return len;
+}
+
+static __inline__ int
 fe_driver_rx_dequeue(struct fe_driver_rx *rx, struct fe_pkt_buf_hdr **hdr,
                      void **pkt)
 {
@@ -465,7 +496,7 @@ fe_driver_rx_dequeue(struct fe_driver_rx *rx, struct fe_pkt_buf_hdr **hdr,
 
     switch ( rx->driver ) {
     case FE_DRIVER_KERNEL:
-        break;
+        return fe_kernel_rx_dequeue(rx->u.kernel, hdr, pkt);
     case FE_DRIVER_E1000:
         ret = e1000_rx_dequeue(&rx->u.e1000, (void **)hdr);
         if ( ret > 0 ) {
@@ -486,12 +517,33 @@ fe_driver_rx_dequeue(struct fe_driver_rx *rx, struct fe_pkt_buf_hdr **hdr,
 }
 
 static __inline__ int
+fe_kernel_tx_enqueue(struct fe_kernel_ring *ring, void *pkt, void *hdr,
+                     size_t length)
+{
+    struct fe_kernel_desc *desc;
+    uint16_t tail;
+
+    tail = ring->tail + 1 < ring->len ? ring->tail + 1 : 0;
+    if ( tail == ring->head ) {
+        /* Buffer is full */
+        return 0;
+    }
+    desc = &ring->descs[ring->tail];
+    desc->pkt = pkt;
+    desc->length = length;
+    ring->bufs[ring->tail] = hdr;
+    ring->tail = tail;
+
+    return 1;
+}
+
+static __inline__ int
 fe_driver_tx_enqueue(struct fe_driver_tx *tx, void *pkt, void *hdr,
                      size_t length)
 {
     switch ( tx->driver ) {
     case FE_DRIVER_KERNEL:
-        break;
+        return fe_kernel_tx_enqueue(tx->u.kernel, pkt, hdr, length);
     case FE_DRIVER_E1000:
         return e1000_tx_enqueue(&tx->u.e1000, pkt, hdr, length);
     case FE_DRIVER_IXGBE:

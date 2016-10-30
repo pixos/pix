@@ -197,6 +197,7 @@ fe_init_devices(struct fe *fe, struct pci_dev *pci)
         dev = _init_device(pci->device);
         if ( NULL != dev ) {
             /* Device found */
+            dev->port = fe->nports;
             fe->ports[fe->nports] = dev;
             fe->nports++;
         }
@@ -420,10 +421,8 @@ _init_extask_ring(struct fe *fe, struct fe_task *t, int n, int *port)
     ring->len = FE_QLEN;
     ring->head = 0;
     ring->tail = 0;
-    ring->soft_head = 0;
-    ring->soft_tail = 0;
-    ring->pkts = _fe_alloc(fe, sizeof(void *) * ring->len);
-    if ( NULL == ring->pkts ) {
+    ring->descs = _fe_alloc(fe, sizeof(struct fe_kernel_desc) * ring->len);
+    if ( NULL == ring->descs ) {
         return -1;
     }
     ring->bufs = _fe_alloc(fe, sizeof(struct fe_pkt_buf_hdr *) * ring->len);
