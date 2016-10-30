@@ -37,7 +37,7 @@
 #define FE_PKT_HDROFF           512
 #define FE_BUFFER_POOL_SIZE     8192
 
-#define FE_QLEN                 1024
+#define FE_QLEN                 512
 
 #define FE_MEMSIZE_FOR_DESCS    (1ULL << 24)
 
@@ -130,6 +130,9 @@ struct fe_task {
         struct fe_driver_tx *rings;
     } tx;
 
+    /* Kernel Tx */
+    struct fe_kernel_ring *ktx;
+
     /* Pointer to the next task */
     struct fe_task *next;
 };
@@ -221,8 +224,27 @@ fe_release_buffer(struct fe_task *fet, struct fe_pkt_buf_hdr *pkt)
  * Collect buffer from Tx
  */
 static __inline__ int
-fe_collect_buffer(struct fe_task *fet)
+fe_collect_buffer(struct fe_task *t, struct fe_driver_tx *tx)
 {
+    int ret;
+    struct fe_pkt_buf_hdr *hdr;
+
+    switch ( tx->driver ) {
+    case FE_DRIVER_KERNEL:
+        break;
+    case FE_DRIVER_E1000:
+        ret = e1000_collect_buffer(&tx->u.e1000, (void **)&hdr);
+        if ( ret > 0 ) {
+            fe_release_buffer(t, hdr);
+        }
+        return ret;
+        break;
+    case FE_DRIVER_IXGBE:
+        break;
+    default:
+        ;
+    }
+
     return -1;
 }
 
@@ -413,7 +435,9 @@ fe_driver_rx_dequeue(struct fe_driver_rx *rx, struct fe_pkt_buf_hdr **hdr,
         break;
     case FE_DRIVER_E1000:
         ret = e1000_rx_dequeue(&rx->u.e1000, (void **)hdr);
-        *pkt = (void *)*hdr + FE_PKT_HDROFF;
+        if ( ret > 0 ) {
+            *pkt = (void *)*hdr + FE_PKT_HDROFF;
+        }
         return ret;
     case FE_DRIVER_IXGBE:
         break;

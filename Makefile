@@ -6,14 +6,7 @@
 #      Hirochika Asai  <asai@jar.jp>
 #
 
-DISKBOOT_SIZE = $(shell stat -f "%z" src/diskboot)
-BOOTMON_SIZE = $(shell stat -f "%z" src/bootmon)
-
-KERNEL_SIZE = $(shell stat -f "%z" src/kpack)
-KERNEL_CLS = $(shell expr \( ${KERNEL_SIZE} + 4095 \) / 4096)
-
-INITRAMFS_SIZE = $(shell stat -f "%z" initramfs)
-INITRAMFS_CLS = $(shell expr \( ${INITRAMFS_SIZE} + 4095 \) / 4096)
+VERSION = nightly-build-$(shell date +%Y%m%d-%H%M%S)
 
 all:
 	@echo "make all is not currently supported."
@@ -21,14 +14,14 @@ all:
 ## Compile initramfs (including kernel as well)
 initrd:
 #	Compile programs
-	ORG=0x40000000 make -C src init
-	ORG=0x40000000 make -C src pm
-	ORG=0x40000000 make -C src fs
-	ORG=0x40000000 make -C src tty
-	ORG=0x40000000 make -C src pash
-	ORG=0x40000000 make -C src pci
-	ORG=0x40000000 make -C src fe
-	ORG=0x40000000 make -C src vmx
+	VERSION=${VERSION} make -C src init
+	VERSION=${VERSION} make -C src pm
+	VERSION=${VERSION} make -C src fs
+	VERSION=${VERSION} make -C src tty
+	VERSION=${VERSION} make -C src pash
+	VERSION=${VERSION} make -C src pci
+	VERSION=${VERSION} make -C src fe
+	VERSION=${VERSION} make -C src vmx
 
 #       Create an image
 	@./create_initrd.sh init:/servers/init pm:/servers/pm fs:/servers/fs \

@@ -160,6 +160,7 @@ struct e1000_tx_ring {
     struct e1000_tx_desc *descs;
     /* Packet buffers to be collected */
     void **bufs;
+    uint16_t soft_head;
     uint16_t head;
     uint16_t tail;
     uint16_t len;
@@ -536,6 +537,7 @@ e1000_setup_tx_ring(struct e1000_device *dev, struct e1000_tx_ring *txring,
 
     txring->mmio = dev->mmio;
 
+    txring->soft_head = 0;
     txring->head = 0;
     txring->tail = 0;
     txring->len = qlen;
@@ -617,13 +619,21 @@ e1000_calc_tx_ring_memsize(struct e1000_tx_ring *tx, uint16_t qlen)
     return (sizeof(struct e1000_tx_desc) + sizeof(void *)) * qlen;
 }
 
-static __inline__ void
-e1000_debug(struct e1000_rx_ring *rxring)
+
+static __inline__ int
+e1000_collect_buffer(struct e1000_tx_ring *txring, void **hdr)
 {
-    printf("%x %x %x %x\n", rd32(rxring->mmio, E1000_REG_RDH),
-           rd32(rxring->mmio, E1000_REG_RDT),
-           rd32(rxring->mmio, E1000_REG_TDH),
-           rd32(rxring->mmio, E1000_REG_TDT));
+    txring->head = rd32(txring->mmio, E1000_REG_TDH);
+    if ( txring->soft_head == txring->head ) {
+        return 0;
+    }
+
+    *hdr = txring->bufs[txring->soft_head];
+
+    txring->soft_head
+        = txring->soft_head + 1 < txring->len ? txring->soft_head + 1 : 0;
+
+    return 1;
 }
 
 #endif /* _E1000_H */

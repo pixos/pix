@@ -372,7 +372,7 @@ _fe_alloc(struct fe *fe, size_t len)
  * Initialize the ring buffers of am exclusive task
  */
 static int
-_init_extask_ring(struct fe *fe, struct fe_task *t)
+_init_extask_ring(struct fe *fe, struct fe_task *t, int n, int *port)
 {
     ssize_t i;
     struct fe_kernel_ring *ring;
@@ -380,35 +380,56 @@ _init_extask_ring(struct fe *fe, struct fe_task *t)
     void *m;
     int ret;
 
+    /* Kernel Tx */
+    t->ktx = _fe_alloc(fe, sizeof(struct fe_kernel_ring));
+    if ( NULL == t->ktx ) {
+        return -1;
+    }
+    ring = t->ktx;
+    ring->len = FE_QLEN;
+    ring->pkts = _fe_alloc(fe, sizeof(void *) * ring->len);
+    if ( NULL == ring->pkts ) {
+        return -1;
+    }
+    ring->bufs = _fe_alloc(fe, sizeof(struct fe_pkt_buf_hdr *) * ring->len);
+    if ( NULL == ring->bufs ) {
+        return -1;
+    }
+    ring->head = 0;
+    ring->tail = 0;
+
     /* Rx */
-    //t->rx.bitmap = (1ULL << fe->nxcpu) - 1;
-    t->rx.bitmap = 1;
-    //t->rx.rings = _fe_alloc(fe, sizeof(struct fe_driver_rx) * fe->nxcpu);
-    t->rx.rings = _fe_alloc(fe, sizeof(struct fe_driver_rx));
+    if ( (size_t)*port + n >= fe->nports ) {
+        n = fe->nports - *port;
+    }
+    t->rx.rings = _fe_alloc(fe, sizeof(struct fe_driver_rx) * n);
     if ( NULL == t->rx.rings ) {
         return -1;
     }
-    /* Test fill */
-    t->rx.rings[0].driver = fe->ports[0]->driver;
-    sz = fe_driver_calc_rx_ring_memsize(&t->rx.rings[0], FE_QLEN);
-    if ( sz < 0 ) {
-        return -1;
+    t->rx.bitmap = 0;
+    for ( i = 0; i < n; i++ ) {
+        t->rx.bitmap |= (1ULL << *port);
+        t->rx.rings[i].driver = fe->ports[*port]->driver;
+        sz = fe_driver_calc_rx_ring_memsize(&t->rx.rings[0], FE_QLEN);
+        if ( sz < 0 ) {
+            return -1;
+        }
+        m = _fe_alloc(fe, sz);
+        if ( NULL == m ) {
+            return -1;
+        }
+        ret = fe_driver_setup_rx_ring(fe->ports[i], &t->rx.rings[i], m,
+                                      fe->mem.v2poff, FE_QLEN);
+        if ( ret < 0 ) {
+            return -1;
+        }
+        fe_driver_rx_fill_all(t, &t->rx.rings[i]);
+        fe_driver_rx_commit(&t->rx.rings[i]);
+        (*port)++;
     }
-    m = _fe_alloc(fe, sz);
-    if ( NULL == m ) {
-        return -1;
-    }
-    ret = fe_driver_setup_rx_ring(fe->ports[0], &t->rx.rings[0], m,
-                                  fe->mem.v2poff, FE_QLEN);
-
-    if ( ret < 0 ) {
-        return -1;
-    }
-    fe_driver_rx_fill_all(t, &t->rx.rings[0]);
-    fe_driver_rx_commit(&t->rx.rings[0]);
 
     /* Tx */
-    t->tx.rings = _fe_alloc(fe, sizeof(struct fe_driver_tx) * (fe->nports + 1));
+    t->tx.rings = _fe_alloc(fe, sizeof(struct fe_driver_tx) * fe->nports);
     if ( NULL == t->tx.rings ) {
         return -1;
     }
@@ -432,33 +453,11 @@ _init_extask_ring(struct fe *fe, struct fe_task *t)
         }
     }
 
-    /* Kernel */
-    t->tx.rings[fe->nports].driver = FE_DRIVER_KERNEL;
-    ring = &t->tx.rings[fe->nports].u.kernel;
-    if ( NULL == ring ) {
-        return -1;
-    }
-    ring->len = FE_QLEN;
-    ring->pkts = _fe_alloc(fe, sizeof(void *) * ring->len);
-    if ( NULL == ring->pkts ) {
-        return -1;
-    }
-    ring->bufs = _fe_alloc(fe, sizeof(struct fe_pkt_buf_hdr *) * ring->len);
-    if ( NULL == ring->bufs ) {
-        return -1;
-    }
-    ring->head = 0;
-    ring->tail = 0;
-
-
     while ( 1 ) {
-        struct timespec tm;
-        tm.tv_sec = 0;
-        tm.tv_nsec = 100000000;
-        nanosleep(&tm, NULL);
         struct fe_pkt_buf_hdr *hdr;
         void *pkt;
         ret = fe_driver_rx_dequeue(&t->rx.rings[0], &hdr, &pkt);
+        fe_driver_rx_refill(t, &t->rx.rings[0]);
 #if 1
         if ( ret > 0 ) {
             pkt = pkt + t->pool.v2poff;
@@ -466,6 +465,8 @@ _init_extask_ring(struct fe *fe, struct fe_task *t)
             fe_driver_tx_enqueue(&t->tx.rings[0], pkt, hdr, ret);
             fe_driver_tx_commit(&t->tx.rings[0]);
         }
+        fe_collect_buffer(t, &t->tx.rings[0]);
+        fe_driver_rx_commit(&t->rx.rings[0]);
 #endif
     }
 
@@ -482,15 +483,16 @@ fe_assign_task(struct fe *fe)
     struct fe_task *t;
     int n;
     int ret;
+    int port;
 
     /* # of ports (Rx queues) per task of an exclusive processor */
     n = ((fe->nports - 1) / fe->nxcpu) + 1;
-    (void)n;
+    port = 0;
 
     /* Assign each port to a task */
     t = fe->extasks;
     while ( NULL != t ) {
-        ret = _init_extask_ring(fe, t);
+        ret = _init_extask_ring(fe, t, n, &port);
         if ( ret < 0 ) {
             return -1;
         }
