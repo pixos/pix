@@ -209,6 +209,7 @@ struct ixgbe_rx_ring {
     void **bufs;
     uint16_t tail;
     uint16_t head;
+    uint16_t soft_head;
     uint16_t len;
     /* Queue information */
     uint16_t idx;               /* Queue index */
@@ -223,6 +224,7 @@ struct ixgbe_tx_ring {
     void **bufs;
     uint16_t tail;
     uint16_t head;
+    uint16_t soft_head;
     uint16_t len;
     /* Write-back */
     uint32_t *tdwba;
@@ -576,6 +578,7 @@ ixgbe_setup_rx_ring(struct ixgbe_device *dev, struct ixgbe_rx_ring *rxring,
 
     rxring->tail = 0;
     rxring->head = 0;
+    rxring->soft_head = 0;
 
     /* up to 64 K minus 8 */
     rxring->len = qlen;
@@ -620,6 +623,53 @@ ixgbe_setup_rx_ring(struct ixgbe_device *dev, struct ixgbe_rx_ring *rxring,
     wr32(rxring->mmio, IXGBE_REG_RDT(rxring->idx), 0);
 
     return 0;
+}
+
+static __inline__ int
+ixgbe_rx_refill(struct ixgbe_rx_ring *rxring, void *pkt, void *hdr)
+{
+    union ixgbe_rx_desc *rxdesc;
+    uint16_t new_tail;
+
+    new_tail = rxring->tail + 1 < rxring->len ? rxring->tail + 1 : 0;
+    if ( new_tail == rxring->head ) {
+        /* Buffer is full */
+        return 0;
+    }
+    rxdesc = &rxring->descs[rxring->tail];
+    rxdesc->read.pkt_addr = (uint64_t)pkt;
+    rxdesc->read.hdr_addr = 0;
+    rxring->bufs[rxring->tail] = hdr;
+    rxring->tail = new_tail;
+
+    return 1;
+}
+
+static __inline__ void
+ixgbe_rx_commit(struct ixgbe_rx_ring *rxring)
+{
+    wr32(rxring->mmio, IXGBE_REG_RDT(rxring->idx), rxring->tail);
+}
+
+static __inline__ int
+ixgbe_rx_dequeue(struct ixgbe_rx_ring *rxring, void **hdr)
+{
+    uint16_t head;
+    int len;
+
+    if ( rxring->head == rxring->soft_head ) {
+        /* Update the head */
+        rxring->head = rd32(rxring->mmio, IXGBE_REG_RDH(rxring->idx));
+        if ( rxring->head == rxring->soft_head ) {
+            return 0;
+        }
+    }
+    head = rxring->soft_head + 1 < rxring->len ? rxring->soft_head + 1 : 0;
+    *hdr = rxring->bufs[rxring->soft_head];
+    len = rxring->descs[rxring->soft_head].wb.length;
+    rxring->soft_head = head;
+
+    return len;
 }
 
 /*
@@ -677,6 +727,7 @@ ixgbe_setup_tx_ring(struct ixgbe_device *dev, struct ixgbe_tx_ring *txring,
 
     txring->tail = 0;
     txring->head = 0;
+    txring->soft_head = 0;
     txring->len = qlen;
 
     /* Allocate for descriptors */
@@ -730,6 +781,35 @@ ixgbe_setup_tx_ring(struct ixgbe_device *dev, struct ixgbe_tx_ring *txring,
     return 0;
 }
 
+static __inline__ int
+ixgbe_tx_enqueue(struct ixgbe_tx_ring *txring, void *pkt, void *hdr,
+                 size_t length)
+{
+    union ixgbe_tx_desc *txdesc;
+    uint16_t new_tail;
+
+    new_tail = txring->tail + 1 < txring->len ? txring->tail + 1 : 0;
+    if ( new_tail == txring->head ) {
+        /* Buffer is full */
+        return 0;
+    }
+    txdesc = &txring->descs[txring->tail];
+    txdesc->data.pkt_addr = (uint64_t)pkt;
+    txdesc->data.length = length;
+    txdesc->data.dtyp_mac = (3 << 4);
+    txdesc->data.dcmd = (1 << 5) | (1 << 3) | (1 << 1) | 1; /* (1<<3): WB */
+    txdesc->data.paylen_popts_cc_idx_sta = ((uint64_t)length << 14);
+    txring->bufs[txring->tail] = hdr;
+    txring->tail = new_tail;
+
+    return 1;
+}
+
+static __inline__ void
+ixgbe_tx_commit(struct ixgbe_tx_ring *txring)
+{
+    wr32(txring->mmio, IXGBE_REG_TDT(txring->idx), txring->tail);
+}
 
 static __inline__ int
 ixgbe_calc_rx_ring_memsize(struct ixgbe_rx_ring *rx, uint16_t qlen)
@@ -743,6 +823,23 @@ ixgbe_calc_tx_ring_memsize(struct ixgbe_tx_ring *tx, uint16_t qlen)
     (void)tx;
     return (sizeof(union ixgbe_tx_desc) + sizeof(void *)) * qlen + 128;
 }
+
+static __inline__ int
+ixgbe_collect_buffer(struct ixgbe_tx_ring *txring, void **hdr)
+{
+    txring->head = rd32(txring->mmio, IXGBE_REG_TDH(txring->idx));
+    if ( txring->soft_head == txring->head ) {
+        return 0;
+    }
+
+    *hdr = txring->bufs[txring->soft_head];
+
+    txring->soft_head
+        = txring->soft_head + 1 < txring->len ? txring->soft_head + 1 : 0;
+
+    return 1;
+}
+
 
 #endif /* _IXGBE_H */
 
