@@ -566,7 +566,7 @@ ixgbe_disable_rx(struct ixgbe_device *dev)
  */
 static __inline__ int
 ixgbe_setup_rx_ring(struct ixgbe_device *dev, struct ixgbe_rx_ring *rxring,
-                    void *m, uint64_t v2poff, uint16_t qlen)
+                    int idx, void *m, uint64_t v2poff, uint16_t qlen)
 {
     union ixgbe_rx_desc *rxdesc;
     ssize_t i;
@@ -574,7 +574,16 @@ ixgbe_setup_rx_ring(struct ixgbe_device *dev, struct ixgbe_rx_ring *rxring,
     uint64_t m64;
     struct timespec tm;
 
+    /* Check the queue index first */
+    if ( 0 != idx ) {
+        return -1;
+    }
+
+    /* Copy MMIO base address */
     rxring->mmio = dev->mmio;
+
+    /* Use queue #0 */
+    rxring->idx = idx;
 
     rxring->tail = 0;
     rxring->head = 0;
@@ -715,7 +724,7 @@ ixgbe_disable_tx(struct ixgbe_device *dev)
  */
 static __inline__ int
 ixgbe_setup_tx_ring(struct ixgbe_device *dev, struct ixgbe_tx_ring *txring,
-                    void *m, uint64_t v2poff, uint16_t qlen)
+                    int idx, void *m, uint64_t v2poff, uint16_t qlen)
 {
     union ixgbe_tx_desc *txdesc;
     ssize_t i;
@@ -723,7 +732,14 @@ ixgbe_setup_tx_ring(struct ixgbe_device *dev, struct ixgbe_tx_ring *txring,
     uint64_t m64;
     struct timespec tm;
 
+    /* Check the queue index first */
+    if ( idx >= 128 ) {
+        return -1;
+    }
+
     txring->mmio = dev->mmio;
+
+    txring->idx = idx;
 
     txring->tail = 0;
     txring->head = 0;

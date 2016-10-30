@@ -86,8 +86,6 @@ struct fe_kernel_ring {
     uint16_t soft_tail;         /* Owned by Rx */
     /* Length */
     uint16_t len;
-    /* Queue information */
-    uint16_t rsvd;
 };
 
 /*
@@ -122,6 +120,9 @@ struct fe_task {
     /* Buffer pool */
     struct fe_buffer_pool pool;
 
+    /* Kernel Tx */
+    struct fe_kernel_ring *ktx;
+
     /* Handling Rx queues */
     struct {
         uint64_t bitmap;
@@ -134,9 +135,6 @@ struct fe_task {
         struct fe_driver_tx *rings;
     } tx;
 
-    /* Kernel Tx */
-    struct fe_kernel_ring *ktx;
-
     /* Pointer to the next task */
     struct fe_task *next;
 };
@@ -147,6 +145,9 @@ struct fe_task {
 struct fe_device {
     /* NUMA domain */
     int domain;
+    /* Last allocated queue # */
+    int rxq_last;
+    int txq_last;
     /* Driver */
     enum fe_driver_type driver;
     /* Device data */
@@ -294,10 +295,14 @@ fe_driver_setup_rx_ring(struct fe_device *dev, struct fe_driver_rx *rx, void *m,
         ret = -1;
         break;
     case FE_DRIVER_E1000:
-        ret = e1000_setup_rx_ring(dev->u.e1000, &rx->u.e1000, m, v2poff, qlen);
+        dev->rxq_last++;
+        ret = e1000_setup_rx_ring(dev->u.e1000, &rx->u.e1000, dev->rxq_last, m,
+                                  v2poff, qlen);
         break;
     case FE_DRIVER_IXGBE:
-        ret = ixgbe_setup_rx_ring(dev->u.ixgbe, &rx->u.ixgbe, m, v2poff, qlen);
+        dev->rxq_last++;
+        ret = ixgbe_setup_rx_ring(dev->u.ixgbe, &rx->u.ixgbe, dev->rxq_last, m,
+                                  v2poff, qlen);
         break;
     default:
         ret = -1;
@@ -321,10 +326,14 @@ fe_driver_setup_tx_ring(struct fe_device *dev, struct fe_driver_tx *tx, void *m,
         ret = -1;
         break;
     case FE_DRIVER_E1000:
-        ret = e1000_setup_tx_ring(dev->u.e1000, &tx->u.e1000, m, v2poff, qlen);
+        dev->txq_last++;
+        ret = e1000_setup_tx_ring(dev->u.e1000, &tx->u.e1000, dev->txq_last, m,
+                                  v2poff, qlen);
         break;
     case FE_DRIVER_IXGBE:
-        ret = ixgbe_setup_tx_ring(dev->u.ixgbe, &tx->u.ixgbe, m, v2poff, qlen);
+        dev->txq_last++;
+        ret = ixgbe_setup_tx_ring(dev->u.ixgbe, &tx->u.ixgbe, dev->txq_last, m,
+                                  v2poff, qlen);
         break;
     default:
         ret = -1;
@@ -333,6 +342,9 @@ fe_driver_setup_tx_ring(struct fe_device *dev, struct fe_driver_tx *tx, void *m,
     return ret;
 }
 
+/*
+ * Calculate the required memory size for an Rx ring
+ */
 static __inline__ int
 fe_driver_calc_rx_ring_memsize(struct fe_driver_rx *rx, uint16_t qlen)
 {
@@ -355,6 +367,9 @@ fe_driver_calc_rx_ring_memsize(struct fe_driver_rx *rx, uint16_t qlen)
     return ret;
 }
 
+/*
+ * Calculate the required memory size for a Tx ring
+ */
 static __inline__ int
 fe_driver_calc_tx_ring_memsize(struct fe_driver_tx *tx, uint16_t qlen)
 {
@@ -377,16 +392,21 @@ fe_driver_calc_tx_ring_memsize(struct fe_driver_tx *tx, uint16_t qlen)
     return ret;
 }
 
+/*
+ * Refill Rx ring with a packet buffer from the buffer pool
+ */
 static __inline__ int
 fe_driver_rx_refill(struct fe_task *t, struct fe_driver_rx *rx)
 {
     struct fe_pkt_buf_hdr *pkt;
     void *pa;
 
+    /* Try to get a packet buffer */
     pkt = fe_get_buffer(t);
     if ( NULL == pkt ) {
         return -1;
     }
+    /* Resolve physical address */
     pa = fe_v2p(t, pkt);
 
     switch ( rx->driver ) {

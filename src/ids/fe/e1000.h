@@ -148,7 +148,6 @@ struct e1000_rx_ring {
     uint16_t soft_head;
     uint16_t len;
     /* Queue information */
-    uint16_t idx;               /* Queue index */
     void *mmio;                 /* MMIO */
 };
 
@@ -165,7 +164,6 @@ struct e1000_tx_ring {
     uint16_t tail;
     uint16_t len;
     /* Queue information */
-    uint16_t idx;               /* Queue index */
     void *mmio;                 /* MMIO */
 };
 
@@ -414,11 +412,16 @@ e1000_setup_rx(struct e1000_device *dev)
  */
 static __inline__ int
 e1000_setup_rx_ring(struct e1000_device *dev, struct e1000_rx_ring *rxring,
-                    void *m, uint64_t v2poff, uint16_t qlen)
+                    int idx, void *m, uint64_t v2poff, uint16_t qlen)
 {
     struct e1000_rx_desc *rxdesc;
     uint64_t m64;
     ssize_t i;
+
+    /* Check the queue index first */
+    if ( 0 != idx ) {
+        return -1;
+    }
 
     rxring->mmio = dev->mmio;
 
@@ -529,11 +532,16 @@ e1000_setup_tx(struct e1000_device *dev)
  */
 static __inline__ int
 e1000_setup_tx_ring(struct e1000_device *dev, struct e1000_tx_ring *txring,
-                    void *m, uint64_t v2poff, uint16_t qlen)
+                    int idx, void *m, uint64_t v2poff, uint16_t qlen)
 {
     struct e1000_tx_desc *txdesc;
     uint64_t m64;
     ssize_t i;
+
+    /* Check the queue index first */
+    if ( 0 != idx ) {
+        return -1;
+    }
 
     txring->mmio = dev->mmio;
 
