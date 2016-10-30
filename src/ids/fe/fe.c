@@ -360,10 +360,10 @@ _fe_alloc(struct fe *fe, size_t len)
     len = (len + 128 - 1) / 128 * 128;
 
     a = fe->mem.free;
-    fe->mem.free += len;
-    if ( fe->mem.free > fe->mem.vaddr + fe->mem.len ) {
+    if ( fe->mem.free + len > fe->mem.vaddr + fe->mem.len ) {
         return NULL;
     }
+    fe->mem.free += len;
 
     return a;
 }
@@ -381,11 +381,31 @@ _init_extask_ring(struct fe *fe, struct fe_task *t)
     int ret;
 
     /* Rx */
-    t->rx.bitmap = (1ULL << fe->nxcpu) - 1;
-    t->rx.rings = _fe_alloc(fe, sizeof(struct fe_driver_rx) * fe->nxcpu);
+    //t->rx.bitmap = (1ULL << fe->nxcpu) - 1;
+    t->rx.bitmap = 1;
+    //t->rx.rings = _fe_alloc(fe, sizeof(struct fe_driver_rx) * fe->nxcpu);
+    t->rx.rings = _fe_alloc(fe, sizeof(struct fe_driver_rx));
     if ( NULL == t->rx.rings ) {
         return -1;
     }
+    /* Test fill */
+    t->rx.rings[0].driver = fe->ports[0]->driver;
+    sz = fe_driver_calc_rx_ring_memsize(&t->rx.rings[0], FE_QLEN);
+    if ( sz < 0 ) {
+        return -1;
+    }
+    m = _fe_alloc(fe, sz);
+    if ( NULL == m ) {
+        return -1;
+    }
+    ret = fe_driver_setup_rx_ring(fe->ports[0], &t->rx.rings[0], m,
+                                  fe->mem.v2poff, FE_QLEN);
+
+    if ( ret < 0 ) {
+        return -1;
+    }
+    fe_driver_rx_fill_all(t, &t->rx.rings[0]);
+    fe_driver_rx_commit(&t->rx.rings[0]);
 
     /* Tx */
     t->tx.rings = _fe_alloc(fe, sizeof(struct fe_driver_tx) * (fe->nports + 1));
@@ -430,6 +450,25 @@ _init_extask_ring(struct fe *fe, struct fe_task *t)
     ring->head = 0;
     ring->tail = 0;
 
+
+    while ( 1 ) {
+        struct timespec tm;
+        tm.tv_sec = 0;
+        tm.tv_nsec = 100000000;
+        nanosleep(&tm, NULL);
+        struct fe_pkt_buf_hdr *hdr;
+        void *pkt;
+        ret = fe_driver_rx_dequeue(&t->rx.rings[0], &hdr, &pkt);
+#if 1
+        if ( ret > 0 ) {
+            pkt = pkt + t->pool.v2poff;
+            printf("XXXX: %p %p %d\n", hdr, pkt, ret);
+            fe_driver_tx_enqueue(&t->tx.rings[0], pkt, hdr, ret);
+            fe_driver_tx_commit(&t->tx.rings[0]);
+        }
+#endif
+    }
+
     return 0;
 }
 
@@ -455,6 +494,7 @@ fe_assign_task(struct fe *fe)
         if ( ret < 0 ) {
             return -1;
         }
+        break;
 
         /* Next task */
         t = t->next;
