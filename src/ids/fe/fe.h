@@ -93,7 +93,7 @@ struct fe_driver_rx {
     /* Driver type */
     enum fe_driver_type driver;
     union {
-        struct fe_kernel_ring kernel;
+        struct fe_kernel_ring *kernel;
         struct e1000_rx_ring e1000;
         struct ixgbe_rx_ring ixgbe;
     } u;
@@ -102,7 +102,7 @@ struct fe_driver_tx {
     /* Driver type */
     enum fe_driver_type driver;
     union {
-        struct fe_kernel_ring kernel;
+        struct fe_kernel_ring *kernel;
         struct e1000_tx_ring e1000;
         struct ixgbe_tx_ring ixgbe;
     } u;
@@ -126,7 +126,7 @@ struct fe_task {
 
     /* Handling Tx queues */
     struct {
-        /* Port #(fe->nports) => kernel */
+        /* # of ports */
         struct fe_driver_tx *rings;
     } tx;
 

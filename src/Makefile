@@ -104,6 +104,7 @@ pm: servers/pm/pm.o $(LIBCOBJS)
 ## forwarding engine
 fe: ids/fe/fe.o ids/fe/pci.o $(LIBCOBJS) lib/driver.o
 	$(LD) -T app.ld -o $@ $^
+	$(LD) -T appdebug.ld -o $@.dbg $^
 
 ## file system
 fs: servers/fs/fs.o $(LIBCOBJS)

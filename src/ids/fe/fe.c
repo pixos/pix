@@ -106,17 +106,68 @@ struct ip_arp {
 unsigned long long syscall(int, ...);
 
 /*
+ * Population count
+ */
+static __inline__ int
+popcnt(uint64_t x)
+{
+    x = x - ((x>>1) & 0x5555555555555555ULL);
+    x = (x & 0x3333333333333333ULL) + ((x>>2) & 0x3333333333333333ULL);
+    x = (x + (x>>4)) & 0x0f0f0f0f0f0f0f0fULL;
+    x = x + (x>>8);
+    x = x + (x>>16);
+    x = x + (x>>32);
+
+    return x & 0x7f;
+}
+
+/*
  * Fast-path process
  */
 void *
 fe_fpp_task(void *args)
 {
-    for ( ;; ) {
-        printf("%p", args);
+    struct fe_task *t;
+    int ret;
+    struct fe_pkt_buf_hdr *hdr;
+    void *pkt;
+    int n;
+    int i;
 
-        /* Do nothing */
-        syscall(SYS_xpsleep);
+    t = (struct fe_task *)args;
+    n = popcnt(t->rx.bitmap);
+    printf("*** @%d: %p %p %d\n", t->cpuid, args, &t, n);
+    for ( ;; ) {
+        for ( i = 0; i < n; i++ ) {
+            ret = fe_driver_rx_dequeue(&t->rx.rings[i], &hdr, &pkt);
+            if ( ret <= 0 ) {
+                continue;
+            }
+            fe_driver_rx_refill(t, &t->rx.rings[i]);
+            pkt = pkt + t->pool.v2poff;
+
+            printf("XXXX @%d: %p %p %d\n", t->cpuid, hdr, pkt, ret);
+            fe_release_buffer(t, hdr);
+#if 0
+            fe_driver_tx_enqueue(&t->tx.rings[0], pkt, hdr, ret);
+            fe_driver_tx_commit(&t->tx.rings[0]);
+            fe_collect_buffer(t, &t->tx.rings[0]);
+#endif
+            fe_driver_rx_commit(&t->rx.rings[i]);
+        }
     }
+}
+
+/*
+ * Slow-path process
+ */
+int
+fe_process(struct fe *fe)
+{
+    for ( ;; ) {
+
+    }
+    return 0;
 }
 
 /*
@@ -410,7 +461,7 @@ _init_extask_ring(struct fe *fe, struct fe_task *t, int n, int *port)
     for ( i = 0; i < n; i++ ) {
         t->rx.bitmap |= (1ULL << *port);
         t->rx.rings[i].driver = fe->ports[*port]->driver;
-        sz = fe_driver_calc_rx_ring_memsize(&t->rx.rings[0], FE_QLEN);
+        sz = fe_driver_calc_rx_ring_memsize(&t->rx.rings[i], FE_QLEN);
         if ( sz < 0 ) {
             return -1;
         }
@@ -418,7 +469,7 @@ _init_extask_ring(struct fe *fe, struct fe_task *t, int n, int *port)
         if ( NULL == m ) {
             return -1;
         }
-        ret = fe_driver_setup_rx_ring(fe->ports[i], &t->rx.rings[i], m,
+        ret = fe_driver_setup_rx_ring(fe->ports[*port], &t->rx.rings[i], m,
                                       fe->mem.v2poff, FE_QLEN);
         if ( ret < 0 ) {
             return -1;
@@ -436,38 +487,28 @@ _init_extask_ring(struct fe *fe, struct fe_task *t, int n, int *port)
 
     /* Physical ports */
     for ( i = 0; i < (ssize_t)fe->nports; i++ ) {
-        t->tx.rings[i].driver = fe->ports[i]->driver;
+        if ( fe->ports[i]->fastpath ) {
+            /* Fast-path */
+            t->tx.rings[i].driver = fe->ports[i]->driver;
 
-        sz = fe_driver_calc_tx_ring_memsize(&t->tx.rings[i], FE_QLEN);
-        if ( sz < 0 ) {
-            return -1;
+            sz = fe_driver_calc_tx_ring_memsize(&t->tx.rings[i], FE_QLEN);
+            if ( sz < 0 ) {
+                return -1;
+            }
+            m = _fe_alloc(fe, sz);
+            if ( NULL == m ) {
+                return -1;
+            }
+            ret = fe_driver_setup_tx_ring(fe->ports[i], &t->tx.rings[i], m,
+                                          fe->mem.v2poff, FE_QLEN);
+            if ( ret < 0 ) {
+                return -1;
+            }
+        } else {
+            /* Slow-path */
+            t->tx.rings[i].driver = FE_DRIVER_KERNEL;
+            t->tx.rings[i].u.kernel = t->ktx;
         }
-        m = _fe_alloc(fe, sz);
-        if ( NULL == m ) {
-            return -1;
-        }
-        ret = fe_driver_setup_tx_ring(fe->ports[i], &t->tx.rings[i], m,
-                                      fe->mem.v2poff, FE_QLEN);
-        if ( ret < 0 ) {
-            return -1;
-        }
-    }
-
-    while ( 1 ) {
-        struct fe_pkt_buf_hdr *hdr;
-        void *pkt;
-        ret = fe_driver_rx_dequeue(&t->rx.rings[0], &hdr, &pkt);
-        fe_driver_rx_refill(t, &t->rx.rings[0]);
-#if 1
-        if ( ret > 0 ) {
-            pkt = pkt + t->pool.v2poff;
-            printf("XXXX: %p %p %d\n", hdr, pkt, ret);
-            fe_driver_tx_enqueue(&t->tx.rings[0], pkt, hdr, ret);
-            fe_driver_tx_commit(&t->tx.rings[0]);
-        }
-        fe_collect_buffer(t, &t->tx.rings[0]);
-        fe_driver_rx_commit(&t->rx.rings[0]);
-#endif
     }
 
     return 0;
@@ -484,38 +525,67 @@ fe_assign_task(struct fe *fe)
     int n;
     int ret;
     int port;
+    ssize_t i;
+    int sz;
+    void *m;
 
     /* # of ports (Rx queues) per task of an exclusive processor */
     n = ((fe->nports - 1) / fe->nxcpu) + 1;
     port = 0;
 
-    /* Assign each port to a task */
+    /* Assign ports to each exclusive task */
     t = fe->extasks;
     while ( NULL != t ) {
         ret = _init_extask_ring(fe, t, n, &port);
         if ( ret < 0 ) {
             return -1;
         }
-        break;
 
         /* Next task */
         t = t->next;
     }
 
     /* Tickful task */
-    t = fe->tftask;
-
     /* Rx */
-    t->rx.bitmap = (1ULL << fe->nxcpu) - 1;
-    t->rx.rings = _fe_alloc(fe, sizeof(struct fe_driver_rx) * fe->nxcpu);
-    if ( NULL == t->rx.rings ) {
+    fe->tftask->rx.bitmap = (1ULL << fe->nxcpu) - 1;
+    fe->tftask->rx.rings
+        = _fe_alloc(fe, sizeof(struct fe_driver_rx) * fe->nxcpu);
+    if ( NULL == fe->tftask->rx.rings ) {
         return -1;
+    }
+    t = fe->extasks;
+    i = 0;
+    while ( NULL != t ) {
+        fe->tftask->rx.rings[i].driver = FE_DRIVER_KERNEL;
+        fe->tftask->rx.rings[i].u.kernel = t->ktx;
+        /* Next task */
+        t = t->next;
+        i++;
     }
 
     /* Tx */
-    t->tx.rings = _fe_alloc(fe, sizeof(struct fe_driver_tx) * (fe->nports + 1));
-    if ( NULL == t->tx.rings ) {
+    fe->tftask->tx.rings
+        = _fe_alloc(fe, sizeof(struct fe_driver_tx) * fe->nports);
+    if ( NULL == fe->tftask->tx.rings ) {
         return -1;
+    }
+    /* Physical ports */
+    for ( i = 0; i < (ssize_t)fe->nports; i++ ) {
+        fe->tftask->tx.rings[i].driver = fe->ports[i]->driver;
+
+        sz = fe_driver_calc_tx_ring_memsize(&fe->tftask->tx.rings[i], FE_QLEN);
+        if ( sz < 0 ) {
+            return -1;
+        }
+        m = _fe_alloc(fe, sz);
+        if ( NULL == m ) {
+            return -1;
+        }
+        ret = fe_driver_setup_tx_ring(fe->ports[i], &fe->tftask->tx.rings[i], m,
+                                      fe->mem.v2poff, FE_QLEN);
+        if ( ret < 0 ) {
+            return -1;
+        }
     }
 
     return 0;
@@ -595,15 +665,6 @@ error:
 }
 
 /*
- * Slow-path process
- */
-int
-fe_process(struct fe *fe)
-{
-    return 0;
-}
-
-/*
  * Entry point for the process manager program
  */
 int
@@ -627,7 +688,15 @@ main(int argc, char *argv[])
     }
 
     /* Run threads */
-    syspix_create_job(1, (void *)0x1234);
+    struct fe_task *t;
+    t = fe.extasks;
+    while ( NULL != t ) {
+        syspix_create_job(t->cpuid, (void *)t);
+        /* Next task */
+        t = t->next;
+    }
+
+    fe_process(&fe);
 
     tm.tv_sec = 1;
     tm.tv_nsec = 0;
