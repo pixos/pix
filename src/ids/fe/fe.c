@@ -33,76 +33,6 @@
 #include "pci.h"
 #include "fe.h"
 
-
-/* Ethernet header */
-struct ethhdr {
-    uint64_t dst:48;
-    uint64_t src:48;
-    uint16_t type;
-} __attribute__ ((packed));
-/* IEEE 802.1Q */
-struct ethhdr1q {
-    uint16_t vlan;
-    uint16_t type;
-} __attribute__ ((packed));
-
-/* IP header */
-struct iphdr {
-    uint8_t ip_ihl:4;           /* Little endian */
-    uint8_t ip_version:4;
-    uint8_t ip_tos;
-    uint16_t ip_len;
-    uint16_t ip_id;
-    uint16_t ip_off;
-    uint16_t ip_ttl;
-    uint8_t ip_proto;
-    uint16_t ip_sum;
-    uint32_t ip_src;
-    uint32_t ip_dst;
-} __attribute__ ((packed));
-
-/* ICMP header */
-struct icmp_hdr {
-    uint8_t type;
-    uint8_t code;
-    uint16_t checksum;
-    uint16_t ident;
-    uint16_t seq;
-    // data...
-} __attribute__ ((packed));
-
-/* IPv6 header */
-struct ip6hdr {
-    uint32_t ip6_vtf;
-    uint16_t ip6_len;
-    uint8_t ip6_next;
-    uint8_t ip6_limit;
-    uint8_t ip6_src[16];
-    uint8_t ip6_dst[16];
-} __attribute__ ((packed));
-
-/* ICMPv6 header */
-struct icmp6_hdr {
-    uint8_t type;
-    uint8_t code;
-    uint16_t checksum;
-    // data...
-} __attribute__ ((packed));
-
-/* ARP */
-struct ip_arp {
-    uint16_t hw_type;
-    uint16_t protocol;
-    uint8_t hlen;
-    uint8_t plen;
-    uint16_t opcode;
-    uint64_t src_mac:48;
-    uint32_t src_ip;
-    uint64_t dst_mac:48;
-    uint32_t dst_ip;
-} __attribute__ ((packed));
-
-
 unsigned long long syscall(int, ...);
 
 /*
@@ -121,6 +51,9 @@ popcnt(uint64_t x)
     return x & 0x7f;
 }
 
+
+
+
 /*
  * Fast-path process
  */
@@ -134,9 +67,15 @@ fe_fpp_task(void *args)
     int n;
     int i;
 
+    /* Get the task data structure from the argument */
     t = (struct fe_task *)args;
+
+    /* Count the number of ports managed by this task */
     n = popcnt(t->rx.bitmap);
-    printf("*** @%d: %p %p %d\n", t->cpuid, args, &t, n);
+
+    printf("Launch an exclusive task for fast-path processing at CPU %d, "
+           "managing %d ports.\n", t->cpuid, n);
+
     for ( ;; ) {
         for ( i = 0; i < n; i++ ) {
             ret = fe_driver_rx_dequeue(&t->rx.rings[i], &hdr, &pkt);
@@ -144,9 +83,9 @@ fe_fpp_task(void *args)
                 continue;
             }
             fe_driver_rx_refill(t, &t->rx.rings[i]);
-            pkt = pkt + t->pool.v2poff;
+            pkt = fe_v2p(t, pkt);
 
-            printf("XXXX @%d: %p %p %d\n", t->cpuid, hdr, pkt, ret);
+            //printf("XXXX @%d: %p %p %d\n", t->cpuid, hdr, pkt, ret);
             fe_release_buffer(t, hdr);
 #if 0
             fe_driver_tx_enqueue(&t->tx.rings[0], pkt, hdr, ret);
@@ -164,9 +103,26 @@ fe_fpp_task(void *args)
 int
 fe_process(struct fe *fe)
 {
-    for ( ;; ) {
+    int i;
+    int ret;
+    struct fe_pkt_buf_hdr *hdr;
+    void *pkt;
 
+    for ( ;; ) {
+        /* For all exclusive processors */
+        for ( i = 0; i < fe->nxcpu; i++ ) {
+            ret = fe_driver_rx_dequeue(&fe->tftask->rx.rings[i], &hdr, &pkt);
+            if ( ret <= 0 ) {
+                continue;
+            }
+            fe_driver_rx_refill(fe->tftask, &fe->tftask->rx.rings[i]);
+            pkt = fe_v2p(fe->tftask, pkt);
+
+            fe_release_buffer(fe->tftask, hdr);
+            fe_driver_rx_commit(&fe->tftask->rx.rings[i]);
+        }
     }
+
     return 0;
 }
 
