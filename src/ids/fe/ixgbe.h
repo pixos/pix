@@ -489,6 +489,14 @@ ixgbe_init_hw(struct ixgbe_device *dev)
     /* 8. Initialize transmit (S4.6.8) */
     /* 9. Enable interrupts (S4.6.3.1) */
 
+    /* Support jumbo frame (0x2400 = 9216 bytes) */
+    wr32(dev->mmio, IXGBE_REG_MAXFRS, 0x2400 << 16);
+    wr32(dev->mmio, IXGBE_REG_HLREG0,
+         rd32(dev->mmio, IXGBE_REG_HLREG0) | (1 << 2));
+
+    wr32(dev->mmio, IXGBE_REG_FCTRL,
+         IXGBE_FCTRL_MPE | IXGBE_FCTRL_UPE | IXGBE_FCTRL_BAM);
+
     return 0;
 }
 
@@ -499,14 +507,6 @@ static __inline__ int
 ixgbe_setup_rx(struct ixgbe_device *dev)
 {
     ssize_t i;
-
-    /* Support jumbo frame (0x2400 = 9216 bytes) */
-    wr32(dev->mmio, IXGBE_REG_MAXFRS, 0x2400 << 16);
-    wr32(dev->mmio, IXGBE_REG_HLREG0,
-         rd32(dev->mmio, IXGBE_REG_HLREG0) | (1 << 2));
-
-    wr32(dev->mmio, IXGBE_REG_FCTRL,
-         IXGBE_FCTRL_MPE | IXGBE_FCTRL_UPE | IXGBE_FCTRL_BAM);
 
     /* CRC strip */
     wr32(dev->mmio, IXGBE_REG_RDRXCTL,
@@ -625,7 +625,7 @@ ixgbe_setup_rx_ring(struct ixgbe_device *dev, struct ixgbe_rx_ring *rxring,
         }
     }
     if ( !(m32 & IXGBE_RXDCTL_ENABLE) ) {
-        printf("Error on enable an RX queue.\n");
+        printf("Error on enabling an RX queue.\n");
     }
 
     wr32(rxring->mmio, IXGBE_REG_RDH(rxring->idx), 0);
@@ -792,7 +792,7 @@ ixgbe_setup_tx_ring(struct ixgbe_device *dev, struct ixgbe_tx_ring *txring,
         }
     }
     if ( !(m32 & IXGBE_TXDCTL_ENABLE) ) {
-        printf("Error on enable a TX queue.\n");
+        printf("Error on enabling a TX queue. (Q=%d)\n", txring->idx);
     }
 
     return 0;

@@ -45,6 +45,7 @@ struct fdb_entry {
     uint64_t aging;
     /* Linked-list */
     struct fdb_entry *next;
+    struct fdb_entry *prev;     /* for fdb.entries */
 };
 
 /*
@@ -137,6 +138,12 @@ fdb_gc(struct fdb *fdb)
         if ( curtsc - e->aging > FDB_AGING_TSC ) {
             /* Remove from the hash table */
             hopscotch_remove(fdb->update, e->key);
+            /* Remove from the list of entries */
+            if ( NULL == e->prev ){
+                fdb->entries = e->next;
+            } else {
+                e->prev->next = e->next;
+            }
             /* Add this entry to the list of entries to be removed */
             e->next = rem;
             rem = e;
@@ -207,7 +214,11 @@ fdb_update(struct fdb *fdb, uint8_t *key, int port)
         memcpy(found->key, key, FDB_KEY_SIZE);
         found->port = port;
         found->aging = fdb_rdtsc();
+        found->prev = NULL;
         found->next = fdb->entries;
+        if ( NULL != fdb->entries ) {
+            fdb->entries->prev = found;
+        }
         fdb->entries = found;
 
         /* Insert this to the hash table */
@@ -227,6 +238,20 @@ fdb_update(struct fdb *fdb, uint8_t *key, int port)
     return 0;
 }
 
+static __inline__ void
+fdb_debug(struct fdb *fdb)
+{
+    struct fdb_entry *e;
+
+    printf("Current FDB:\n");
+    e = fdb->entries;
+    while ( NULL != e ) {
+        printf("%02x%02x.%02x%02x.%02x%02x => Port #%d\n",
+               e->key[0], e->key[1], e->key[2], e->key[3], e->key[4], e->key[5],
+               e->port);
+        e = e->next;
+    }
+}
 
 #endif /* _FDB_H */
 

@@ -92,10 +92,20 @@ fe_fpp_forwarding(struct fe_task *t, int port, struct fe_pkt_buf_hdr *hdr,
             if ( port != i ) {
                 fe_driver_tx_enqueue(t, &t->tx.rings[i], i, pkt, hdr, len);
             }
+            fe_driver_tx_commit(&t->tx.rings[i]);
+            fe_collect_buffer(t, &t->tx.rings[i]);
         }
     } else {
         /* Unicast */
-        fe_driver_tx_enqueue(t, &t->tx.rings[e->port], e->port, pkt, hdr, len);
+        if ( e->port == port ) {
+            /* Discard */
+            fe_release_buffer(t, hdr);
+        } else {
+            fe_driver_tx_enqueue(t, &t->tx.rings[e->port], e->port, pkt, hdr,
+                                 len);
+            fe_driver_tx_commit(&t->tx.rings[e->port]);
+            fe_collect_buffer(t, &t->tx.rings[e->port]);
+        }
     }
 
     /* Check the source address to update FDB */
@@ -116,10 +126,6 @@ static int
 fe_spp_forwarding(struct fe_task *t, struct fe_driver_rx *rx,
                   struct fe_pkt_buf_hdr *hdr, void *pkt, int len)
 {
-#if 0
-    struct ethhdr *eth;
-    uint8_t key[FDB_KEY_SIZE];
-#endif
     struct fe_pkt_buf_hdr *myhdr;
     void *mypkt;
 
@@ -141,18 +147,6 @@ fe_spp_forwarding(struct fe_task *t, struct fe_driver_rx *rx,
                          len);
     fe_driver_tx_commit(&t->tx.rings[myhdr->port]);
     fe_collect_buffer(t, &t->tx.rings[myhdr->port]);
-
-    //printf("YYY @%d: %p %p => %d\n", t->cpuid, hdr, pkt, hdr->port);
-
-#if 0
-    eth = (struct ethhdr *)pkt;
-    if ( !_is_muticast(eth->src) ) {
-        /* Unicast, then update the corresonding fdb entry */
-        memcpy(key, eth->src, 6);
-        memset(key + 6, 0, 2);
-        //fdb_update(fdb, key, );
-    }
-#endif
 
     return 0;
 }
@@ -210,7 +204,10 @@ fe_process(struct fe *fe)
     int ret;
     struct fe_pkt_buf_hdr *hdr;
     void *pkt;
+    uint64_t tsc;
+    uint64_t last_tsc;
 
+    last_tsc = 0;
     for ( ;; ) {
         /* For all exclusive processors */
         for ( i = 0; i < fe->nxcpu; i++ ) {
@@ -231,6 +228,15 @@ fe_process(struct fe *fe)
                                   pkt, ret);
                 fe_driver_rx_commit(&fe->tftask->rx.rings[i]);
             }
+        }
+
+        /* Garbage collection */
+        tsc = fdb_rdtsc();
+        if ( tsc - last_tsc > 10000000000ULL ) {
+            fdb_gc(fe->fdb);
+            /* Print out FDB */
+            fdb_debug(fe->fdb);
+            last_tsc = tsc;
         }
     }
 
@@ -277,6 +283,8 @@ _init_device(struct pci_dev_conf *conf)
         ixgbe_init_hw(dev.u.ixgbe);
         ixgbe_setup_rx(dev.u.ixgbe);
         ixgbe_setup_tx(dev.u.ixgbe);
+        ixgbe_enable_rx(dev.u.ixgbe);
+        ixgbe_enable_tx(dev.u.ixgbe);
         dev.domain = 0;
         dev.rxq_last = -1;
         dev.txq_last = -1;
