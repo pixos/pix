@@ -235,7 +235,9 @@ fe_process(struct fe *fe)
         if ( tsc - last_tsc > 10000000000ULL ) {
             fdb_gc(fe->fdb);
             /* Print out FDB */
+#if 0
             fdb_debug(fe->fdb);
+#endif
             last_tsc = tsc;
         }
     }
