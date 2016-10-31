@@ -588,7 +588,7 @@ e1000_tx_enqueue(struct e1000_tx_ring *txring, void *pkt, void *hdr,
     uint16_t new_tail;
 
     new_tail = txring->tail + 1 < txring->len ? txring->tail + 1 : 0;
-    if ( new_tail == txring->head ) {
+    if ( new_tail == txring->soft_head ) {
         /* Buffer is full */
         return 0;
     }

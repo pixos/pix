@@ -33,6 +33,13 @@
 #include "pci.h"
 #include "fe.h"
 
+/* Ethernet header */
+struct ethhdr {
+    uint8_t dst[6];
+    uint8_t src[6];
+    uint16_t type;
+} __attribute__ ((packed));
+
 unsigned long long syscall(int, ...);
 
 /*
@@ -50,6 +57,92 @@ popcnt(uint64_t x)
 
     return x & 0x7f;
 }
+
+
+/*
+ * Is multicast MAC address?
+ */
+static __inline__ int
+_is_muticast(uint8_t *addr)
+{
+    return addr[0] & 1;
+}
+
+/*
+ * Forwarding (Fast-path)
+ */
+static int
+fe_fpp_forwarding(struct fe_task *t, int port, struct fe_pkt_buf_hdr *hdr,
+                  void *pkt, int len)
+{
+    struct ethhdr *eth;
+    uint8_t key[FDB_KEY_SIZE];
+    struct fdb_entry *e;
+    ssize_t i;
+
+    eth = (struct ethhdr *)pkt;
+
+    memcpy(key, eth->dst, 6);
+    memset(key + 6, 0, 2);
+    e = fdb_lookup(t->fe->fdb, key);
+    if ( NULL == e ) {
+        /* No entry found, then flooding */
+        for ( i = 0; i < (ssize_t)t->fe->nports; i++ ) {
+            if ( port != i ) {
+                fe_driver_tx_enqueue(t, &t->tx.rings[i], i, pkt, hdr, len);
+                //printf("XXXX @%d: %p %p %d => %d\n", t->cpuid, hdr, pkt, port, i);
+            }
+        }
+    } else {
+        /* Unicast */
+        printf("XXXX @%d: %p %p %d => %d\n", t->cpuid, hdr, pkt, port, e->port);
+    }
+
+    //fdb_update(fdb, key, );
+
+    return 0;
+}
+
+/*
+ * Forwarding (Slow-path)
+ */
+static int
+fe_spp_forwarding(struct fe_task *t, struct fe_driver_rx *rx,
+                  struct fe_pkt_buf_hdr *hdr, void *pkt, int len)
+{
+    struct ethhdr *eth;
+    uint8_t key[FDB_KEY_SIZE];
+    struct fe_pkt_buf_hdr *myhdr;
+    void *mypkt;
+
+    myhdr = fe_get_buffer(t);
+    /* Copy */
+    memcpy(myhdr, hdr, FE_PKTSZ);
+    mypkt = pkt - (void *)hdr + (void *)myhdr;
+    /* Release */
+    hdr->refs--;
+    rx->u.kernel->rx_head = rx->u.kernel->rx_head + 1 < rx->u.kernel->len
+        ? rx->u.kernel->rx_head + 1 : 0;
+
+    fe_driver_tx_enqueue(t, &t->tx.rings[myhdr->port], myhdr->port, pkt, hdr,
+                         len);
+    fe_driver_tx_commit(&t->tx.rings[myhdr->port]);
+    fe_collect_buffer(t, &t->tx.rings[myhdr->port]);
+
+    printf("YYY @%d: %p %p => %d\n", t->cpuid, hdr, pkt, hdr->port);
+#if 0
+    eth = (struct ethhdr *)pkt;
+    if ( !_is_muticast(eth->src) ) {
+        /* Unicast, then update the corresonding fdb entry */
+        memcpy(key, eth->src, 6);
+        memset(key + 6, 0, 2);
+        //fdb_update(fdb, key, );
+    }
+#endif
+
+    return 0;
+}
+
 
 
 
@@ -83,16 +176,21 @@ fe_fpp_task(void *args)
                 continue;
             }
             fe_driver_rx_refill(t, &t->rx.rings[i]);
+            fe_fpp_forwarding(t, t->rx.rings[i].port, hdr, pkt, ret);
+
+            fe_driver_rx_commit(&t->rx.rings[i]);
+#if 0
             pkt = fe_v2p(t, pkt);
 
             //printf("XXXX @%d: %p %p %d\n", t->cpuid, hdr, pkt, ret);
             fe_release_buffer(t, hdr);
-#if 0
+
             fe_driver_tx_enqueue(&t->tx.rings[0], pkt, hdr, ret);
             fe_driver_tx_commit(&t->tx.rings[0]);
-            fe_collect_buffer(t, &t->tx.rings[0]);
 #endif
-            fe_driver_rx_commit(&t->rx.rings[i]);
+        }
+        for ( i = 0; i < (ssize_t)t->fe->nports; i++ ) {
+            fe_collect_buffer(t, &t->tx.rings[i]);
         }
     }
 }
@@ -116,9 +214,10 @@ fe_process(struct fe *fe)
                 continue;
             }
             fe_driver_rx_refill(fe->tftask, &fe->tftask->rx.rings[i]);
-            pkt = fe_v2p(fe->tftask, pkt);
-
-            fe_release_buffer(fe->tftask, hdr);
+            fe_spp_forwarding(fe->tftask, &fe->tftask->rx.rings[i], hdr, pkt,
+                              ret);
+            //pkt = fe_v2p(fe->tftask, pkt);
+            //fe_release_buffer(fe->tftask, hdr);
             fe_driver_rx_commit(&fe->tftask->rx.rings[i]);
         }
     }
@@ -230,9 +329,10 @@ fe_init_cpu(struct fe *fe)
 
     /* Tickful task */
     t = malloc(sizeof(struct fe_task));
-    if ( NULL == t) {
+    if ( NULL == t ) {
         return -1;
     }
+    t->fe = fe;
     t->cpuid = -1;
     t->pool.head = NULL;
     t->pool.v2poff = 0;
@@ -261,6 +361,7 @@ fe_init_cpu(struct fe *fe)
                 if ( NULL == t) {
                     return -1;
                 }
+                t->fe = fe;
                 t->cpuid = i;
                 t->pool.head = NULL;
                 t->pool.v2poff = 0;
@@ -421,6 +522,8 @@ _init_extask_ring(struct fe *fe, struct fe_task *t, int n, int *port)
     ring->len = FE_QLEN;
     ring->head = 0;
     ring->tail = 0;
+    ring->rx_head = 0;
+    ring->tx_head = 0;
     ring->descs = _fe_alloc(fe, sizeof(struct fe_kernel_desc) * ring->len);
     if ( NULL == ring->descs ) {
         return -1;
@@ -443,6 +546,8 @@ _init_extask_ring(struct fe *fe, struct fe_task *t, int n, int *port)
         t->rx.bitmap |= (1ULL << *port);
         /* Set driver */
         t->rx.rings[i].driver = fe->ports[*port]->driver;
+        /* Set port # */
+        t->rx.rings[i].port = *port;
         /* Calculate the required memory space */
         sz = fe_driver_calc_rx_ring_memsize(&t->rx.rings[i], FE_QLEN);
         if ( sz < 0 ) {
@@ -600,7 +705,6 @@ fe_init(struct fe *fe)
     }
 
     /* Reset */
-    fe->fdb = NULL;
     fe->ncpus = 0;
     fe->nxcpu = 0;
     fe->nports = 0;
@@ -608,10 +712,18 @@ fe_init(struct fe *fe)
     fe->tftask = NULL;
     fe->extasks = NULL;
 
+    /* Initialize the forwarding database */
+    fe->fdb = fdb_init();
+    if ( NULL == fe->fdb ) {
+        printf("Failed to initilize FDB.\n");
+        return -1;
+    }
+
     /* Allocate memory for descriptors */
     len = (size_t)FE_MEMSIZE_FOR_DESCS;
     ret = syscall(SYS_pix_malloc, len, &pa, &va);
     if ( ret < 0 ) {
+        printf("Failed to allocate memory.\n");
         return -1;
     }
     voff = pa - va;
@@ -623,18 +735,21 @@ fe_init(struct fe *fe)
     /* Initialize processor (as a list of tasks) */
     ret = fe_init_cpu(fe);
     if ( ret < 0 ) {
+        printf("Failed to initialize CPU.\n");
         goto error;
     }
 
     /* Initialize buffer pool */
     ret = fe_init_buffer_pool(fe);
     if ( ret < 0 ) {
+        printf("Failed to initialize buffer pool.\n");
         goto error;
     }
 
     /* Initialize devices (hw) */
     ret = fe_init_devices(fe, pci);
     if ( ret < 0 ) {
+        printf("Failed to initialize network devices.\n");
         goto error;
     }
 
@@ -651,6 +766,7 @@ fe_init(struct fe *fe)
     /* Assign task */
     ret = fe_assign_task(fe);
     if ( ret < 0 ) {
+        printf("Failed to initialize tasks.\n");
         return -1;
     }
 
@@ -672,6 +788,7 @@ main(int argc, char *argv[])
     struct fe fe;
     int fd[3];
     int ret;
+    struct fe_task *t;
 
     /* /dev/console for stdin/stdout/stderr */
     fd[0] = open("/dev/console", O_RDWR);
@@ -687,7 +804,6 @@ main(int argc, char *argv[])
     }
 
     /* Run threads */
-    struct fe_task *t;
     t = fe.extasks;
     while ( NULL != t ) {
         syspix_create_job(t->cpuid, (void *)t);

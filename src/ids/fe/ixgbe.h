@@ -657,6 +657,7 @@ ixgbe_rx_refill(struct ixgbe_rx_ring *rxring, void *pkt, void *hdr)
 static __inline__ void
 ixgbe_rx_commit(struct ixgbe_rx_ring *rxring)
 {
+    __sync_synchronize();
     wr32(rxring->mmio, IXGBE_REG_RDT(rxring->idx), rxring->tail);
 }
 
@@ -805,7 +806,7 @@ ixgbe_tx_enqueue(struct ixgbe_tx_ring *txring, void *pkt, void *hdr,
     uint16_t new_tail;
 
     new_tail = txring->tail + 1 < txring->len ? txring->tail + 1 : 0;
-    if ( new_tail == txring->head ) {
+    if ( new_tail == txring->soft_head ) {
         /* Buffer is full */
         return 0;
     }
@@ -824,6 +825,7 @@ ixgbe_tx_enqueue(struct ixgbe_tx_ring *txring, void *pkt, void *hdr,
 static __inline__ void
 ixgbe_tx_commit(struct ixgbe_tx_ring *txring)
 {
+    __sync_synchronize();
     wr32(txring->mmio, IXGBE_REG_TDT(txring->idx), txring->tail);
 }
 
@@ -843,7 +845,7 @@ ixgbe_calc_tx_ring_memsize(struct ixgbe_tx_ring *tx, uint16_t qlen)
 static __inline__ int
 ixgbe_collect_buffer(struct ixgbe_tx_ring *txring, void **hdr)
 {
-    txring->head = rd32(txring->mmio, IXGBE_REG_TDH(txring->idx));
+    txring->head = *txring->tdwba;
     if ( txring->soft_head == txring->head ) {
         return 0;
     }

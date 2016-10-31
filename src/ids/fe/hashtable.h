@@ -86,6 +86,7 @@ hopscotch_init(struct hopscotch_hash_table *ht, size_t keylen)
     if ( NULL == ht ) {
         ht = malloc(sizeof(struct hopscotch_hash_table));
         if ( NULL == ht ) {
+            free(buckets);
             return NULL;
         }
         ht->_allocated = 1;
@@ -281,8 +282,6 @@ hopscotch_resize(struct hopscotch_hash_table *ht, int delta)
 
     return 0;
 }
-
-
 
 
 #endif /* _HASHTABLE_H */
