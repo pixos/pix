@@ -6,7 +6,7 @@
 #      Hirochika Asai  <asai@jar.jp>
 #
 
-VERSION = v0.0.1a
+VERSION = nightly-build-$(shell date +%Y%m%d-%H%M%S)
 
 all:
 	@echo "make all is not currently supported."
