@@ -173,13 +173,6 @@ pci_check_function(uint8_t bus, uint8_t slot, uint8_t func)
     conf->revision = (uint8_t)(prog & 0xff);
     dev->device = conf;
     dev->next = NULL;
-
-    /* FIXME: Remove this code and must return dev */
-    char buf[128];
-    snprintf(buf, 128, "%x.%x.%x %x:%x BAR0: %llx\n",
-             bus, slot, func, vendor, device,
-             pci_read_mmio(bus, slot, func));
-    fputs(buf, stdout);
 }
 
 /*

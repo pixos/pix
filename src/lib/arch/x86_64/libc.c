@@ -331,9 +331,17 @@ calloc(size_t count, size_t size)
 {
     void *ptr;
     ssize_t i;
+    size_t n;
 
-    ptr = malloc(count * size);
-    for ( i = 0; i < (ssize_t)(count * size); i++ ) {
+    n = count * size;
+    ptr = malloc(n);
+    if ( NULL == ptr ) {
+        return NULL;
+    }
+    for ( i = 0; i < (ssize_t)(n / 8); i++ ) {
+        *(uint64_t *)(ptr + i * 8) = 0;
+    }
+    for ( i = i * 8; i < (ssize_t)n; i++ ) {
         *(uint8_t *)(ptr + i) = 0;
     }
 

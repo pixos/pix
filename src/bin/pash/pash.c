@@ -28,6 +28,10 @@
 #include <fcntl.h>
 #include <sys/pix.h>
 
+#ifndef PIX_VERSION
+#define PIX_VERSION "unknown"
+#endif
+
 unsigned long long syscall(int, ...);
 
 static void
@@ -72,6 +76,10 @@ int
 main(int argc, char *argv[])
 {
     char buf[256];
+
+    /* Print out welcome message */
+    printf("Welcome to Packet Information Chaining Service (pix)\n");
+    printf("pix version: %s\n", PIX_VERSION);
 
     putchar('>');
     putchar(' ');

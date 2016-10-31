@@ -142,12 +142,12 @@ struct e1000_rx_ring {
     /* Descriptors */
     struct e1000_rx_desc *descs;
     /* Array of pointers to packet buffers */
-    void *bufs;
+    void **bufs;
     uint16_t tail;
     uint16_t head;
+    uint16_t soft_head;
     uint16_t len;
     /* Queue information */
-    uint16_t idx;               /* Queue index */
     void *mmio;                 /* MMIO */
 };
 
@@ -158,12 +158,12 @@ struct e1000_tx_ring {
     /* Descriptors */
     struct e1000_tx_desc *descs;
     /* Packet buffers to be collected */
-    void *bufs;
+    void **bufs;
+    uint16_t soft_head;
     uint16_t head;
     uint16_t tail;
     uint16_t len;
     /* Queue information */
-    uint16_t idx;               /* Queue index */
     void *mmio;                 /* MMIO */
 };
 
@@ -390,6 +390,7 @@ e1000_init_hw(struct e1000_device *dev)
     /* Enable interrupt (REG_IMS <- 0x1f6dc, then read REG_ICR ) */
     //wr32(dev->mmio, E1000_REG_IMS, 0x908e);
     wr32(dev->mmio, E1000_REG_IMS, 0x1f6dc);
+    //wr32(dev->mmio, E1000_REG_ICS, 0x1f6dc);
     (void)rd32(dev->mmio, E1000_REG_ICR);
 
     return 0;
@@ -411,16 +412,22 @@ e1000_setup_rx(struct e1000_device *dev)
  */
 static __inline__ int
 e1000_setup_rx_ring(struct e1000_device *dev, struct e1000_rx_ring *rxring,
-                    void *m, uint64_t v2poff, uint16_t qlen)
+                    int idx, void *m, uint64_t v2poff, uint16_t qlen)
 {
     struct e1000_rx_desc *rxdesc;
     uint64_t m64;
     ssize_t i;
 
+    /* Check the queue index first */
+    if ( 0 != idx ) {
+        return -1;
+    }
+
     rxring->mmio = dev->mmio;
 
     rxring->tail = 0;
     rxring->head = 0;
+    rxring->soft_head = 0;
     rxring->len = qlen;
 
     /* Allocate for descriptors */
@@ -436,6 +443,7 @@ e1000_setup_rx_ring(struct e1000_device *dev, struct e1000_rx_ring *rxring,
         rxdesc->status = 0;
         rxdesc->errors = 0;
         rxdesc->special = 0;
+        rxring->bufs[i] = NULL;
     }
 
     m64 = (uint64_t)rxring->descs + v2poff;
@@ -457,6 +465,57 @@ e1000_setup_rx_ring(struct e1000_device *dev, struct e1000_rx_ring *rxring,
     return 0;
 }
 
+static __inline__ int
+e1000_rx_refill(struct e1000_rx_ring *rxring, void *pkt, void *hdr)
+{
+    struct e1000_rx_desc *rxdesc;
+    uint16_t new_tail;
+
+    new_tail = rxring->tail + 1 < rxring->len ? rxring->tail + 1 : 0;
+    if ( new_tail == rxring->head ) {
+        /* Buffer is full */
+        return 0;
+    }
+    rxdesc = &rxring->descs[rxring->tail];
+    rxdesc->address = (uint64_t)pkt;
+    rxdesc->length = 0;
+    rxdesc->checksum = 0;
+    rxdesc->status = 0;
+    rxdesc->errors = 0;
+    rxdesc->special = 0;
+    rxring->bufs[rxring->tail] = hdr;
+    rxring->tail = new_tail;
+
+    return 1;
+}
+
+static __inline__ void
+e1000_rx_commit(struct e1000_rx_ring *rxring)
+{
+    wr32(rxring->mmio, E1000_REG_RDT, rxring->tail);
+}
+
+static __inline__ int
+e1000_rx_dequeue(struct e1000_rx_ring *rxring, void **hdr)
+{
+    uint16_t head;
+    int len;
+
+    if ( rxring->head == rxring->soft_head ) {
+        /* Update the head */
+        rxring->head = rd32(rxring->mmio, E1000_REG_RDH);
+        if ( rxring->head == rxring->soft_head ) {
+            return -1;
+        }
+    }
+    head = rxring->soft_head + 1 < rxring->len ? rxring->soft_head + 1 : 0;
+    *hdr = rxring->bufs[rxring->soft_head];
+    len = rxring->descs[rxring->soft_head].length;
+    rxring->soft_head = head;
+
+    return len;
+}
+
 /*
  * Setup Tx port
  */
@@ -473,14 +532,20 @@ e1000_setup_tx(struct e1000_device *dev)
  */
 static __inline__ int
 e1000_setup_tx_ring(struct e1000_device *dev, struct e1000_tx_ring *txring,
-                    void *m, uint64_t v2poff, uint16_t qlen)
+                    int idx, void *m, uint64_t v2poff, uint16_t qlen)
 {
     struct e1000_tx_desc *txdesc;
     uint64_t m64;
     ssize_t i;
 
+    /* Check the queue index first */
+    if ( 0 != idx ) {
+        return -1;
+    }
+
     txring->mmio = dev->mmio;
 
+    txring->soft_head = 0;
     txring->head = 0;
     txring->tail = 0;
     txring->len = qlen;
@@ -516,6 +581,40 @@ e1000_setup_tx_ring(struct e1000_device *dev, struct e1000_tx_ring *txring,
 }
 
 static __inline__ int
+e1000_tx_enqueue(struct e1000_tx_ring *txring, void *pkt, void *hdr,
+                 size_t length)
+{
+    struct e1000_tx_desc *txdesc;
+    uint16_t new_tail;
+
+    new_tail = txring->tail + 1 < txring->len ? txring->tail + 1 : 0;
+    if ( new_tail == txring->soft_head ) {
+        /* Buffer is full */
+        return 0;
+    }
+    txdesc = &txring->descs[txring->tail];
+    txdesc->address = (uint64_t)pkt;
+    txdesc->length = length;
+    txdesc->dcmd = (0 << 5) | (1 << 3) | (1 << 1) | 1;;
+    txdesc->dtyp = 0;
+    txdesc->sta = 0;
+    txdesc->rsv = 0;
+    txdesc->popts = 0;
+    txdesc->special = 0;
+    txring->bufs[txring->tail] = hdr;
+    txring->tail = new_tail;
+
+    return 1;
+}
+
+static __inline__ void
+e1000_tx_commit(struct e1000_tx_ring *txring)
+{
+    wr32(txring->mmio, E1000_REG_TDT, txring->tail);
+}
+
+
+static __inline__ int
 e1000_calc_rx_ring_memsize(struct e1000_rx_ring *rx, uint16_t qlen)
 {
     (void)rx;
@@ -528,6 +627,22 @@ e1000_calc_tx_ring_memsize(struct e1000_tx_ring *tx, uint16_t qlen)
     return (sizeof(struct e1000_tx_desc) + sizeof(void *)) * qlen;
 }
 
+
+static __inline__ int
+e1000_collect_buffer(struct e1000_tx_ring *txring, void **hdr)
+{
+    txring->head = rd32(txring->mmio, E1000_REG_TDH);
+    if ( txring->soft_head == txring->head ) {
+        return 0;
+    }
+
+    *hdr = txring->bufs[txring->soft_head];
+
+    txring->soft_head
+        = txring->soft_head + 1 < txring->len ? txring->soft_head + 1 : 0;
+
+    return 1;
+}
 
 #endif /* _E1000_H */
 

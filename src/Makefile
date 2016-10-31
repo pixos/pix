@@ -11,7 +11,7 @@ ARCH=x86_64
 ## Global flags
 ASFLAGS=-nostdlib -I./kernel/arch/$(ARCH)/
 CFLAGS=-I./include -Wall -fleading-underscore -nostdinc -nostdlib -O3 -m64 \
-	-DARCH_X86_64=1
+	-DARCH_X86_64=1 -DPIX_VERSION='"$(VERSION)"'
 
 ## Override the flags
 diskboot: ASFLAGS=-nostdlib -I./boot/arch/$(ARCH)/
@@ -104,6 +104,7 @@ pm: servers/pm/pm.o $(LIBCOBJS)
 ## forwarding engine
 fe: ids/fe/fe.o ids/fe/pci.o $(LIBCOBJS) lib/driver.o
 	$(LD) -T app.ld -o $@ $^
+	$(LD) -T appdebug.ld -o $@.dbg $^
 
 ## file system
 fs: servers/fs/fs.o $(LIBCOBJS)
