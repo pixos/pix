@@ -505,7 +505,7 @@ e1000_rx_dequeue(struct e1000_rx_ring *rxring, void **hdr)
         /* Update the head */
         rxring->head = rd32(rxring->mmio, E1000_REG_RDH);
         if ( rxring->head == rxring->soft_head ) {
-            return 0;
+            return -1;
         }
     }
     head = rxring->soft_head + 1 < rxring->len ? rxring->soft_head + 1 : 0;

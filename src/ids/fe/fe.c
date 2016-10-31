@@ -79,6 +79,7 @@ fe_fpp_forwarding(struct fe_task *t, int port, struct fe_pkt_buf_hdr *hdr,
     uint8_t key[FDB_KEY_SIZE];
     struct fdb_entry *e;
     ssize_t i;
+    uint64_t mac;
 
     eth = (struct ethhdr *)pkt;
 
@@ -90,15 +91,20 @@ fe_fpp_forwarding(struct fe_task *t, int port, struct fe_pkt_buf_hdr *hdr,
         for ( i = 0; i < (ssize_t)t->fe->nports; i++ ) {
             if ( port != i ) {
                 fe_driver_tx_enqueue(t, &t->tx.rings[i], i, pkt, hdr, len);
-                //printf("XXXX @%d: %p %p %d => %d\n", t->cpuid, hdr, pkt, port, i);
             }
         }
     } else {
         /* Unicast */
-        printf("XXXX @%d: %p %p %d => %d\n", t->cpuid, hdr, pkt, port, e->port);
+        fe_driver_tx_enqueue(t, &t->tx.rings[e->port], e->port, pkt, hdr, len);
     }
 
-    //fdb_update(fdb, key, );
+    /* Check the source address to update FDB */
+    if ( !_is_muticast(eth->src) ) {
+        /* Unicast, then update the corresonding fdb entry */
+        mac = 0;
+        memcpy(&mac, eth->src, 6);
+        fe_kernel_cmd_enqueue(t->ktx, mac, port);
+    }
 
     return 0;
 }
@@ -110,26 +116,34 @@ static int
 fe_spp_forwarding(struct fe_task *t, struct fe_driver_rx *rx,
                   struct fe_pkt_buf_hdr *hdr, void *pkt, int len)
 {
+#if 0
     struct ethhdr *eth;
     uint8_t key[FDB_KEY_SIZE];
+#endif
     struct fe_pkt_buf_hdr *myhdr;
     void *mypkt;
 
     myhdr = fe_get_buffer(t);
+    if ( NULL == myhdr ) {
+        /* No buffer available */
+        printf("Buffer empty\n");
+        return -1;
+    }
     /* Copy */
     memcpy(myhdr, hdr, FE_PKTSZ);
     mypkt = pkt - (void *)hdr + (void *)myhdr;
     /* Release */
     hdr->refs--;
-    rx->u.kernel->rx_head = rx->u.kernel->rx_head + 1 < rx->u.kernel->len
-        ? rx->u.kernel->rx_head + 1 : 0;
+    rx->u.kernel->head = rx->u.kernel->head + 1 < rx->u.kernel->len
+        ? rx->u.kernel->head + 1 : 0;
 
-    fe_driver_tx_enqueue(t, &t->tx.rings[myhdr->port], myhdr->port, pkt, hdr,
+    fe_driver_tx_enqueue(t, &t->tx.rings[myhdr->port], myhdr->port, mypkt, hdr,
                          len);
     fe_driver_tx_commit(&t->tx.rings[myhdr->port]);
     fe_collect_buffer(t, &t->tx.rings[myhdr->port]);
 
-    printf("YYY @%d: %p %p => %d\n", t->cpuid, hdr, pkt, hdr->port);
+    //printf("YYY @%d: %p %p => %d\n", t->cpuid, hdr, pkt, hdr->port);
+
 #if 0
     eth = (struct ethhdr *)pkt;
     if ( !_is_muticast(eth->src) ) {
@@ -179,15 +193,6 @@ fe_fpp_task(void *args)
             fe_fpp_forwarding(t, t->rx.rings[i].port, hdr, pkt, ret);
 
             fe_driver_rx_commit(&t->rx.rings[i]);
-#if 0
-            pkt = fe_v2p(t, pkt);
-
-            //printf("XXXX @%d: %p %p %d\n", t->cpuid, hdr, pkt, ret);
-            fe_release_buffer(t, hdr);
-
-            fe_driver_tx_enqueue(&t->tx.rings[0], pkt, hdr, ret);
-            fe_driver_tx_commit(&t->tx.rings[0]);
-#endif
         }
         for ( i = 0; i < (ssize_t)t->fe->nports; i++ ) {
             fe_collect_buffer(t, &t->tx.rings[i]);
@@ -210,15 +215,22 @@ fe_process(struct fe *fe)
         /* For all exclusive processors */
         for ( i = 0; i < fe->nxcpu; i++ ) {
             ret = fe_driver_rx_dequeue(&fe->tftask->rx.rings[i], &hdr, &pkt);
-            if ( ret <= 0 ) {
+            if ( ret < 0 ) {
                 continue;
             }
-            fe_driver_rx_refill(fe->tftask, &fe->tftask->rx.rings[i]);
-            fe_spp_forwarding(fe->tftask, &fe->tftask->rx.rings[i], hdr, pkt,
-                              ret);
-            //pkt = fe_v2p(fe->tftask, pkt);
-            //fe_release_buffer(fe->tftask, hdr);
-            fe_driver_rx_commit(&fe->tftask->rx.rings[i]);
+            if ( 0 == ret ) {
+                /* Command (non-packet) */
+                fdb_update(fe->fdb, (uint8_t *)&pkt, (int)(uint64_t)hdr);
+                fe->tftask->rx.rings[i].u.kernel->head
+                    = fe->tftask->rx.rings[i].u.kernel->head + 1
+                    < fe->tftask->rx.rings[i].u.kernel->len
+                    ? fe->tftask->rx.rings[i].u.kernel->head + 1 : 0;
+            } else {
+                fe_driver_rx_refill(fe->tftask, &fe->tftask->rx.rings[i]);
+                fe_spp_forwarding(fe->tftask, &fe->tftask->rx.rings[i], hdr,
+                                  pkt, ret);
+                fe_driver_rx_commit(&fe->tftask->rx.rings[i]);
+            }
         }
     }
 

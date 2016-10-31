@@ -671,7 +671,7 @@ ixgbe_rx_dequeue(struct ixgbe_rx_ring *rxring, void **hdr)
         /* Update the head */
         rxring->head = rd32(rxring->mmio, IXGBE_REG_RDH(rxring->idx));
         if ( rxring->head == rxring->soft_head ) {
-            return 0;
+            return -1;
         }
     }
     head = rxring->soft_head + 1 < rxring->len ? rxring->soft_head + 1 : 0;

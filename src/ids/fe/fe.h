@@ -278,9 +278,11 @@ fe_collect_buffer(struct fe_task *t, struct fe_driver_tx *tx)
     case FE_DRIVER_KERNEL:
         ret = fe_kernel_collect_buffer(tx->u.kernel, (void **)&hdr);
         if ( ret > 0 ) {
-            hdr->refs--;
-            if ( hdr->refs <= 0 ) {
-                fe_release_buffer(t, hdr);
+            if ( NULL != hdr ) {
+                hdr->refs--;
+                if ( hdr->refs <= 0 ) {
+                    fe_release_buffer(t, hdr);
+                }
             }
         }
         return 0;
@@ -536,8 +538,8 @@ fe_kernel_rx_dequeue(struct fe_kernel_ring *ring, struct fe_pkt_buf_hdr **hdr,
     int port;
 
     if ( ring->rx_head == ring->tail ) {
-        /* No buffer available */
-        return 0;
+        /* No more buffer available */
+        return -1;
     }
 
     head = ring->rx_head + 1 < ring->len ? ring->rx_head + 1 : 0;
@@ -545,10 +547,16 @@ fe_kernel_rx_dequeue(struct fe_kernel_ring *ring, struct fe_pkt_buf_hdr **hdr,
     *pkt = ring->descs[ring->head].pkt;
     len = ring->descs[ring->head].length;
     port = ring->descs[ring->head].port;
+    if ( 1 == ring->descs[ring->head].mode ) {
+        *hdr = (void *)(uint64_t)port;
+        len = 0;
+    }
     __sync_synchronize();
     ring->rx_head = head;
 
-    (*hdr)->port = port;
+    if ( len > 0 ) {
+        (*hdr)->port = port;
+    }
 
     return len;
 }
@@ -606,6 +614,32 @@ fe_kernel_tx_enqueue(struct fe_kernel_ring *ring, int port, void *pkt,
 
     return 1;
 }
+
+static __inline__ int
+fe_kernel_cmd_enqueue(struct fe_kernel_ring *ring, uint64_t mac, int port)
+{
+    struct fe_kernel_desc *desc;
+    uint16_t tail;
+
+    tail = ring->tail + 1 < ring->len ? ring->tail + 1 : 0;
+    if ( tail == ring->tx_head ) {
+        /* Buffer is full */
+        return 0;
+    }
+    desc = &ring->descs[ring->tail];
+    desc->pkt = (void *)mac;
+    desc->length = 0;
+    desc->port = port;
+    desc->mode = 1;
+    ring->bufs[ring->tail] = NULL;
+
+    __sync_synchronize();
+
+    ring->tail = tail;
+
+    return 1;
+}
+
 
 static __inline__ int
 fe_driver_tx_enqueue(struct fe_task *t, struct fe_driver_tx *tx, int port,
