@@ -952,6 +952,47 @@ sys_nanosleep(const struct timespec *rqtp, struct timespec *rmtp)
     return 0;
 }
 
+/*
+ * Get date and time
+ *
+ * SYNOPSIS
+ *      int
+ *      sys_gettimeofday(struct timeval *__restrict__ tp, void *__restrict__
+ *                       tzp);
+ *
+ * DESCRIPTION
+ *      Get date and time.  The time is expressed in seconds and microseconds
+ *      since midnight (0 hour), January 1, 1970.
+ *
+ * RETURN VALUES
+ *      The gettimeofday() function returns 0 if success.  If an error occurred,
+ *      a -1 value is returned.
+ */
+int
+sys_gettimeofday(struct timeval *__restrict__ tp, void *__restrict__ tzp)
+{
+    uint64_t usec;
+    struct timezone *tz;
+
+    if ( NULL != tp ) {
+        usec = arch_usec_since_boot();
+
+        tp->tv_sec = g_boottime.sec + usec / 1000000;
+        usec -= usec / 1000000;
+        tp->tv_sec += (g_boottime.usec + usec) / 1000000;
+        tp->tv_usec = (g_boottime.usec + usec) % 1000000;
+    }
+
+    if ( NULL != tzp ) {
+        tz = tzp;
+        /* Diff to GMT in minutes to West */
+        tz->tz_minuteswest = 0;
+        /* Daylight saving time? */
+        tz->tz_dsttime = 0;
+    }
+
+    return 0;
+}
 
 /*
  * Sleep this exclusive processor

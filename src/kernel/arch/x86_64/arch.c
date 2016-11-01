@@ -29,6 +29,7 @@
 #include "acpi.h"
 #include "i8254.h"
 #include "apic.h"
+#include "cmos.h"
 #include "memory.h"
 
 /* Prototype declarations */
@@ -114,6 +115,7 @@ intr_setup(void)
     idt_setup_intr_gate(IV_LOC_TMR, intr_apic_loc_tmr);
     idt_setup_intr_gate(IV_LOC_TMR_XP, intr_apic_loc_tmr_xp);
     idt_setup_intr_gate(IV_PIXIPI, intr_pixipi);
+    idt_setup_intr_gate(IV_TIMESYNC, intr_timesync);
     idt_setup_intr_gate(IV_CRASH, intr_crash);
 
     /* IRQs */
@@ -233,6 +235,8 @@ bsp_init(void)
     long long i;
     int prox;
     int ret;
+    u64 tsc;
+    u64 unixtime;
 
     cli();
 
@@ -344,6 +348,14 @@ bsp_init(void)
     /* Estimate the frequency */
     pdata->freq = lapic_estimate_freq();
 
+    /* Read RTC and TSC */
+    g_timesync.lock = 0;
+    pdata->tsc_offset = 0;
+    tsc = rdtsc();
+    unixtime = cmos_rtc_read_datetime(0);
+    g_boottime.sec = unixtime - tsc / pdata->freq - 1;
+    g_boottime.usec = 1000000 - (tsc % pdata->freq) * 1000000 / pdata->freq;
+
     /* Set an idle task for this processor */
     pdata->idle_task = task_create_idle();
     if ( NULL == pdata->idle_task ) {
@@ -417,6 +429,8 @@ ap_init(void)
 {
     struct cpu_data *pdata;
     int prox;
+    u64 tsc0;
+    u64 tsc;
 
     /* Load global descriptor table */
     gdt_load();
@@ -442,6 +456,26 @@ ap_init(void)
 
     /* Estimate the frequency */
     pdata->freq = lapic_estimate_freq();
+
+    /* Read TSC to calculate the offset to the BSP */
+    spin_lock(&g_timesync.lock);
+    g_timesync.tsc = 0;
+    lapic_send_fixed_ipi(0, IV_TIMESYNC);
+    tsc0 = rdtsc();
+    tsc = tsc0;
+    while ( 0 == g_timesync.tsc ) {
+        /* Wait until the TSC is set */
+        tsc = rdtsc();
+        if ( tsc - tsc0 > 1000000000 ) {
+            /* Timeout */
+            break;
+        }
+    }
+    if ( 0 == g_timesync.tsc ) {
+        panic("Could not synchronize the TSC.");
+    }
+    pdata->tsc_offset = g_timesync.tsc - tsc;
+    spin_unlock(&g_timesync.lock);
 
     /* Set an idle task for this processor */
     pdata->idle_task = task_create_idle();
@@ -588,6 +622,26 @@ arch_exec(struct arch_task *t, void (*entry)(void), size_t size, int policy,
 
     /* Never reach here but do this to prevent a compiler error */
     return -1;
+}
+
+/*
+ * Get the current time stamp in microseconds since boot
+ */
+u64
+arch_usec_since_boot(void)
+{
+    struct cpu_data *pdata;
+    u64 tsc;
+
+    /* Read TSC */
+    tsc = rdtsc();
+
+    /* Calculate the BSP's TSC from the relative counter */
+    pdata = this_cpu();
+    tsc = tsc + pdata->tsc_offset;
+
+    /* TSC to microseconds */
+    return 1000000ULL * tsc / pdata->freq;
 }
 
 /*
@@ -773,6 +827,15 @@ isr_debug(void *ip, u64 cs, u64 flags, void *sp, u64 ss)
 {
     char *buf = this_ktask()->proc->name;
     panic(buf);
+}
+
+/*
+ * Time synchronization
+ */
+void
+isr_timesync(u64 tsc)
+{
+    g_timesync.tsc = tsc;
 }
 
 /*
