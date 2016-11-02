@@ -39,8 +39,11 @@ busywait(uint64_t d_usec)
     uint64_t usec0;
     uint64_t usec;
 
+    /* Get the current time stamp */
     gettimeofday(&tv, NULL);
     usec0 = tv.tv_sec * 1000000 + tv.tv_usec;
+
+    /* Loop for d_usec+ microseconds */
     for ( ;; ) {
         gettimeofday(&tv, NULL);
         usec = tv.tv_sec * 1000000 + tv.tv_usec;
@@ -50,11 +53,18 @@ busywait(uint64_t d_usec)
     }
 }
 
+/*
+ * Read data from a 32-bit register via MMIO
+ */
 static __inline__ uint32_t
 rd32(void *mmio, uint64_t reg)
 {
     return *(volatile uint32_t *)(mmio + reg);
 }
+
+/*
+ * Write data to a 32-bit register via MMIO
+ */
 static __inline__ void
 wr32(void *mmio, uint64_t reg, volatile uint32_t val)
 {

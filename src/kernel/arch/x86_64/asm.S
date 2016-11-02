@@ -1094,7 +1094,7 @@ _intr_apic_loc_tmr_xp:
 	popq	%rax
 	iretq
 
-/* IRQn */
+/* IRQn, including PIRQ */
 	intr_lapic_isr_generic 0x20
 	intr_lapic_isr_generic 0x21
 	intr_lapic_isr_generic 0x22

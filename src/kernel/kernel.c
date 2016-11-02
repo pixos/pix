@@ -200,13 +200,11 @@ kintr_isr(u64 vec)
     case IV_IRQ(13):
     case IV_IRQ(14):
     case IV_IRQ(15):
-        _irq_handler(vec);
-        break;
     case IV_IRQ(16):
     case IV_IRQ(17):
     case IV_IRQ(18):
     case IV_IRQ(19):
-        panic("xxxx");
+        _irq_handler(vec);
         break;
     default:
         ;
