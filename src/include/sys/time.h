@@ -1,5 +1,5 @@
 /*_
- * Copyright (c) 2015 Hirochika Asai <asai@jar.jp>
+ * Copyright (c) 2015-2016 Hirochika Asai <asai@jar.jp>
  * All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -30,6 +30,13 @@ struct timeval {
     time_t      tv_sec;         /* seconds since Jan. 1, 1970 */
     suseconds_t tv_usec;        /* and microseconds */
 };
+
+struct timezone {
+    int tz_minuteswest; /* of Greenwich */
+    int tz_dsttime;     /* type of dst correction to apply */
+};
+
+int gettimeofday(struct timeval *__restrict__ tp, void *__restrict__ tzp);
 
 #endif /* _SYS_TIME_H */
 

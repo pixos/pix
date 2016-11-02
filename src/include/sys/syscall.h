@@ -57,6 +57,8 @@
 //#define SYS_pgrp          81
 //#define SYS_setitimer     83
 #define SYS_fcntl           92
+#define SYS_gettimeofday    116
+#define SYS_settimeofday    122
 //#define SYS_rename        128
 //#define SYS_mkdir         136
 //#define SYS_rmdir         137

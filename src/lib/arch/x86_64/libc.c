@@ -28,6 +28,7 @@
 #include <sys/mman.h>
 #include <unistd.h>
 #include <time.h>
+#include <sys/time.h>
 
 #define MALLOC_MMAP_ENT     1024
 
@@ -396,6 +397,15 @@ int
 nanosleep(const struct timespec *rqtp, struct timespec *rmtp)
 {
     return syscall(SYS_nanosleep, rqtp, rmtp);
+}
+
+/*
+ * nanosleep
+ */
+int
+gettimeofday(struct timeval *__restrict__ tp, void *__restrict__ tzp)
+{
+    return syscall(SYS_gettimeofday, tp, tzp);
 }
 
 /*

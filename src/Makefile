@@ -71,6 +71,7 @@ kpack: kernel/arch/$(ARCH)/asm.o \
 	kernel/arch/$(ARCH)/ap_entry64.o \
 	kernel/arch/$(ARCH)/vmx.o \
 	kernel/arch/$(ARCH)/task.o \
+	kernel/arch/$(ARCH)/cmos.o \
 	kernel/kernel.o \
 	kernel/memory.o \
 	kernel/pmem.o \
