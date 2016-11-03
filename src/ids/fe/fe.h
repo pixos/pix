@@ -476,7 +476,6 @@ fe_driver_rx_refill(struct fe_task *t, struct fe_driver_rx *rx)
 
     switch ( rx->driver ) {
     case FE_DRIVER_KERNEL:
-        //fe_release_buffer(t, pkt);
         break;
 
     case FE_DRIVER_E1000:
@@ -486,13 +485,15 @@ fe_driver_rx_refill(struct fe_task *t, struct fe_driver_rx *rx)
         return ixgbe_rx_refill(&rx->u.ixgbe, pa + FE_PKT_HDROFF, pkt);
 
     default:
-        //fe_release_buffer(t, pkt);
         ;
     }
 
     return 0;
 }
 
+/*
+ * Try to fill up the specified Rx ring
+ */
 static __inline__ int
 fe_driver_rx_fill_all(struct fe_task *t, struct fe_driver_rx *rx)
 {
@@ -508,6 +509,9 @@ fe_driver_rx_fill_all(struct fe_task *t, struct fe_driver_rx *rx)
 }
 
 
+/*
+ * Commit the tail pointer of an Rx ring buffer
+ */
 static __inline__ void
 fe_driver_rx_commit(struct fe_driver_rx *rx)
 {
@@ -529,6 +533,9 @@ fe_driver_rx_commit(struct fe_driver_rx *rx)
     }
 }
 
+/*
+ * Dequeue a packet from an Rx ring buffer (kernel ring buffer)
+ */
 static __inline__ int
 fe_kernel_rx_dequeue(struct fe_kernel_ring *ring, struct fe_pkt_buf_hdr **hdr,
                      void **pkt)
@@ -561,6 +568,9 @@ fe_kernel_rx_dequeue(struct fe_kernel_ring *ring, struct fe_pkt_buf_hdr **hdr,
     return len;
 }
 
+/*
+ * Dequeue a packet from an Rx ring buffer
+ */
 static __inline__ int
 fe_driver_rx_dequeue(struct fe_driver_rx *rx, struct fe_pkt_buf_hdr **hdr,
                      void **pkt)
@@ -592,6 +602,9 @@ fe_driver_rx_dequeue(struct fe_driver_rx *rx, struct fe_pkt_buf_hdr **hdr,
     return -1;
 }
 
+/*
+ * Enqueue a data packet to a kernel Tx ring buffer
+ */
 static __inline__ int
 fe_kernel_tx_enqueue(struct fe_kernel_ring *ring, int port, void *pkt,
                      void *hdr, size_t length)
@@ -615,6 +628,9 @@ fe_kernel_tx_enqueue(struct fe_kernel_ring *ring, int port, void *pkt,
     return 1;
 }
 
+/*
+ * Enqueue a command packet to a kernel Tx ring buffer
+ */
 static __inline__ int
 fe_kernel_cmd_enqueue(struct fe_kernel_ring *ring, uint64_t mac, int port)
 {
@@ -640,7 +656,9 @@ fe_kernel_cmd_enqueue(struct fe_kernel_ring *ring, uint64_t mac, int port)
     return 1;
 }
 
-
+/*
+ * Enqueue a packet to a Tx ring buffer
+ */
 static __inline__ int
 fe_driver_tx_enqueue(struct fe_task *t, struct fe_driver_tx *tx, int port,
                      void *pkt, struct fe_pkt_buf_hdr *hdr, size_t length)
@@ -681,6 +699,9 @@ fe_driver_tx_enqueue(struct fe_task *t, struct fe_driver_tx *tx, int port,
     return -1;
 }
 
+/*
+ * Write the tail pointer of a Tx ring buffer
+ */
 static __inline__ void
 fe_driver_tx_commit(struct fe_driver_tx *tx)
 {
