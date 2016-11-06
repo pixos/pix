@@ -38,7 +38,12 @@ entry(int argc, char *argv[])
 {
     int ret;
 
+    /* Initialize libc */
     ret = libc_init();
+    if ( ret < 0 ) {
+        exit(ret);
+        while ( 1 ) {}
+    }
 
     /* Prepare stdio/stdout/stderr */
     stdin = malloc(sizeof(FILE));
