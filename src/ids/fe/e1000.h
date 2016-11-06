@@ -44,6 +44,7 @@
 #define E1000_REG_EERD          0x14
 #define E1000_REG_MDIC          0x20
 #define E1000_REG_ICR           0x00c0
+#define E1000_REG_ITR           0x00c4
 #define E1000_REG_ICS           0x00c8
 #define E1000_REG_IMS           0x00d0
 #define E1000_REG_IMC           0x00d8
@@ -53,6 +54,7 @@
 #define E1000_REG_RDLEN         0x2808
 #define E1000_REG_RDH           0x2810  /* head */
 #define E1000_REG_RDT           0x2818  /* tail */
+#define E1000_REG_RXDCTL        0x2828
 #define E1000_REG_TCTL          0x0400  /* transmit control */
 #define E1000_REG_TDBAL         0x3800
 #define E1000_REG_TDBAH         0x3804
@@ -99,6 +101,7 @@
 #define E1000_TXDCTL_WTHRESH_SHIFT 16
 #define E1000_TXDCTL_LTHRESH_SHIFT 25
 
+#define E1000_82543GC           0x1004
 #define E1000_PRO1000MT         0x100e  /* Intel Pro 1000/MT */
 #define E1000_82545EM           0x100f
 #define E1000_82541PI           0x107c
@@ -174,6 +177,7 @@ struct e1000_device {
     void *mmio;
     uint8_t macaddr[6];
     uint16_t device_id;
+    int pirq;
 };
 
 /*
@@ -193,6 +197,7 @@ e1000_is_e1000(uint16_t vendor_id, uint16_t device_id)
         return 0;
     }
     switch ( device_id ) {
+    case E1000_82543GC:
     case E1000_PRO1000MT:
     case E1000_82545EM:
     case E1000_82541PI:
@@ -302,6 +307,7 @@ e1000_read_mac_address(struct e1000_device *dev)
     switch ( dev->device_id ) {
     case E1000_PRO1000MT:
     case E1000_82545EM:
+    case E1000_82543GC:
         /* Read MAC address */
         m16 = e1000_eeprom_read_8254x(dev->mmio, 0);
         dev->macaddr[0] = m16 & 0xff;
@@ -352,12 +358,11 @@ e1000_read_mac_address(struct e1000_device *dev)
 static __inline__ int
 e1000_init_hw(struct e1000_device *dev)
 {
-    struct timespec tm;
     ssize_t i;
 
     /* Initialize */
 
-    /* Disable interrupts  */
+    /* Disable interrupts */
     wr32(dev->mmio, E1000_REG_IMC, 0xffffffff);
 
     /* Reset the device */
@@ -365,9 +370,10 @@ e1000_init_hw(struct e1000_device *dev)
          rd32(dev->mmio, E1000_REG_CTRL) | E1000_CTRL_RST);
 
     /* Wait 100 us */
-    tm.tv_sec = 0;
-    tm.tv_nsec = 100000;
-    nanosleep(&tm, NULL);
+    busywait(100);
+
+    /* Disable interrupts again */
+    wr32(dev->mmio, E1000_REG_IMC, 0xffffffff);
 
     /* Set link up */
     wr32(dev->mmio, E1000_REG_CTRL,
@@ -376,7 +382,6 @@ e1000_init_hw(struct e1000_device *dev)
     /* Set link mode to direct copper interface */
     wr32(dev->mmio, E1000_REG_CTRL_EXT,
          rd32(dev->mmio, E1000_REG_CTRL_EXT) & ~E1000_CTRL_EXT_LINK_MODE_MASK);
-
 
     /* Link up and enable 802.1Q VLAN */
     wr32(dev->mmio, E1000_REG_CTRL,
@@ -387,10 +392,12 @@ e1000_init_hw(struct e1000_device *dev)
         wr32(dev->mmio, E1000_REG_MTA(i), 0);
     }
 
+    /* Set the interrupt throttling rate (bit [15:0] in 256 ns) */
+    wr32(dev->mmio, E1000_REG_ITR, 4); /* ~1 microsecond */
+
     /* Enable interrupt (REG_IMS <- 0x1f6dc, then read REG_ICR ) */
-    //wr32(dev->mmio, E1000_REG_IMS, 0x908e);
     wr32(dev->mmio, E1000_REG_IMS, 0x1f6dc);
-    //wr32(dev->mmio, E1000_REG_ICS, 0x1f6dc);
+    /* Clear pending interrupts */
     (void)rd32(dev->mmio, E1000_REG_ICR);
 
     return 0;
@@ -457,6 +464,7 @@ e1000_setup_rx_ring(struct e1000_device *dev, struct e1000_rx_ring *rxring,
          E1000_RCTL_SBP | E1000_RCTL_UPE
          | E1000_RCTL_MPE | E1000_RCTL_LPE | E1000_RCTL_BAM
          | E1000_RCTL_BSIZE_8192 | E1000_RCTL_SECRC);
+    wr32(rxring->mmio, E1000_REG_RXDCTL, (1 << 24));
 
     /* Enable this ring */
     wr32(rxring->mmio, E1000_REG_RCTL,

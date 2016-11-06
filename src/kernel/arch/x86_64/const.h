@@ -58,7 +58,7 @@
 #define CPU_DATA_SIZE           0x10000
 #define CPU_STACK_GUARD         0x10
 #define CPU_TSS_SIZE            104 /* sizeof(struct tss) */
-#define CPU_TSS_OFFSET          (0x20 + IDT_NR * 8) /* struct tss */
+#define CPU_TSS_OFFSET          (0x30 + IDT_NR * 8) /* struct tss */
 #define CPU_CUR_TASK_OFFSET     (CPU_TSS_OFFSET + CPU_TSS_SIZE) /* cur_task */
 #define CPU_NEXT_TASK_OFFSET    (CPU_CUR_TASK_OFFSET + 8)      /* next_task */
 #define CPU_IDLE_TASK_OFFSET    (CPU_NEXT_TASK_OFFSET + 8)     /* idle task */

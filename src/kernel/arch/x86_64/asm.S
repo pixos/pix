@@ -97,6 +97,7 @@
 	.globl	_intr_apic_loc_tmr
 	.globl	_intr_apic_loc_tmr_xp
 	.globl	_intr_pixipi
+	.globl	_intr_timesync
 	.globl	_intr_crash
 	.globl	_sys_fork
 	.globl	_sys_task_switch
@@ -1093,7 +1094,7 @@ _intr_apic_loc_tmr_xp:
 	popq	%rax
 	iretq
 
-/* IRQn */
+/* IRQn, including PIRQ */
 	intr_lapic_isr_generic 0x20
 	intr_lapic_isr_generic 0x21
 	intr_lapic_isr_generic 0x22
@@ -1265,6 +1266,50 @@ _intr_apic_loc_tmr_xp:
 _intr_pixipi:
 	intr_lapic_isr 0xe0
 	jmp	_task_restart
+
+/* Time-sync request */
+_intr_timesync:
+	/* Save scratch registers*/
+	pushq	%rax
+	pushq	%rdi
+	pushq	%rsi
+	pushq	%rdx
+	pushq	%rcx
+	pushq	%r8
+	pushq	%r9
+	pushq	%r10
+	pushq	%r11
+	/* Set CR0.TS */
+	movq	%cr0,%rax
+	bts	$3,%rax
+	movq	%rax,%cr0
+	/* rdtsc */
+	call	_rdtsc
+	movq	%rax,%rdi
+	/* Call kernel function for ISR */
+	callq	_isr_timesync
+	clts
+	/* APIC EOI */
+	movq	$MSR_APIC_BASE,%rcx
+	rdmsr			/* Read APIC info to [%edx:%eax]; N.B., higer */
+				/*  32 bits of %rax and %rdx are cleared */
+				/*  bit [35:12]: APIC Base, [11]: EN */
+				/*  [10]: EXTD, and [8]:BSP */
+	shlq	$32,%rdx
+	addq	%rax,%rdx
+	andq	$0xfffffffffffff000,%rdx	/* APIC Base */
+	movl	$0,APIC_EOI(%rdx)	/* EOI */
+	/* Restore scratch registers*/
+	popq	%r11
+	popq	%r10
+	popq	%r9
+	popq	%r8
+	popq	%rcx
+	popq	%rdx
+	popq	%rsi
+	popq	%rdi
+	popq	%rax
+	iretq
 
 /* Crash interrupt */
 _intr_crash:

@@ -330,7 +330,6 @@ kfree(void *ptr)
     int found;
     u64 asz;
     struct kmem_slab *hdr;
-    //struct kmem_slab **hdrp;
     struct kmem_page *page;
     int idx;
 
@@ -366,7 +365,6 @@ kfree(void *ptr)
             if ( hdr->nused <= 0 ) {
                 /* If all the objects in this slab becomes free, move it to the
                    free list */
-                //*hdrp = hdr->next;
                 hdr->next = hdr->free_list->free;
                 hdr->free_list->free = hdr;
             }

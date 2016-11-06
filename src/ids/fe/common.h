@@ -25,12 +25,46 @@
 #define _COMMON_H
 
 #include <stdint.h>
+#include <stdlib.h>
+#include <time.h>
+#include <sys/time.h>
 
+/*
+ * Busy-wait for d_usec microseconds
+ */
+static __inline__ void
+busywait(uint64_t d_usec)
+{
+    struct timeval tv;
+    uint64_t usec0;
+    uint64_t usec;
+
+    /* Get the current time stamp */
+    gettimeofday(&tv, NULL);
+    usec0 = tv.tv_sec * 1000000 + tv.tv_usec;
+
+    /* Loop for d_usec+ microseconds */
+    for ( ;; ) {
+        gettimeofday(&tv, NULL);
+        usec = tv.tv_sec * 1000000 + tv.tv_usec;
+        if ( usec >= usec0 + d_usec ) {
+            break;
+        }
+    }
+}
+
+/*
+ * Read data from a 32-bit register via MMIO
+ */
 static __inline__ uint32_t
 rd32(void *mmio, uint64_t reg)
 {
     return *(volatile uint32_t *)(mmio + reg);
 }
+
+/*
+ * Write data to a 32-bit register via MMIO
+ */
 static __inline__ void
 wr32(void *mmio, uint64_t reg, volatile uint32_t val)
 {

@@ -67,6 +67,7 @@ kinit(void)
     g_syscall_table[SYS_munmap] = sys_munmap;
     g_syscall_table[SYS_lseek] = sys_lseek;
     g_syscall_table[SYS_nanosleep] = sys_nanosleep;
+    g_syscall_table[SYS_gettimeofday] = sys_gettimeofday;
     /* PIX-specific system calls */
     g_syscall_table[SYS_pix_cpu_table] = sys_pix_cpu_table;
     g_syscall_table[SYS_pix_create_job] = sys_pix_create_job;
@@ -199,13 +200,11 @@ kintr_isr(u64 vec)
     case IV_IRQ(13):
     case IV_IRQ(14):
     case IV_IRQ(15):
-        _irq_handler(vec);
-        break;
     case IV_IRQ(16):
     case IV_IRQ(17):
     case IV_IRQ(18):
     case IV_IRQ(19):
-        panic("xxxx");
+        _irq_handler(vec);
         break;
     default:
         ;

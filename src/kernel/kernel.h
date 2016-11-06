@@ -55,6 +55,8 @@
 #define g_timer         g_kvar->timer
 #define g_jiffies       g_kvar->jiffies
 #define g_devfs         g_kvar->devfs
+#define g_boottime      g_kvar->boottime
+#define g_timesync      g_kvar->timesync
 
 #define FLOOR(val, base)        (((val) / (base)) * (base))
 #define CEIL(val, base)         ((((val) - 1) / (base) + 1) * (base))
@@ -110,11 +112,12 @@
 /*
  * Kernel memory
  */
-/* 32 (2^5) -byte is the minimum object size of a slab object */
-#define KMEM_SLAB_BASE_ORDER    5
-/* 8192 (2^(5 + 9 - 1)) byte is the maximum object size of a slab object */
-#define KMEM_SLAB_ORDER         9
-/* 2^16 objects in a cache */
+/* 64 (2^5) -byte is the minimum object size of a slab object to fit the cache
+   line size */
+#define KMEM_SLAB_BASE_ORDER    6
+/* 32768 (2^(6 + 10 - 1)) byte is the maximum object size of a slab object */
+#define KMEM_SLAB_ORDER         10
+/* 2^4 objects in a cache (minimum) */
 #define KMEM_SLAB_NR_OBJ_ORDER  4
 
 #define KMEM_MAX_BUDDY_ORDER    10
@@ -164,6 +167,7 @@
 #define IV_LOC_TMR              0x40
 #define IV_LOC_TMR_XP           0x41 /* Exclusive processor */
 #define IV_PIXIPI               0xe0
+#define IV_TIMESYNC             0xfd
 #define IV_CRASH                0xfe
 #define NR_IV                   0x100
 #define IV_IRQ(n)               (0x20 + (n))
@@ -713,6 +717,16 @@ struct kernel_variables {
     struct ktask_root *ktask_root;
     void *syscall_table[SYS_MAXSYSCALL];
     struct interrupt_handler_table *intr_table;
+    /* Boot-up time */
+    struct {
+        u64 sec;
+        u64 usec;
+    } boottime;
+    /* Global variable to synchronize timer among CPUs */
+    struct {
+        spinlock_t lock;
+        u64 tsc;
+    } timesync;
     /* Timer */
     struct ktimer timer;
     reg_t jiffies;
@@ -815,6 +829,7 @@ void * sys_mmap(void *, size_t, int, int, int, off_t);
 int sys_munmap(void *, size_t);
 off_t sys_lseek(int, off_t, int);
 int sys_nanosleep(const struct timespec *, struct timespec *);
+int sys_gettimeofday(struct timeval *__restrict__, void *__restrict__);
 /* PIX-specific system calls */
 int sys_pix_cpu_table(int, struct syspix_cpu_table *);
 int sys_pix_create_job(int, void *(*)(void *), void *);
@@ -851,6 +866,8 @@ void arch_switch_page_table(struct vmem_space *);
 
 int arch_load_cpu_table(struct syspix_cpu_table *);
 int arch_store_cpu_table(struct syspix_cpu_table *);
+
+u64 arch_usec_since_boot(void);
 
 #endif /* _KERNEL_H */
 

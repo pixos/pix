@@ -297,8 +297,9 @@ struct cpu_data {
     u32 flags;
     u32 cpu_id;
     u64 freq;           /* Frequency */
+    u64 tsc_offset;     /* TSC-offset to the BSP */
     u32 prox_domain;
-    u32 reserved[3];
+    u32 reserved[5];
     u64 stats[IDT_NR];  /* Interrupt counter */
     /* CPU_TSS_OFFSET */
     struct tss tss;
@@ -331,6 +332,7 @@ void lldt(u16);
 void ltr(u16);
 void cli(void);
 void sti(void);
+u64 rdtsc(void);
 void intr_null(void);
 
 void intr_dze(void);
@@ -393,11 +395,10 @@ void intr_driver_0x5d(void);
 void intr_driver_0x5e(void);
 void intr_driver_0x5f(void);
 
-
-
 void intr_apic_loc_tmr(void);
 void intr_apic_loc_tmr_xp(void);
 void intr_pixipi(void);
+void intr_timesync(void);
 void intr_crash(void);
 void task_restart(void);
 void task_replace(void *);

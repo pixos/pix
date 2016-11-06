@@ -1,5 +1,5 @@
 /*_
- * Copyright (c) 2015-2016 Hirochika Asai <asai@jar.jp>
+ * Copyright (c) 2016 Hirochika Asai <asai@jar.jp>
  * All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -21,24 +21,45 @@
  * SOFTWARE.
  */
 
-#ifndef _SYS_TIME_H
-#define _SYS_TIME_H
+#ifndef _SYS_NET_ETHERNET_H
+#define _SYS_NET_ETHERNET_H
 
-#include <sys/types.h>
+#define ETHER_ADDR_LEN          6
+#define ETHER_TYPE_LEN          2
+#define ETHER_CRC_LEN           4
+#define ETHER_HDR_LEN           (ETHER_ADDR_LEN * 2 + ETHER_TYPE_LEN)
+#define ETHER_MIN_LEN           64
+#define ETHER_MAX_LEN           1518
+#define ETHER_MAX_LEN_JUMBO     9018
 
-struct timeval {
-    time_t      tv_sec;         /* seconds since Jan. 1, 1970 */
-    suseconds_t tv_usec;        /* and microseconds */
-};
+#define ETHER_VLAN_ENCAP_LEN    4
 
-struct timezone {
-    int tz_minuteswest; /* of Greenwich */
-    int tz_dsttime;     /* type of dst correction to apply */
-};
+#include <stdint.h>
 
-int gettimeofday(struct timeval *__restrict__ tp, void *__restrict__ tzp);
+/*
+ * Ethernet header
+ */
+struct ether_header {
+    uint8_t     ether_dhost[ETHER_ADDR_LEN];
+    uint8_t     ether_shost[ETHER_ADDR_LEN];
+    uint16_t    ether_type;
+} __attribute__ ((packed));
 
-#endif /* _SYS_TIME_H */
+#define ETHER_IS_MULTICAST(addr) (*(addr) & 0x01) /* Is address mcast/bcast? */
+
+/*
+ * 802.1Q VLAN header.
+ */
+struct ether_vlan_header {
+    uint8_t     evl_dhost[ETHER_ADDR_LEN];
+    uint8_t     evl_shost[ETHER_ADDR_LEN];
+    uint16_t    evl_encap_proto;
+    uint16_t    evl_tag;
+    uint16_t    evl_proto;
+} __attribute__ ((packed));
+
+
+#endif /* _SYS_NET_ETHERNET_H */
 
 /*
  * Local variables:

@@ -6,7 +6,7 @@
 #      Hirochika Asai  <asai@jar.jp>
 #
 
-VERSION = nightly-build-$(shell date +%Y%m%d-%H%M%S)
+VERSION = nightly-build-for-v0.0.1b-$(shell date +%Y%m%d-%H%M%S)
 
 all:
 	@echo "make all is not currently supported."
@@ -16,17 +16,15 @@ initrd:
 #	Compile programs
 	VERSION=${VERSION} make -C src init
 	VERSION=${VERSION} make -C src pm
-	VERSION=${VERSION} make -C src fs
 	VERSION=${VERSION} make -C src tty
 	VERSION=${VERSION} make -C src pash
 	VERSION=${VERSION} make -C src pci
 	VERSION=${VERSION} make -C src fe
-	VERSION=${VERSION} make -C src vmx
 
 #       Create an image
-	@./create_initrd.sh init:/servers/init pm:/servers/pm fs:/servers/fs \
+	@./create_initrd.sh init:/servers/init pm:/servers/pm \
 		tty:/drivers/tty pash:/bin/pash pci:/drivers/pci \
-		fe:/ids/fe vmx:/drivers/vmx
+		fe:/ids/fe
 
 ## Compile boot loader
 bootloader:

@@ -30,15 +30,9 @@
 #include <sys/mman.h>
 #include <sys/pix.h>
 #include <time.h>
+#include <sys/net/ethernet.h>
 #include "pci.h"
 #include "fe.h"
-
-/* Ethernet header */
-struct ethhdr {
-    uint8_t dst[6];
-    uint8_t src[6];
-    uint16_t type;
-} __attribute__ ((packed));
 
 unsigned long long syscall(int, ...);
 
@@ -48,24 +42,14 @@ unsigned long long syscall(int, ...);
 static __inline__ int
 popcnt(uint64_t x)
 {
-    x = x - ((x>>1) & 0x5555555555555555ULL);
-    x = (x & 0x3333333333333333ULL) + ((x>>2) & 0x3333333333333333ULL);
-    x = (x + (x>>4)) & 0x0f0f0f0f0f0f0f0fULL;
-    x = x + (x>>8);
-    x = x + (x>>16);
-    x = x + (x>>32);
+    x = x - ((x >> 1) & 0x5555555555555555ULL);
+    x = (x & 0x3333333333333333ULL) + ((x >> 2) & 0x3333333333333333ULL);
+    x = (x + (x >> 4)) & 0x0f0f0f0f0f0f0f0fULL;
+    x = x + (x >> 8);
+    x = x + (x >> 16);
+    x = x + (x >> 32);
 
     return x & 0x7f;
-}
-
-
-/*
- * Is multicast MAC address?
- */
-static __inline__ int
-_is_muticast(uint8_t *addr)
-{
-    return addr[0] & 1;
 }
 
 /*
@@ -75,15 +59,15 @@ static int
 fe_fpp_forwarding(struct fe_task *t, int port, struct fe_pkt_buf_hdr *hdr,
                   void *pkt, int len)
 {
-    struct ethhdr *eth;
+    struct ether_header *eth;
     uint8_t key[FDB_KEY_SIZE];
     struct fdb_entry *e;
     ssize_t i;
     uint64_t mac;
 
-    eth = (struct ethhdr *)pkt;
+    eth = (struct ether_header *)pkt;
 
-    memcpy(key, eth->dst, 6);
+    memcpy(key, eth->ether_dhost, 6);
     memset(key + 6, 0, 2);
     e = fdb_lookup(t->fe->fdb, key);
     if ( NULL == e ) {
@@ -109,10 +93,10 @@ fe_fpp_forwarding(struct fe_task *t, int port, struct fe_pkt_buf_hdr *hdr,
     }
 
     /* Check the source address to update FDB */
-    if ( !_is_muticast(eth->src) ) {
+    if ( !ETHER_IS_MULTICAST(eth->ether_shost) ) {
         /* Unicast, then update the corresonding fdb entry */
         mac = 0;
-        memcpy(&mac, eth->src, 6);
+        memcpy(&mac, eth->ether_shost, 6);
         fe_kernel_cmd_enqueue(t->ktx, mac, port);
     }
 
@@ -270,6 +254,7 @@ _init_device(struct pci_dev_conf *conf)
         dev.driver = FE_DRIVER_E1000;
         dev.u.e1000
             = e1000_init(conf->device_id, conf->bus, conf->slot, conf->func);
+        dev.u.e1000->pirq = (((conf->intr_pin -1) + conf->slot) % 4) + 0x10;
         e1000_init_hw(dev.u.e1000);
         e1000_setup_rx(dev.u.e1000);
         e1000_setup_tx(dev.u.e1000);
