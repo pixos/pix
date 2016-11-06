@@ -352,7 +352,6 @@ e1000_read_mac_address(struct e1000_device *dev)
 static __inline__ int
 e1000_init_hw(struct e1000_device *dev)
 {
-    struct timespec tm;
     ssize_t i;
 
     /* Initialize */
@@ -365,9 +364,7 @@ e1000_init_hw(struct e1000_device *dev)
          rd32(dev->mmio, E1000_REG_CTRL) | E1000_CTRL_RST);
 
     /* Wait 100 us */
-    tm.tv_sec = 0;
-    tm.tv_nsec = 100000;
-    nanosleep(&tm, NULL);
+    busywait(100);
 
     /* Set link up */
     wr32(dev->mmio, E1000_REG_CTRL,

@@ -1,5 +1,5 @@
 /*_
- * Copyright (c) 2015-2016 Hirochika Asai <asai@jar.jp>
+ * Copyright (c) 2016 Hirochika Asai <asai@jar.jp>
  * All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -21,24 +21,21 @@
  * SOFTWARE.
  */
 
-#ifndef _SYS_TIME_H
-#define _SYS_TIME_H
+#ifndef _KERNEL_CMOS_H
+#define _KERNEL_CMOS_H
 
-#include <sys/types.h>
+#include <aos/const.h>
+#include <aos/types.h>
+#include "const.h"
+#include "../../kernel.h"
 
-struct timeval {
-    time_t      tv_sec;         /* seconds since Jan. 1, 1970 */
-    suseconds_t tv_usec;        /* and microseconds */
-};
+#define MIN_YEAR        2016
+#define CMOS_ADDR       0x70
+#define CMOS_DATA       0x71
 
-struct timezone {
-    int tz_minuteswest; /* of Greenwich */
-    int tz_dsttime;     /* type of dst correction to apply */
-};
+u64 cmos_rtc_read_datetime(u8);
 
-int gettimeofday(struct timeval *__restrict__ tp, void *__restrict__ tzp);
-
-#endif /* _SYS_TIME_H */
+#endif /* _KERNEL_CMOS_H */
 
 /*
  * Local variables:

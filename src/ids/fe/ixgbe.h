@@ -343,7 +343,6 @@ static __inline__ int
 ixgbe_init_hw(struct ixgbe_device *dev)
 {
     ssize_t i;
-    struct timespec tm;
     uint32_t m32;
 
     /* Initialization sequence: S4.6.3 */
@@ -374,17 +373,13 @@ ixgbe_init_hw(struct ixgbe_device *dev)
          rd32(dev->mmio, IXGBE_REG_RXCTL) & ~IXGBE_RXCTL_RXEN);
     (void)rd32(dev->mmio, IXGBE_REG_STATUS);
     /* Sleep 2 ms */
-    tm.tv_sec = 0;
-    tm.tv_nsec = 2000000;
-    nanosleep(&tm, NULL);
+    busywait(2000);
     wr32(dev->mmio, IXGBE_REG_HLREG0,
          rd32(dev->mmio, IXGBE_REG_HLREG0) | (1 << 15)); /* LPBK */
     wr32(dev->mmio, IXGBE_REG_GCR_EXT,     /* Buffers_Clear_Func */
          rd32(dev->mmio, IXGBE_REG_GCR_EXT) | (1 << 30));
     /* Sleep 20 us */
-    tm.tv_sec = 0;
-    tm.tv_nsec = 20000;
-    nanosleep(&tm, NULL);
+    busywait(20);
     wr32(dev->mmio, IXGBE_REG_HLREG0,
          rd32(dev->mmio, IXGBE_REG_HLREG0) & ~(1 << 15));
     wr32(dev->mmio, IXGBE_REG_GCR_EXT,
@@ -400,9 +395,7 @@ ixgbe_init_hw(struct ixgbe_device *dev)
          rd32(dev->mmio, IXGBE_REG_CTRL) | IXGBE_CTRL_PCIE_MASTER_DISABLE);
     for ( i = 0; i < 128; i++ ) {
         /* Sleep 1 ms */
-        tm.tv_sec = 0;
-        tm.tv_nsec = 1000000;
-        nanosleep(&tm, NULL);
+        busywait(1000);
         m32 = rd32(dev->mmio, IXGBE_REG_STATUS);
         if ( !(m32 & IXGBE_STATUS_PCIE_MASTER_ENABLE) ) {
             break;
@@ -418,9 +411,7 @@ ixgbe_init_hw(struct ixgbe_device *dev)
          rd32(dev->mmio, IXGBE_REG_CTRL) | IXGBE_CTRL_RST);
     for ( i = 0; i < 128; i++ ) {
         /* Sleep 1 ms */
-        tm.tv_sec = 0;
-        tm.tv_nsec = 1000000;
-        nanosleep(&tm, NULL);
+        busywait(1000);
         m32 = rd32(dev->mmio, IXGBE_REG_CTRL);
         if ( !(m32 & IXGBE_CTRL_RST) ) {
             break;
@@ -436,16 +427,12 @@ ixgbe_init_hw(struct ixgbe_device *dev)
          rd32(dev->mmio, IXGBE_REG_CTRL_EXT) | (1 << 14));
 
     /* Sleep 50 ms */
-    tm.tv_sec = 0;
-    tm.tv_nsec = 50000000;
-    nanosleep(&tm, NULL);
+    busywait(50000);
 
     /* 3. Wait for EEPROM auto read completion */
     for ( i = 0; i < 1024; i++ ) {
         /* Sleep 10 us */
-        tm.tv_sec = 0;
-        tm.tv_nsec = 10000;
-        nanosleep(&tm, NULL);
+        busywait(10);
 
         m32 = rd32(dev->mmio, IXGBE_REG_EEC);
         if ( m32 & IXGBE_EEC_AUTO_RD ) {
@@ -461,9 +448,7 @@ ixgbe_init_hw(struct ixgbe_device *dev)
     /* 4. Wait for DMA initialization done (RDRXCTL.DMAIDONE) */
     for ( i = 0; i < 1024; i++ ) {
         /* Sleep 10 us */
-        tm.tv_sec = 0;
-        tm.tv_nsec = 10000;
-        nanosleep(&tm, NULL);
+        busywait(10);
 
         m32 = rd32(dev->mmio, IXGBE_REG_RDRXCTL);
         if ( m32 & IXGBE_RDRXCTL_DMAIDONE ) {
@@ -572,7 +557,6 @@ ixgbe_setup_rx_ring(struct ixgbe_device *dev, struct ixgbe_rx_ring *rxring,
     ssize_t i;
     uint32_t m32;
     uint64_t m64;
-    struct timespec tm;
 
     /* Check the queue index first */
     if ( 0 != idx ) {
@@ -616,9 +600,7 @@ ixgbe_setup_rx_ring(struct ixgbe_device *dev, struct ixgbe_rx_ring *rxring,
     wr32(rxring->mmio, IXGBE_REG_RXDCTL(rxring->idx),
          IXGBE_RXDCTL_ENABLE/* | IXGBE_RXDCTL_VME*/);
     for ( i = 0; i < 10; i++ ) {
-        tm.tv_sec = 0;
-        tm.tv_nsec = 1000;
-        nanosleep(&tm, NULL);
+        busywait(1);
         m32 = rd32(rxring->mmio, IXGBE_REG_RXDCTL(rxring->idx));
         if ( m32 & IXGBE_RXDCTL_ENABLE ) {
             break;
@@ -731,7 +713,6 @@ ixgbe_setup_tx_ring(struct ixgbe_device *dev, struct ixgbe_tx_ring *txring,
     ssize_t i;
     uint32_t m32;
     uint64_t m64;
-    struct timespec tm;
 
     /* Check the queue index first */
     if ( idx >= 128 ) {
@@ -783,9 +764,7 @@ ixgbe_setup_tx_ring(struct ixgbe_device *dev, struct ixgbe_tx_ring *txring,
          | (8 << 8) /* HTHRESH */
          | (16) /* PTHRESH */);
     for ( i = 0; i < 10; i++ ) {
-        tm.tv_sec = 0;
-        tm.tv_nsec = 1000;
-        nanosleep(&tm, NULL);
+        busywait(1);
         m32 = rd32(txring->mmio, IXGBE_REG_TXDCTL(txring->idx));
         if ( m32 & IXGBE_TXDCTL_ENABLE ) {
             break;
