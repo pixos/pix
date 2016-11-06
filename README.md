@@ -22,6 +22,7 @@ Intel's SandyBridge or later CPUs
 * Intel Pro 1000/MT Desktop (82540EM)
 * Intel Pro 1000/MT Server (82545EM)
 * Intel 82541PI
+* Intel 82543GC
 * Intel 82573L
 * Intel 82567LM
 * Intel 82577LM

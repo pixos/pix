@@ -285,10 +285,10 @@ bsp_init(void)
     for ( i = 0; i < 16; i++ ) {
         ioapic_map_intr(IV_IRQ(i), i, arch_acpi.acpi_ioapic_base); /* IRQn */
     }
-    ioapic_map_intr_route(IV_IRQ(16), 1, 16, arch_acpi.acpi_ioapic_base);
-    ioapic_map_intr_route(IV_IRQ(17), 1, 17, arch_acpi.acpi_ioapic_base);
-    ioapic_map_intr_route(IV_IRQ(18), 1, 18, arch_acpi.acpi_ioapic_base);
-    ioapic_map_intr_route(IV_IRQ(19), 1, 19, arch_acpi.acpi_ioapic_base);
+    /* PIRQ; route these interrupts to the bootstrap processor */
+    for ( i = 16; i < 20; i++ ) {
+        ioapic_map_intr_route(IV_IRQ(i), 0, i, arch_acpi.acpi_ioapic_base);
+    }
 
     /* Get the proximity domain */
     prox = acpi_lapic_prox_domain(&arch_acpi, lapic_id());

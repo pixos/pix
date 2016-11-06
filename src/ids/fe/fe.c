@@ -270,6 +270,7 @@ _init_device(struct pci_dev_conf *conf)
         dev.driver = FE_DRIVER_E1000;
         dev.u.e1000
             = e1000_init(conf->device_id, conf->bus, conf->slot, conf->func);
+        dev.u.e1000->pirq = (((conf->intr_pin -1) + conf->slot) % 4) + 0x10;
         e1000_init_hw(dev.u.e1000);
         e1000_setup_rx(dev.u.e1000);
         e1000_setup_tx(dev.u.e1000);
