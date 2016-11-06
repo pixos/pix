@@ -518,6 +518,13 @@ vsnprintf(char *__restrict__ str, size_t size,
 {
     struct strfmt_format strfmt;
     off_t pos;
+    char *tmpstr;
+
+    /* Allocate memory to store the resulting string from the stack */
+    tmpstr = alloca(size);
+    if ( NULL == tmpstr ) {
+        return -1;
+    }
 
     /* Look through the format string until its end */
     pos = 0;
@@ -526,14 +533,14 @@ vsnprintf(char *__restrict__ str, size_t size,
             /* % character  */
             _parse_format(&format, &strfmt);
             if ( (off_t)size > pos ) {
-                pos += _output(str + pos, size - pos, &strfmt, ap);
+                pos += _output(tmpstr + pos, size - pos, &strfmt, ap);
             } else {
                 pos += _output(NULL, 0, &strfmt, ap);
             }
         } else {
             /* Ordinary character */
             if ( (size_t)pos + 1 < size ) {
-                str[pos] = *format;
+                tmpstr[pos] = *format;
             }
             format++;
             pos++;
@@ -542,9 +549,12 @@ vsnprintf(char *__restrict__ str, size_t size,
 
     /* Insert a trailing '\0' */
     if ( (size_t)pos + 1 < size ) {
-        str[pos] = '\0';
+        tmpstr[pos] = '\0';
     }
-    str[size - 1] = '\0';
+    tmpstr[size - 1] = '\0';
+
+    /* Copy the contents of the temporary buffer to the result */
+    memcpy(str, tmpstr, size);
 
     return (int)pos;
 }
