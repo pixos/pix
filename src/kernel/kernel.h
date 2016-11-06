@@ -117,7 +117,7 @@
 #define KMEM_SLAB_BASE_ORDER    6
 /* 32768 (2^(6 + 10 - 1)) byte is the maximum object size of a slab object */
 #define KMEM_SLAB_ORDER         10
-/* 2^16 objects in a cache */
+/* 2^4 objects in a cache (minimum) */
 #define KMEM_SLAB_NR_OBJ_ORDER  4
 
 #define KMEM_MAX_BUDDY_ORDER    10
