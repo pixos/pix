@@ -64,7 +64,7 @@ sys_exit(int status)
     /* Get the current process */
     t = this_ktask();
     if ( NULL == t || NULL == t->proc ) {
-        panic("FIXME: Invalid task calls sys_exit()");
+        panic("An invalid task/process called sys_exit().");
         return;
     }
     proc = t->proc;
@@ -136,6 +136,9 @@ sys_fork_c(u64 *task, u64 *ret0, u64 *ret1)
     g_proc_table->procs[pid] = np;
     g_proc_table->lastpid = pid;
 
+    /* Set the pointer to the parent process */
+    np->parent = this_ktask()->proc;
+
     /* Kernel task (running) */
     l->ktask = nt;
     l->next = NULL;
@@ -197,11 +200,7 @@ sys_read(int fildes, void *buf, size_t nbyte)
         return -1;
     }
 
-    if ( NULL != proc->fds[fildes] ) {
-        return proc->fds[fildes]->read(proc->fds[fildes], buf, nbyte);
-    }
-
-    return -1;
+    return proc->fds[fildes]->read(proc->fds[fildes], buf, nbyte);
 }
 
 /*
@@ -246,11 +245,7 @@ sys_write(int fildes, const void *buf, size_t nbyte)
         return -1;
     }
 
-    if ( NULL != proc->fds[fildes] ) {
-        return proc->fds[fildes]->write(proc->fds[fildes], buf, nbyte);
-    }
-
-    return -1;
+    return proc->fds[fildes]->write(proc->fds[fildes], buf, nbyte);
 }
 
 /*
