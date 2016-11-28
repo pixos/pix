@@ -46,25 +46,23 @@ entry(int argc, char *argv[])
     }
 
     /* Prepare stdio/stdout/stderr */
-    stdin = malloc(sizeof(FILE));
+    stdin = fdopen(STDIN_FILENO, "r");
     if ( NULL == stdin ) {
         exit(EXIT_FAILURE);
     }
-    stdin->fd = STDIN_FILENO;
-    stdout = malloc(sizeof(FILE));
+    stdout = fdopen(STDOUT_FILENO, "a");
     if ( NULL == stdout ) {
-        free(stdin);
+        fclose(stdin);
         exit(EXIT_FAILURE);
     }
-    stdout->fd = STDOUT_FILENO;
-    stderr = malloc(sizeof(FILE));
+    stderr = fdopen(STDERR_FILENO, "a");
     if ( NULL == stderr ) {
-        free(stdin);
-        free(stdout);
+        fclose(stdin);
+        fclose(stdout);
         exit(EXIT_FAILURE);
     }
-    stderr->fd = STDERR_FILENO;
 
+    /* Execute the main routine */
     ret = main(argc, argv);
     exit(ret);
 
