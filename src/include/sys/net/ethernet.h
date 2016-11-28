@@ -1,5 +1,5 @@
 /*_
- * Copyright (c) 2015-2016 Hirochika Asai <asai@jar.jp>
+ * Copyright (c) 2016 Hirochika Asai <asai@jar.jp>
  * All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -21,58 +21,45 @@
  * SOFTWARE.
  */
 
-#ifndef _STDIO_H
-#define _STDIO_H
+#ifndef _SYS_NET_ETHERNET_H
+#define _SYS_NET_ETHERNET_H
 
-#include <aos/types.h>
+#define ETHER_ADDR_LEN          6
+#define ETHER_TYPE_LEN          2
+#define ETHER_CRC_LEN           4
+#define ETHER_HDR_LEN           (ETHER_ADDR_LEN * 2 + ETHER_TYPE_LEN)
+#define ETHER_MIN_LEN           64
+#define ETHER_MAX_LEN           1518
+#define ETHER_MAX_LEN_JUMBO     9018
 
-#define EOF     -1
+#define ETHER_VLAN_ENCAP_LEN    4
 
-typedef struct {
-    /* File descriptor */
-    int fd;
-    /* Mode */
-    int mode;
-    /* Stream buffer */
-    struct {
-        char *buf;
-        size_t pos;
-        size_t sz;
-    } ibuf;
-    struct {
-        char *buf;
-        size_t pos;
-        size_t sz;
-    } obuf;
-    /* EOF */
-    int eof;
-    /* Error */
-    int error;
-} FILE;
+#include <stdint.h>
 
-extern FILE *stdin;
-extern FILE *stdout;
-extern FILE *stderr;
+/*
+ * Ethernet header
+ */
+struct ether_header {
+    uint8_t     ether_dhost[ETHER_ADDR_LEN];
+    uint8_t     ether_shost[ETHER_ADDR_LEN];
+    uint16_t    ether_type;
+} __attribute__ ((packed));
 
-int snprintf(char *__restrict__, size_t, const char *__restrict__, ...);
-int fprintf(FILE * __restrict__, const char * __restrict__, ...);
-int printf(const char * __restrict__, ...);
+#define ETHER_IS_MULTICAST(addr) (*(addr) & 0x01) /* Is address mcast/bcast? */
 
-FILE * fdopen(int, const char *);
-int fclose(FILE *);
-int ferror(FILE *);
-void clearerr(FILE *);
-char * fgets(char * __restrict__, int size, FILE * __restrict__);
-int fgetc(FILE *);
-int getc(FILE *);
-int getchar(void);
-size_t fwrite(const void *__restrict__, size_t, size_t, FILE *__restrict__);
-int fputs(const char *__restrict__, FILE *__restrict__);
-int fputc(int, FILE *);
-int putc(int, FILE *);
-int putchar(int);
+/*
+ * 802.1Q VLAN header.
+ */
+struct ether_vlan_header {
+    uint8_t     evl_dhost[ETHER_ADDR_LEN];
+    uint8_t     evl_shost[ETHER_ADDR_LEN];
+    uint16_t    evl_encap_proto;
+    uint16_t    evl_tag;
+    uint16_t    evl_proto;
+} __attribute__ ((packed));
 
-#endif /* _STDIO_H */
+
+#endif /* _SYS_NET_ETHERNET_H */
 
 /*
  * Local variables:
