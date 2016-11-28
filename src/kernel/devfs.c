@@ -51,7 +51,7 @@ devfs_read(struct fildes *fildes, void *buf, size_t nbyte)
     switch ( ent->type ) {
     case DEVFS_CHAR:
         /* Character device */
-        if ( 0 == driver_chr_ibuf_length(ent->mapped) ) {
+        while ( 0 == driver_chr_ibuf_length(ent->mapped) ) {
             /* Empty buffer, then add this task to the blocking task list for
                this file descriptor and switch to another task */
             tle = kmalloc(sizeof(struct ktask_list_entry));
