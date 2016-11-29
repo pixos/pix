@@ -60,6 +60,7 @@ static __inline__ uint32_t
 rd32(void *mmio, uint64_t reg)
 {
     return *(volatile uint32_t *)(mmio + reg);
+    __sync_synchronize();
 }
 
 /*
@@ -68,6 +69,7 @@ rd32(void *mmio, uint64_t reg)
 static __inline__ void
 wr32(void *mmio, uint64_t reg, volatile uint32_t val)
 {
+    __sync_synchronize();
     *(volatile uint32_t *)(mmio + reg) = val;
 }
 

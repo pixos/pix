@@ -34,6 +34,9 @@
 
 unsigned long long syscall(int, ...);
 
+/*
+ * Display the list of CPUs
+ */
 static void
 show_cpu(void)
 {

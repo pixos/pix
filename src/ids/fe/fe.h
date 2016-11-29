@@ -24,6 +24,7 @@
 #ifndef _FE_H
 #define _FE_H
 
+#include <sys/pix.h>
 #include "e1000.h"
 #include "e1000e.h"
 #include "igb.h"
@@ -35,7 +36,7 @@
 
 #define FE_PKTSZ                (10240 + 128)
 #define FE_PKT_HDROFF           512
-#define FE_BUFFER_POOL_SIZE     8192
+#define FE_BUFFER_POOL_SIZE     4096
 
 #define FE_QLEN                 512
 
@@ -50,6 +51,7 @@ enum fe_driver_type {
     FE_DRIVER_KERNEL,
     FE_DRIVER_E1000,
     FE_DRIVER_IXGBE,
+    FE_DRIVER_I40E,
 };
 
 /*

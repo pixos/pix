@@ -92,6 +92,7 @@ kpack: kernel/arch/$(ARCH)/asm.o \
 ## libc
 LIBCOBJS=lib/arch/$(ARCH)/libc.o lib/arch/$(ARCH)/libcasm.o lib/stdio/fio.o \
 	lib/stdio/print.o lib/string/str.o
+LIBPIXOBJS=lib/pix/libpix.o
 lib/arch/$(ARCH)/libc.o: lib/crt0.o
 
 ## init server
@@ -103,7 +104,7 @@ pm: servers/pm/pm.o $(LIBCOBJS)
 	$(LD) -T app.ld -o $@ $^
 
 ## forwarding engine
-fe: ids/fe/fe.o ids/fe/pci.o $(LIBCOBJS) lib/driver.o
+fe: ids/fe/fe.o ids/fe/i40e.o ids/fe/pci.o $(LIBCOBJS) $(LIBPIXOBJS) lib/driver.o
 	$(LD) -T app.ld -o $@ $^
 	$(LD) -T appdebug.ld -o $@.dbg $^
 
