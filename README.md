@@ -10,6 +10,7 @@ routing, VPN, and Layer 2-4 filtering (firewall) will be supported soon.
 ## Images
 | Version  | Release Date  | Image      |
 | :------- | :------------ | :--------- |
+| 0.0.1    | Dec. 6, 2016  | [pix-v0.0.1.img](https://pix.jar.jp/images/pix-v0.0.1.img "pix-v0.0.1.img") |
 | 0.0.1rc1 | Nov. 28, 2016 | [pix-v0.0.1rc1.img](https://pix.jar.jp/images/pix-v0.0.1rc1.img "pix-v0.0.1rc1.img") |
 | 0.0.1b   | Nov. 6, 2016  | [pix-v0.0.1b.img](https://pix.jar.jp/images/pix-v0.0.1b.img "pix-v0.0.1b.img") |
 | 0.0.1a   | Oct. 31, 2016 | [pix-v0.0.1a.img](https://pix.jar.jp/images/pix-v0.0.1a.img "pix-v0.0.1a.img") |
