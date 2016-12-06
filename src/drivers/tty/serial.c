@@ -118,12 +118,34 @@ serial_init(struct serial *serial, int nr, const char *ttyname)
 }
 
 /*
+ * Is the tx buffer empty?
+ */
+static int
+_is_tx_empty(struct serial *serial)
+{
+    struct sysarch_io io;
+
+    io.port = serial->port + 5;
+    sysarch(SYSARCH_INB, &io);
+
+    if ( io.data & 0x20 ) {
+        return 1;
+    } else {
+        return 0;
+    }
+}
+
+/*
  * Put a character to serial console
  */
 static int
 _serial_putc(struct serial *serial, int c)
 {
     struct sysarch_io io;
+
+    /* Wait until the Tx buffer becomes empty */
+    while ( 0 == _is_tx_empty(serial) ) {
+    }
 
     io.port = serial->port;
     io.data = c;
