@@ -41,7 +41,7 @@ pix does not have an installer program.  You can install pix onto your disk
 In BSD/Linux operation systems, you can use ```dd``` command.
 
 ```
-# dd if=pix-v0.0.1rc1.img of=/path/to/target/disk bs=4096
+# dd if=pix-v0.0.1.img of=/path/to/target/disk bs=4096
 ```
 
 ## Developer
