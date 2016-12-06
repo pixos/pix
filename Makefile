@@ -6,7 +6,7 @@
 #      Hirochika Asai  <asai@jar.jp>
 #
 
-VERSION = v0.0.1rc1
+VERSION = v0.0.1
 
 all:
 	@echo "make all is not currently supported."
