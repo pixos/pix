@@ -500,6 +500,12 @@ _output_string(char *str, size_t size, struct strfmt_format *strfmt, va_list ap)
         pos++;
     }
 
+    for ( ; pos < strfmt->prec; pos++ ) {
+        if ( (size_t)pos + 1 < size ) {
+            str[pos] = ' ';
+        }
+    }
+
     return pos;
 }
 
