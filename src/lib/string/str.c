@@ -223,6 +223,71 @@ strncmp(const char *s1, const char *s2, size_t n)
 }
 
 /*
+ * Locate character in string
+ *
+ * SYNOPSIS
+ *      char *
+ *      strchr(const char *s, int c);
+ *
+ * DESCRIPTION
+ *      The strchr() function locates the first occurrence of c (converted to a
+ *      char) in the string pointed to by s.  The terminating null character is
+ *      considered to be part of the string; therefore if c is '\0', the
+ *      function locates the terminating '\0'.
+ *
+ * RETURN VALUES
+ *      The strchr() function returns a pointer to the located character, or
+ *      NULL if the character does not appear in the string.
+ *
+ */
+char *
+strchr(const char *s, int c)
+{
+    while ( '\0' != *s ) {
+        if ( c == *s ) {
+            return (char *)s;
+        }
+        s++;
+    }
+
+    return NULL;
+}
+
+/*
+ * Locate character in string
+ *
+ * SYNOPSIS
+ *      char *
+ *      strrchr(const char *s, int c);
+ *
+ * DESCRIPTION
+ *      The strrchr() function locates the last occurrence of c (converted to a
+ *      char) in the string pointed to by s.  The terminating null character is
+ *      considered to be part of the string; therefore if c is '\0', the
+ *      function locates the terminating '\0'.
+ *
+ * RETURN VALUES
+ *      The strrchr() function returns a pointer to the located character, or
+ *      NULL if the character does not appear in the string.
+ *
+ */
+char *
+strrchr(const char *s, int c)
+{
+    char *r;
+
+    r = NULL;
+    while ( '\0' != *s ) {
+        if ( c == *s ) {
+            r = (char *)s;
+        }
+        s++;
+    }
+
+    return r;
+}
+
+/*
  * Local variables:
  * tab-width: 4
  * c-basic-offset: 4
