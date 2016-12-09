@@ -346,6 +346,57 @@ strtok(char *__restrict__ str, const char *__restrict__ sep)
 }
 
 /*
+ * Separate strings
+ *
+ * SYNOPSIS
+ *      char *
+ *      strsep(char **stringp, const char *delim);
+ *
+ * DESCRIPTION
+ *      The strsep() function locates, in the string referenced by *stringp, the
+ *      first occurence of any character in the string delim (or the terminating
+ *      '\0' character) and replaces it with a '\0'.  The location of the next
+ *      character after the delimiter character (or NULL, if the end of the
+ *      string was reached) is stored in *stringp.
+ *
+ * RETURN VALUES
+ *      The strsep() returns the original value of *stringp.  If *stringp is
+ *      initially NULL, it returns NULL.
+ */
+char *
+strsep(char **stringp, const char *delim)
+{
+    const char *sep;
+    char *r;
+
+    /* Return NULL if the first argument is NULL. */
+    if ( NULL == *stringp ) {
+        return NULL;
+    }
+
+    /* Save the original value of *stringp */
+    r = *stringp;
+    while ( '\0' != **stringp ) {
+        /* Seek separator characters */
+        sep = delim;
+        while ( '\0' != *sep ) {
+            if ( **stringp == *sep ) {
+                /* Match a separator character */
+                **stringp = '\0';
+                (*stringp)++;
+                return r;
+            }
+            sep++;
+        }
+        (*stringp)++;
+    }
+
+    /* Reached at the end of the string */
+    *stringp = NULL;
+    return r;
+}
+
+/*
  * Save a copy of a string
  *
  * SYNOPSIS
