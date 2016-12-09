@@ -288,6 +288,95 @@ strrchr(const char *s, int c)
 }
 
 /*
+ * Tokenize string
+ *
+ * SYNOPSIS
+ *      char *
+ *      strtok(char *__restrict__ str, const char *__restrict__ sep);
+ *
+ * DESCRIPTION
+ *      The strtok() function is used to isolate sequential tokens in a
+ *      null-terminated string, str.  These tokens are separated in the string
+ *      by at least one of the characters in sep.  The first time that strtok()
+ *      is called, str should be specified; subsequent calls, wishing to obtain
+ *      further tokens from the same string, should pass a null pointer instead.
+ *      The separator string, sep, must be supplied each time, and may change
+ *      between calls.
+ *
+ * RETURN VALUES
+ *      The strtok() function returns a pointer to the beginning of each
+ *      subsequent token in the string, after replacing the token itself with a
+ *      NULL character.  When no more tokens remain, a null pointer is returned.
+ */
+char *
+strtok(char *__restrict__ str, const char *__restrict__ sep)
+{
+    static char *s = "";
+    const char *fsep;
+    char *r;
+
+    /* The first argument is specified. */
+    if ( NULL != str ) {
+        s = str;
+    }
+
+    /* No more tokens remain */
+    if ( '\0' == *s ) {
+        return NULL;
+    }
+
+    r = s;
+    while ( '\0' != *s ) {
+        /* Seek separator characters */
+        fsep = sep;
+        while ( '\0' != *fsep ) {
+            if ( *s == *fsep ) {
+                /* Match a separator character */
+                *s = '\0';
+                s++;
+                return r;
+            }
+            fsep++;
+        }
+        s++;
+    }
+
+    /* Reached at the end of the string */
+    return r;
+}
+
+/*
+ * Save a copy of a string
+ *
+ * SYNOPSIS
+ *      char *
+ *      strdup(const char *s1);
+ *
+ * DESCRIPTION
+ *      The strdup() function allocates sufficient memory for a copy of the
+ *      string s1, does the copy, and returns a pointer to it.
+ *
+ * RETURN VALUES
+ *      The strdup() function returns a pointer to the copy of a string.  If
+ *      insufficient memory is available, NULL is returned.
+ */
+char *
+strdup(const char *s1)
+{
+    ssize_t sz;
+    char *s;
+
+    sz = strlen(s1);
+    s = malloc(sz + 1);
+    if ( NULL == s ) {
+        return NULL;
+    }
+    memcpy(s, s1, sz + 1);
+
+    return s;
+}
+
+/*
  * Local variables:
  * tab-width: 4
  * c-basic-offset: 4
