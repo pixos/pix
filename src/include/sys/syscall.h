@@ -50,6 +50,7 @@
 //#define SYS_pipe          42
 #define SYS_getgid          47
 #define SYS_ioctl           54
+#define SYS_reboot          55
 #define SYS_execve          59
 //#define SYS_umask         60
 //#define SYS_chroot        61
@@ -60,6 +61,7 @@
 #define SYS_gettimeofday    116
 #define SYS_settimeofday    122
 //#define SYS_rename        128
+//#define SYS_shutdown        134
 //#define SYS_mkdir         136
 //#define SYS_rmdir         137
 //#define SYS_setsid        147

@@ -32,6 +32,11 @@ size_t strlcpy(char *__restrict__, const char *__restrict__, size_t);
 char * strcpy(char *, const char *);
 int strcmp(const char *, const char *);
 int strncmp(const char *, const char *, size_t);
+char * strchr(const char *, int);
+char * strrchr(const char *, int);
+char * strtok(char *__restrict__, const char *__restrict__);
+char * strsep(char **, const char *);
+char * strdup(const char *);
 
 void * memset(void *, int, size_t);
 void * memcpy(void *__restrict, const void *__restrict, size_t);

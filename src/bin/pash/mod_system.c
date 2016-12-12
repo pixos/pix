@@ -22,53 +22,64 @@
  */
 
 #include <stdio.h>
-#include <stdlib.h>
-#include <unistd.h>
+#include <string.h>
+#include <sys/reboot.h>
+#include "pash.h"
 
-#if !defined(TEST) || !TEST
-int main(int argc, char *argv[]);
+int
+pash_module_system_help(struct pash *pash, char *args[])
+{
+    return 0;
+}
 
-int libc_init(void);
+int
+pash_module_system_request(struct pash *pash, char *args[])
+{
+    if ( NULL == args[2] ) {
+        printf("reset      Reset system\n");
+        printf("power-off  Power-off system\n");
+        return -1;
+    }
+    if ( 0 == strcmp("reset", args[2]) ) {
+        reboot(RB_AUTOBOOT);
+    } else if ( 0 == strcmp("power-off", args[2]) ) {
+        reboot(RB_HALT);
+    } else {
+        printf("reset      Reset system\n");
+        printf("power-off  Power-off system\n");
+        return -1;
+    }
+
+    return 0;
+}
+
+int
+pash_module_system_show(struct pash *pash, char *args[])
+{
+    printf("Displaying the running system information \n");
+    printf("pix version: %s\n", PIX_VERSION);
+
+    return 0;
+}
+
+static char *pash_module_system_name = "system";
+static struct pash_module_api pash_module_system_api = {
+    .clear = NULL,
+    .help = &pash_module_system_help,
+    .request = &pash_module_system_request,
+    .show = &pash_module_system_show,
+};
+
 
 /*
- * Entry point to a process
+ * Initialize
  */
-void
-entry(int argc, char *argv[])
+int
+pash_module_system_init(struct pash *pash)
 {
-    int ret;
-
-    /* Initialize libc */
-    ret = libc_init();
-    if ( ret < 0 ) {
-        exit(ret);
-        while ( 1 ) {}
-    }
-
-    /* Prepare stdio/stdout/stderr */
-    stdin = fdopen(STDIN_FILENO, "r");
-    if ( NULL == stdin ) {
-        exit(EXIT_FAILURE);
-    }
-    stdout = fdopen(STDOUT_FILENO, "a");
-    if ( NULL == stdout ) {
-        fclose(stdin);
-        exit(EXIT_FAILURE);
-    }
-    stderr = fdopen(STDERR_FILENO, "a");
-    if ( NULL == stderr ) {
-        fclose(stdin);
-        fclose(stdout);
-        exit(EXIT_FAILURE);
-    }
-
-    /* Execute the main routine */
-    ret = main(argc, argv);
-    exit(ret);
-
-    while ( 1 ) {}
+    return pash_register_module(pash, pash_module_system_name,
+                                &pash_module_system_api);
 }
-#endif
 
 /*
  * Local variables:

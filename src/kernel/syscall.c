@@ -24,6 +24,7 @@
 #include <aos/const.h>
 #include <unistd.h>
 #include <sys/syscall.h>
+#include <sys/reboot.h>
 #include <time.h>
 #include <machine/sysarch.h>
 #include <mki/driver.h>
@@ -988,6 +989,45 @@ sys_gettimeofday(struct timeval *__restrict__ tp, void *__restrict__ tzp)
 
     return 0;
 }
+
+/*
+ * Reboot system or halt processor
+ *
+ * SYNOPSIS
+ *      int
+ *      sys_reboot(int howto);
+ *
+ * DESCRIPTION
+ *      The sys_reboot() function reboots the system.
+ *
+ * RETURN VALUES
+ *      If successful, this system call never returns.  Otherwise, a -1 is
+ *      returned.
+ */
+u8 inb(u16);
+void outb(u16, u8);
+int acpi_poweroff(void *);
+int
+sys_reboot(int howto)
+{
+    if ( howto & RB_HALT ) {
+        /* Halt */
+        acpi_poweroff(NULL);
+    } else {
+        /* Reboot */
+        int c;
+        do {
+            c = inb(0x0064);
+            if ( 0 != (c & 1) ) {
+                (void)inb(0x0060);
+            }
+        } while ( 0 != (c & 2) );
+        outb(0x0064, 0xfe);
+    }
+
+    return -1;
+}
+
 
 /*
  * Sleep this exclusive processor

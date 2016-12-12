@@ -1,5 +1,5 @@
 /*_
- * Copyright (c) 2015-2016 Hirochika Asai <asai@jar.jp>
+ * Copyright (c) 2016 Hirochika Asai <asai@jar.jp>
  * All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -21,58 +21,16 @@
  * SOFTWARE.
  */
 
-#ifndef _STDIO_H
-#define _STDIO_H
+#ifndef _SYS_REBOOT_H
+#define _SYS_REBOOT_H
 
-#include <aos/types.h>
+#define RB_AUTOBOOT     0
+#define RB_HALT         0x008   /* don't reboot, just halt */
 
-#define EOF     -1
+/* Prototype declaration */
+int reboot(int);
 
-typedef struct {
-    /* File descriptor */
-    int fd;
-    /* Mode */
-    int mode;
-    /* Stream buffer */
-    struct {
-        char *buf;
-        size_t pos;
-        size_t sz;
-    } ibuf;
-    struct {
-        char *buf;
-        size_t pos;
-        size_t sz;
-    } obuf;
-    /* EOF */
-    int eof;
-    /* Error */
-    int error;
-} FILE;
-
-extern FILE *stdin;
-extern FILE *stdout;
-extern FILE *stderr;
-
-int snprintf(char *__restrict__, size_t, const char *__restrict__, ...);
-int fprintf(FILE * __restrict__, const char * __restrict__, ...);
-int printf(const char * __restrict__, ...);
-
-FILE * fdopen(int, const char *);
-int fclose(FILE *);
-int ferror(FILE *);
-void clearerr(FILE *);
-char * fgets(char * __restrict__, int size, FILE * __restrict__);
-int fgetc(FILE *);
-int getc(FILE *);
-int getchar(void);
-size_t fwrite(const void *__restrict__, size_t, size_t, FILE *__restrict__);
-int fputs(const char *__restrict__, FILE *__restrict__);
-int fputc(int, FILE *);
-int putc(int, FILE *);
-int putchar(int);
-
-#endif /* _STDIO_H */
+#endif /* _SYS_REBOOT_H */
 
 /*
  * Local variables:

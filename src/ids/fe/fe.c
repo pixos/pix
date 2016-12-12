@@ -327,7 +327,7 @@ fe_init_cpu(struct fe *fe)
     struct fe_task **tp;
 
     /* Load the CPU table through system call */
-    n = syscall(SYS_pix_cpu_table, SYSPIX_LDCTBL, &cputable);
+    n = pix_ldcpuconf(&cputable);
     if ( n < 0 ) {
         return -1;
     }

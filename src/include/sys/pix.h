@@ -29,13 +29,40 @@
 #include <sys/syscall.h>
 
 /* Must be consistent with MAX_PROCSSORS in kernel.h */
-#define PIX_MAX_CPU     256
+#define PIX_MAX_CPU             256
+
+#define PIX_PKT_SIZE            (10240 + 128)
+#define PIX_PKT_HDROFF          512
 
 #define SYSPIX_LDCTBL           1
 #define SYSPIX_STCTBL           2
 
 #define SYSPIX_CPU_TICKFUL      1
 #define SYSPIX_CPU_EXCLUSIVE    2
+
+/*
+ * Packet buffer header
+ */
+struct pix_pkt_buffer_hdr {
+    /* Pointer to the next packet buffer */
+    struct pix_pkt_buffer_hdr *next;
+    /* Physical address */
+    void *paddr;
+    /* Reference counter */
+    int refs;
+    /* Inheritted from fpp */
+    int port;
+} __attribute__ ((packed));
+
+/*
+ * Buffer pool
+ */
+struct pix_buffer_pool {
+    /* Linked list */
+    struct pix_pkt_buffer_hdr *head;
+    /* Offset to calculate the physical address from the virtual address */
+    uint64_t v2poff;
+};
 
 /*
  * CPU configuration
@@ -52,6 +79,11 @@ struct syspix_cpu_config {
 struct syspix_cpu_table {
     struct syspix_cpu_config cpus[PIX_MAX_CPU];
 };
+
+/* Prototype declarations */
+int pix_ldcpuconf(struct syspix_cpu_table *);
+struct pix_buffer_pool * pix_create_buffer_pool(size_t);
+void *pix_malloc(size_t);
 
 #endif /* _SYS_PIX_H */
 
