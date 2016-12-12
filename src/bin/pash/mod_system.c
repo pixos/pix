@@ -21,67 +21,48 @@
  * SOFTWARE.
  */
 
-#ifndef _PASH_H
-#define _PASH_H
+#include <stdio.h>
+#include "pash.h"
 
-#ifndef PIX_VERSION
-#define PIX_VERSION     "unknown"
-#endif
+int
+pash_module_system_help(struct pash *pash, char *args[])
+{
+    return 0;
+}
 
-#define PASH_MAX_ARGS   4096
+int
+pash_module_system_request(struct pash *pash, char *args[])
+{
+    return 0;
+}
 
-#include <stdlib.h>
+int
+pash_module_system_show(struct pash *pash, char *args[])
+{
+    printf("Displaying the running system information \n");
+    printf("pix version: %s\n", PIX_VERSION);
 
-struct pash;
+    return 0;
+}
 
-struct pash_module_func {
-    void (*func)(void);
-    char *desc;
+static char *pash_module_system_name = "system";
+static struct pash_module_api pash_module_system_api = {
+    .clear = NULL,
+    .help = &pash_module_system_help,
+    .request = &pash_module_system_request,
+    .show = &pash_module_system_show,
 };
-struct pash_module_api {
-    int (*clear)(struct pash *pash, char *args[]);
-    int (*help)(struct pash *pash, char *args[]);
-    int (*request)(struct pash *pash, char *args[]);
-    int (*show)(struct pash *pash, char *args[]);
-};
 
-struct pash_module {
-    char *name;
-    struct pash_module_api api;
-    /* Pointer to the next module */
-    struct pash_module *next;
-    /* Pointer to the next module used to partial command search */
-    struct pash_module *work_next;
-};
 
 /*
- * Command
+ * Initialize
  */
-enum pash_builtin_command {
-    PASH_BUILTIN_CLEAR,
-    PASH_BUILTIN_HELP,
-    PASH_BUILTIN_REQUEST,
-    PASH_BUILTIN_SHOW,
-};
-struct pash_command {
-    enum pash_builtin_command type;
-    char *name;
-    char *desc;
-    struct pash_command *work_next;
-};
-
-/*
- * pix advanced shell
- */
-struct pash {
-    struct pash_module *modules;
-};
-
-
-/* Prototype declaration */
-int pash_register_module(struct pash *, const char *, struct pash_module_api *);
-
-#endif /* _PASH_H */
+int
+pash_module_system_init(struct pash *pash)
+{
+    return pash_register_module(pash, pash_module_system_name,
+                                &pash_module_system_api);
+}
 
 /*
  * Local variables:

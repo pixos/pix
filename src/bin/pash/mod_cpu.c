@@ -87,6 +87,7 @@ static char *pash_module_cpu_name = "cpu";
 static struct pash_module_api pash_module_cpu_api = {
     .clear = NULL,
     .help = &pash_module_cpu_help,
+    .request = NULL,
     .show = &pash_module_cpu_show,
 };
 

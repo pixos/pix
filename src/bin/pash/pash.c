@@ -41,6 +41,11 @@ static struct pash_command pash_cmds[] = {
         .desc = "Display brief help information",
     },
     {
+        .type = PASH_BUILTIN_REQUEST,
+        .name = "request",
+        .desc = "Request to execute command",
+    },
+    {
         .type = PASH_BUILTIN_SHOW,
         .name = "show",
         .desc = "Display running system information",
@@ -186,6 +191,39 @@ pash_builtin_help(struct pash *pash, char *args[])
 }
 
 int
+pash_builtin_request(struct pash *pash, char *args[])
+{
+    const char *name;
+    struct pash_module *m;
+
+    /* Get the second argument for the module name */
+    name = args[1];
+
+    m = _search_candidate_module(pash, name);
+    if ( NULL == m ) {
+        fprintf(stderr, "pash: %s : module not found: %s\n", args[0], name);
+        return -1;
+    }
+    if ( NULL == m->work_next ) {
+        /* Matches then execute */
+        if ( NULL != m->api.request ) {
+            return m->api.request(pash, args);
+        } else {
+            fprintf(stderr, "pash: %s : module not found: %s\n", args[0], name);
+            return -1;
+        }
+    } else {
+        fprintf(stderr, "pash: %s : multiple modules match: %s\n", args[0],
+                name);
+        while ( NULL != m ) {
+            printf("%s\n", m->name);
+            m = m->work_next;
+        }
+        return -1;
+    }
+}
+
+int
 pash_builtin_show(struct pash *pash, char *args[])
 {
     const char *name;
@@ -272,6 +310,8 @@ pash_execute(struct pash *pash, const char *cmd)
         /* Single candidate found */
         if ( 0 == strcmp("help", c->name) ) {
             ret = pash_builtin_help(pash, args);
+        } else if ( 0 == strcmp("request", c->name) ) {
+            ret = pash_builtin_request(pash, args);
         } else if ( 0 == strcmp("show", c->name) ) {
             ret = pash_builtin_show(pash, args);
         } else {
@@ -296,6 +336,7 @@ pash_execute(struct pash *pash, const char *cmd)
 /* Modules */
 int pash_module_clock_init(struct pash *);
 int pash_module_cpu_init(struct pash *);
+int pash_module_system_init(struct pash *);
 
 /*
  * Entry point for pash
@@ -321,7 +362,7 @@ main(int argc, char *argv[])
     /* Load modules (but currently not loadable...) */
     pash_module_clock_init(pash);
     pash_module_cpu_init(pash);
-
+    pash_module_system_init(pash);
 
     putchar('>');
     putchar(' ');

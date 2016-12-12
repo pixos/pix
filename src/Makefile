@@ -122,7 +122,8 @@ tty: drivers/tty/tty.o drivers/tty/console.o drivers/tty/kbd.o \
 	$(LD) -T app.ld -o $@ $^
 
 ## shell
-pash: bin/pash/pash.o bin/pash/mod_cpu.o bin/pash/mod_clock.o $(LIBCOBJS)
+pash: bin/pash/pash.o bin/pash/mod_cpu.o bin/pash/mod_clock.o \
+	bin/pash/mod_system.o $(LIBCOBJS)
 	$(LD) -T app.ld -o $@ $^
 
 ## PCI driver
