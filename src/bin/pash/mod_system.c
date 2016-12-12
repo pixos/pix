@@ -22,6 +22,8 @@
  */
 
 #include <stdio.h>
+#include <string.h>
+#include <sys/reboot.h>
 #include "pash.h"
 
 int
@@ -33,6 +35,21 @@ pash_module_system_help(struct pash *pash, char *args[])
 int
 pash_module_system_request(struct pash *pash, char *args[])
 {
+    if ( NULL == args[2] ) {
+        printf("reset      Reset system\n");
+        printf("power-off  Power-off system\n");
+        return -1;
+    }
+    if ( 0 == strcmp("reset", args[2]) ) {
+        reboot(RB_AUTOBOOT);
+    } else if ( 0 == strcmp("power-off", args[2]) ) {
+        reboot(RB_HALT);
+    } else {
+        printf("reset      Reset system\n");
+        printf("power-off  Power-off system\n");
+        return -1;
+    }
+
     return 0;
 }
 

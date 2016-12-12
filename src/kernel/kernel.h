@@ -824,6 +824,7 @@ uid_t sys_getuid(void);
 int sys_kill(pid_t, int);
 pid_t sys_getppid(void);
 gid_t sys_getgid(void);
+int sys_reboot(int);
 int sys_execve(const char *, char *const [], char *const []);
 void * sys_mmap(void *, size_t, int, int, int, off_t);
 int sys_munmap(void *, size_t);

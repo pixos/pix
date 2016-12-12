@@ -453,6 +453,26 @@ atoi(const char *str)
 }
 
 /*
+ * Reboot system or halt processor
+ *
+ * SYNOPSIS
+ *      int
+ *      reboot(int howto);
+ *
+ * DESCRIPTION
+ *      The reboot() function reboots the system.
+ *
+ * RETURN VALUES
+ *      If successful, this system call never returns.  Otherwise, a -1 is
+ *      returned.
+ */
+int
+reboot(int howto)
+{
+    return syscall(SYS_reboot, howto);
+}
+
+/*
  * Architecture-specific system call
  *
  * SYNOPSIS
