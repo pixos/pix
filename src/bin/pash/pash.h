@@ -21,33 +21,65 @@
  * SOFTWARE.
  */
 
-#ifndef _TIME_H
-#define _TIME_H
+#ifndef _PASH_H
+#define _PASH_H
 
-#include <sys/types.h>
+#ifndef PIX_VERSION
+#define PIX_VERSION     "unknown"
+#endif
 
-struct timespec {
-    time_t tv_sec;
-    long tv_nsec;
+#define PASH_MAX_ARGS   4096
+
+#include <stdlib.h>
+
+struct pash;
+
+struct pash_module_func {
+    void (*func)(void);
+    char *desc;
+};
+struct pash_module_api {
+    int (*clear)(struct pash *pash, char *args[]);
+    int (*help)(struct pash *pash, char *args[]);
+    int (*show)(struct pash *pash, char *args[]);
 };
 
-struct tm {
-    int tm_sec;     /* seconds (0 - 60) */
-    int tm_min;     /* minutes (0 - 59) */
-    int tm_hour;    /* hours (0 - 23) */
-    int tm_mday;    /* day of month (1 - 31) */
-    int tm_mon;     /* month of year (0 - 11) */
-    int tm_year;    /* year - 1900 */
-    int tm_wday;    /* day of week (Sunday = 0) */
-    int tm_yday;    /* day of year (0 - 365) */
-    int tm_isdst;   /* is summer time in effect? */
-    char *tm_zone;  /* abbreviation of timezone name */
-    long tm_gmtoff; /* offset from UTC in seconds */
+struct pash_module {
+    char *name;
+    struct pash_module_api api;
+    /* Pointer to the next module */
+    struct pash_module *next;
+    /* Pointer to the next module used to partial command search */
+    struct pash_module *work_next;
 };
 
-int nanosleep(const struct timespec *, struct timespec *);
+/*
+ * Command
+ */
+enum pash_builtin_command {
+    PASH_BUILTIN_CLEAR,
+    PASH_BUILTIN_HELP,
+    PASH_BUILTIN_SHOW,
+};
+struct pash_command {
+    enum pash_builtin_command type;
+    char *name;
+    char *desc;
+    struct pash_command *work_next;
+};
 
-#endif /* _TIME_H */
+/*
+ * pix advanced shell
+ */
+struct pash {
+    struct pash_module *modules;
+};
+
+
+/* Prototype declaration */
+int pash_register_module(struct pash *, const char *, struct pash_module_api *);
+
+#endif /* _PASH_H */
 
 /*
  * Local variables:
